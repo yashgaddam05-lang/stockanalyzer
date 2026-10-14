@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Search, Star, X, ArrowUpDown, Activity, TrendingUp,
+  Search, Star, X, ArrowUpDown, Activity, TrendingUp, RefreshCw, Check, AlertCircle,
 } from 'lucide-react';
 
 type SortKey = 'three_x_score' | 'revenue_growth_yoy' | 'momentum_score' | 'volatility' | 'market_cap';
@@ -37,6 +37,9 @@ export default function App() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const fetchStocks = useCallback(async () => {
     setLoading(true);
@@ -62,6 +65,34 @@ export default function App() {
     fetchStocks();
     fetchWatchlist();
   }, [fetchStocks, fetchWatchlist]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/refresh-stocks`;
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      };
+      const resp = await fetch(url, { method: 'POST', headers });
+      if (!resp.ok) throw new Error(`Refresh failed (${resp.status})`);
+      const data = await resp.json();
+      const updated = data.updated ?? 0;
+      const total = data.total ?? 0;
+      if (updated === 0 && total > 0) {
+        setRefreshMsg({ type: 'error', text: 'Yahoo Finance did not return any data. Try again later.' });
+      } else {
+        setRefreshMsg({ type: 'success', text: `Updated ${updated} of ${total} stocks with live market data.` });
+        setLastRefreshed(new Date());
+        await fetchStocks();
+      }
+    } catch {
+      setRefreshMsg({ type: 'error', text: 'Could not reach the refresh service. Please try again.' });
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setRefreshMsg(null), 6000);
+    }
+  }, [fetchStocks]);
 
   const toggleWatchlist = useCallback(async (ticker: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -151,36 +182,79 @@ export default function App() {
                 <p className="text-[11px] text-muted-foreground hidden sm:block -mt-0.5">Opportunity Scanner</p>
               </div>
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={showWatchlistOnly ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setShowWatchlistOnly((v) => !v)}
-                    className="gap-2 h-8 text-[13px]"
-                  >
-                    <Star className={`w-3.5 h-3.5 ${showWatchlistOnly ? 'fill-white' : ''}`} />
-                    <span className="hidden sm:inline">Watchlist</span>
-                    <span className="text-xs text-muted-foreground">{watchlist.size}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{showWatchlistOnly ? 'Showing watchlist only' : 'Show all stocks'}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefresh}
+                      disabled={refreshing}
+                      className="gap-2 h-8 text-[13px]"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                      <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Pull live prices, momentum, and volatility from Yahoo Finance</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={showWatchlistOnly ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setShowWatchlistOnly((v) => !v)}
+                      className="gap-2 h-8 text-[13px]"
+                    >
+                      <Star className={`w-3.5 h-3.5 ${showWatchlistOnly ? 'fill-white' : ''}`} />
+                      <span className="hidden sm:inline">Watchlist</span>
+                      <span className="text-xs text-muted-foreground">{watchlist.size}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{showWatchlistOnly ? 'Showing watchlist only' : 'Show all stocks'}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </header>
 
         <main className="mx-auto px-6 sm:px-8 py-8 space-y-8 max-w-6xl">
           {/* Hero */}
-          <div className="space-y-2 pt-4">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
-              Find stocks with 3x return potential
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-xl">
-              A heuristic scanner that evaluates growth, momentum, innovation, and financial health across biotech, tech, and emerging sectors.
-            </p>
+          <div className="flex items-end justify-between gap-4 pt-4">
+            <div className="space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
+                Find stocks with 3x return potential
+              </h2>
+              <p className="text-sm text-muted-foreground max-w-xl">
+                A heuristic scanner that evaluates growth, momentum, innovation, and financial health across biotech, tech, and emerging sectors.
+              </p>
+            </div>
+            {lastRefreshed && (
+              <span className="text-[11px] text-muted-foreground/60 hidden sm:block whitespace-nowrap pb-1">
+                Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
+
+          {/* Refresh status */}
+          {refreshMsg && (
+            <div
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] animate-fade-in ${
+                refreshMsg.type === 'success'
+                  ? 'bg-neutral-100 text-neutral-700 border border-neutral-200'
+                  : 'bg-neutral-100 text-neutral-700 border border-neutral-300'
+              }`}
+            >
+              {refreshMsg.type === 'success'
+                ? <Check className="w-4 h-4 text-neutral-900" />
+                : <AlertCircle className="w-4 h-4 text-neutral-900" />
+              }
+              {refreshMsg.text}
+            </div>
+          )}
 
           {/* Stats Overview */}
           {!loading && !error && <StatsOverview stocks={stocks} watchlistCount={watchlist.size} />}
