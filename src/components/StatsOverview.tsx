@@ -1,19 +1,18 @@
 import { useMemo } from 'react';
-import type { Stock } from '@/lib/supabase';
-import { analyzeStock } from '@/lib/analysis';
+import type { AnalyzedStock } from '@/lib/analysis';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { TrendingUp, Target, AlertTriangle, PieChart } from 'lucide-react';
 
-export function StatsOverview({ stocks, watchlistCount }: { stocks: Stock[]; watchlistCount: number }) {
+export function StatsOverview({ analyzed, watchlistCount }: { analyzed: AnalyzedStock[]; watchlistCount: number }) {
+  const stocks = useMemo(() => analyzed.map((a) => a.stock), [analyzed]);
   const stats = useMemo(() => {
-    const analyses = stocks.map((s) => ({ stock: s, analysis: analyzeStock(s) }));
+    const analyses = analyzed;
     const topPick = analyses.reduce((best, curr) => (curr.analysis.totalScore > best.analysis.totalScore ? curr : best));
     const avgScore = Math.round(analyses.reduce((sum, a) => sum + a.analysis.totalScore, 0) / analyses.length);
-    const strongCandidates = analyses.filter((a) => a.analysis.totalScore >= 75).length;
-    const extremeRiskCount = stocks.filter((s) => s.risk_level === 'extreme').length;
+    const strongCandidates = analyses.filter((a) => a.analysis.totalScore >= 70).length;
+    const extremeRiskCount = analyses.filter((a) => a.analysis.risk.band === 'Extreme').length;
 
     const sectorMap = new Map<string, { count: number; avgScore: number }>();
     for (const { stock, analysis } of analyses) {
@@ -27,7 +26,7 @@ export function StatsOverview({ stocks, watchlistCount }: { stocks: Stock[]; wat
       .sort((a, b) => b.avgScore - a.avgScore);
 
     return { topPick, avgScore, strongCandidates, extremeRiskCount, sectors };
-  }, [stocks]);
+  }, [analyzed]);
 
   return (
     <div className="space-y-4">
@@ -65,14 +64,14 @@ export function StatsOverview({ stocks, watchlistCount }: { stocks: Stock[]; wat
             <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Strong 3x</span>
           </div>
           <p className="text-2xl font-bold text-neutral-900 tracking-tight">{stats.strongCandidates}</p>
-          <p className="text-[12px] text-muted-foreground mt-1">Scored 75 or above</p>
+          <p className="text-[12px] text-muted-foreground mt-1">Scored 70 or above</p>
         </Card>
 
         {/* Extreme Risk */}
         <Card className="p-5 border-border animate-slide-up">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-3.5 h-3.5 text-neutral-400" />
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">High Risk</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Extreme Risk</span>
           </div>
           <p className="text-2xl font-bold text-neutral-900 tracking-tight">{stats.extremeRiskCount}</p>
           <p className="text-[12px] text-muted-foreground mt-1">

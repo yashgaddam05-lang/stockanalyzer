@@ -25,10 +25,29 @@ export interface Stock {
   risk_level: 'low' | 'medium' | 'high' | 'extreme';
   thesis: string;
   updated_at: string;
+  forward_pe?: number | null;
+  price_to_sales?: number | null;
+  target_price?: number | null;
 }
 
-export interface WatchlistEntry {
+export interface Watchlist {
   id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface WatchlistItem {
+  id: string;
+  watchlist_id: string;
   ticker: string;
+  note: string;
+  tags: string[];
   added_at: string;
+}
+
+export interface ScoreSnapshot {
+  ticker: string;
+  score: number;
+  risk_score: number;
+  snapshot_date: string;
 }

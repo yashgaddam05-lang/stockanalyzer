@@ -1,7 +1,7 @@
 # 3x Hunter — Project Progress Tracker
 
 **Last updated:** 2026-10-14
-**Current phase:** Phase 1 MVP (subset) — ~30% complete
+**Current phase:** Phase 1 MVP (subset) — ~45% complete
 **Scope reference:** `3x_hunter_app_scope.md` (attached)
 
 ---
@@ -255,16 +255,16 @@ These items need no new external data or infrastructure. Mostly frontend, schema
 
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
-| 1 | Multi-page navigation and layout shell | - [ ] | Medium | Add routing, nav bar, separate pages for Dashboard, Explore, Stock Detail |
-| 2 | Dedicated stock detail page (replace modal) | - [ ] | Small | Move modal content to full page with clean URL |
-| 3 | Expand scoring from 6 to 8 dimensions | - [ ] | Medium | Add Valuation Upside + Market Position, remove Innovation & Pipeline, align weights to document |
-| 4 | Independent risk score (0–100) | - [ ] | Small | Calculate from existing fields: volatility, beta, debt-to-equity, cash runway, market cap |
-| 5 | Bull case / bear case / neutral case | - [ ] | Small | Expand existing catalysts/risks into three structured cases |
-| 6 | Preset screens | - [ ] | Small | Add preset filter buttons: highest 3x, best risk-adjusted, most undervalued, etc. |
-| 7 | Named watchlists with notes and tags | - [ ] | Medium | New tables: watchlists, watchlist_items. Per-stock notes. |
-| 8 | Score-change tracking | - [ ] | Small | Store previous score, show delta on cards and detail page |
-| 9 | Expand stock universe (24 → 100+) | - [ ] | Small | Insert more seed data into existing stocks table |
-| 10 | Disclaimer and compliance text | - [ ] | Small | Methodology page, proper disclaimers, data-source attribution |
+| 1 | Multi-page navigation and layout shell | - [x] | Medium | Add routing, nav bar, separate pages for Dashboard, Explore, Stock Detail |
+| 2 | Dedicated stock detail page (replace modal) | - [x] | Small | Move modal content to full page with clean URL |
+| 3 | Expand scoring from 6 to 8 dimensions | - [x] | Medium | Add Valuation Upside + Market Position, remove Innovation & Pipeline, align weights to document |
+| 4 | Independent risk score (0–100) | - [x] | Small | Calculate from existing fields: volatility, beta, debt-to-equity, cash runway, market cap |
+| 5 | Bull case / bear case / neutral case | - [x] | Small | Expand existing catalysts/risks into three structured cases |
+| 6 | Preset screens | - [x] | Small | Add preset filter buttons: highest 3x, best risk-adjusted, most undervalued, etc. |
+| 7 | Named watchlists with notes and tags | - [x] | Medium | New tables: watchlists, watchlist_items. Per-stock notes. |
+| 8 | Score-change tracking | - [x] | Small | Store previous score, show delta on cards and detail page |
+| 9 | Expand stock universe (24 → 100+) | - [x] | Small | Insert more seed data into existing stocks table |
+| 10 | Disclaimer and compliance text | - [x] | Small | Methodology page, proper disclaimers, data-source attribution |
 
 ## 10. Roadmap — Medium Difficulty
 
@@ -313,7 +313,18 @@ Running log of what was done in each build session.
 - Single-page app with header, hero, stats overview, filters, stock grid, detail modal
 - Watchlist add/remove functionality
 
-### Session 2 — 2026-10-14 (this session)
+### Session 3 — 2026-10-14 (branch `low-hanging-fruit`)
+- All 10 low-hanging-fruit items done: React Router pages (Dashboard, Explore, Stock Detail `/stock/:ticker`, Watchlists, Methodology)
+- Scoring moved to the 8 document dimensions and weights; Innovation & Pipeline removed (feeds Growth/Catalysts)
+- Independent 0-100 risk score, bull/base/bear cases, "what must happen for 3x", invalidation signals
+- 8 preset screens, Top 10/25/100, market-cap and profitability filters, table view
+- New tables: watchlists, watchlist_items (notes, tags), score_history (daily snapshots -> score deltas)
+- New stock columns: forward_pe, price_to_sales, target_price (filled by refresh-stocks)
+- Universe expanded 24 -> 105 (migration 20261014200100)
+- refresh-stocks: stores valuation fields, fixes revenueGrowth fallback bug, parallel batches of 5
+- PENDING IN BOLT: apply the 2 new migrations and redeploy refresh-stocks
+
+### Session 2 — 2026-10-14
 - Created PROGRESS.md tracking document
 - Assessed current state against full scope document
 - Identified low-hanging fruit, medium, and tough roadmap items
@@ -326,5 +337,4 @@ Running log of what was done in each build session.
 - **Supabase URL:** configured in `.env` (project: irbwaucilrznbqynhtmr)
 - **Supabase Anon Key:** configured in `.env`
 - **Edge function deployed:** `refresh-stocks` (Yahoo Finance integration)
-- **No git repository** — not under version control
-- **No GitHub remote** — not pushed to any remote
+- **GitHub:** synced to yashgaddam05-lang/stockanalyzer (main); feature work on branches

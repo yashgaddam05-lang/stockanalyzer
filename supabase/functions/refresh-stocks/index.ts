@@ -17,6 +17,7 @@ interface QuoteSummary {
   revenue?: number;
   revenueGrowth?: number;
   earningsGrowth?: number;
+  targetMeanPrice?: number;
 }
 
 interface ChartCandle {
@@ -105,8 +106,9 @@ async function fetchQuoteSummary(ticker: string): Promise<QuoteSummary> {
       totalCash: getNum(financial, "totalCash"),
       totalDebt: getNum(financial, "totalDebt"),
       revenue: getNum(financial, "totalRevenue"),
-      revenueGrowth: getNum(financial, "revenueGrowth", "earningsGrowth"),
+      revenueGrowth: getNum(financial, "revenueGrowth"),
       earningsGrowth: getNum(financial, "earningsGrowth"),
+      targetMeanPrice: getNum(financial, "targetMeanPrice"),
     };
   } catch {
     return {};
@@ -136,7 +138,7 @@ Deno.serve(async (req: Request) => {
 
     const results: { ticker: string; status: string; price?: number }[] = [];
 
-    for (const stock of stocks) {
+    const refreshOne = async (stock: { id: string; ticker: string }) => {
       try {
         const { closes, currentPrice } = await fetchChart(stock.ticker);
         const summary = await fetchQuoteSummary(stock.ticker);
@@ -156,6 +158,11 @@ Deno.serve(async (req: Request) => {
         if (summary.debtToEquity !== undefined) update.debt_to_equity = Math.round((summary.debtToEquity / 100) * 100) / 100;
         if (summary.revenueGrowth !== undefined) update.revenue_growth_yoy = Math.round(summary.revenueGrowth * 10000) / 100;
         if (summary.earningsGrowth !== undefined) update.earnings_growth_yoy = Math.round(summary.earningsGrowth * 10000) / 100;
+        if (summary.forwardPE !== undefined && summary.forwardPE > 0) update.forward_pe = Math.round(summary.forwardPE * 100) / 100;
+        if (summary.targetMeanPrice !== undefined && summary.targetMeanPrice > 0) update.target_price = Math.round(summary.targetMeanPrice * 100) / 100;
+        if (summary.marketCap && summary.revenue && summary.revenue > 0) {
+          update.price_to_sales = Math.round((summary.marketCap / summary.revenue) * 100) / 100;
+        }
 
         const { error: updateError } = await supabase
           .from("stocks")
@@ -170,8 +177,14 @@ Deno.serve(async (req: Request) => {
       } catch (err) {
         results.push({ ticker: stock.ticker, status: `error: ${err.message}` });
       }
+    };
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+    // Small parallel batches keep 100+ tickers inside the edge function time limit
+    // without hammering Yahoo Finance.
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < stocks.length; i += BATCH_SIZE) {
+      await Promise.all(stocks.slice(i, i + BATCH_SIZE).map(refreshOne));
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     const succeeded = results.filter((r) => r.status === "ok").length;
