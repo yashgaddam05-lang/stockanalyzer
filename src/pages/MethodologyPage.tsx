@@ -1,29 +1,249 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
+import { DimensionTable } from '@/components/methodology/DimensionTable';
+import { Disclaimer } from '@/components/methodology/Disclaimer';
+import { MethodologyToc, type TocItem } from '@/components/methodology/MethodologyToc';
+import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type RiskLabel } from '@/lib/scoring';
+
+const SECTIONS: TocItem[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'dimensions', label: 'Score dimensions' },
+  { id: 'risk', label: 'Risk score' },
+  { id: 'cases', label: 'Bull, neutral and bear cases' },
+  { id: 'presets', label: 'Preset screens' },
+  { id: 'data', label: 'Data and limitations' },
+  { id: 'disclaimer', label: 'Disclaimer' },
+];
+
+const RISK_INPUTS = [
+  'Annualized volatility',
+  'Beta',
+  'Debt/equity',
+  'Cash runway (months)',
+  'Market cap (log scale, smaller is riskier)',
+  'Net profit margin (falls back to earnings growth direction)',
+];
+
+/** Derive risk bands from riskLabelFor so the page never drifts from the code. */
+function riskBands(): { label: RiskLabel; min: number; max: number }[] {
+  const bands: { label: RiskLabel; min: number; max: number }[] = [];
+  for (let s = 0; s <= 100; s++) {
+    const label = riskLabelFor(s);
+    const last = bands[bands.length - 1];
+    if (last && last.label === label) last.max = s;
+    else bands.push({ label, min: s, max: s });
+  }
+  return bands;
+}
+
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section id={id} className="scroll-mt-24 space-y-4">
+      <h2 className="text-lg font-semibold tracking-tight text-neutral-900">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+const P = ({ children }: { children: ReactNode }) => <p className="text-sm leading-relaxed text-neutral-700">{children}</p>;
 
 export default function MethodologyPage() {
+  const { hash } = useLocation();
+  const [activeId, setActiveId] = useState<string | undefined>(SECTIONS[0].id);
+
+  // React Router does not scroll to hash targets on client-side navigation (footer link).
+  useEffect(() => {
+    if (!hash) return;
+    const el = document.getElementById(decodeURIComponent(hash.slice(1)));
+    if (el) {
+      requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }));
+      setActiveId(el.id);
+    }
+  }, [hash]);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        // At the page bottom the last short section can never reach the top band; select it explicitly.
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+          setActiveId(SECTIONS[SECTIONS.length - 1].id);
+          return;
+        }
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: '-96px 0px -60% 0px' },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, []);
+
+  const unavailable = DIMENSIONS.filter((d) => d.inputs.length === 0);
+  const unavailableWeight = unavailable.reduce((a, d) => a + d.weight, 0);
+  const totalWeight = DIMENSIONS.reduce((a, d) => a + d.weight, 0);
+  const bands = riskBands();
+
   return (
     <div className="space-y-8">
       <div className="space-y-2 pt-2">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Methodology</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          The 3x Opportunity Score is a 0-100 heuristic that combines revenue growth, momentum, innovation (R&amp;D
-          intensity and pipeline), and financial health (debt, cash runway, volatility). Higher scores indicate a
-          stronger fit for the model, not a guaranteed outcome.
+          How the 3x Opportunity Score, risk score and scenario cases are calculated. Model {MODEL_VERSION}.
         </p>
       </div>
 
-      <section id="disclaimer" className="scroll-mt-24">
-        <Card className="space-y-3 p-6">
-          <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Disclaimer</h2>
-          <p className="text-sm text-neutral-700">
-            Educational research tool. Not investment advice. Scores are model outputs and may be wrong.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Market data comes from Yahoo Finance unofficial endpoints and is refreshed on demand. Rows marked Seed are
-            approximate placeholders. Always do your own research before making any investment decision.
-          </p>
-        </Card>
-      </section>
+      <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-12">
+        <aside className="hidden lg:block">
+          <MethodologyToc items={SECTIONS} activeId={activeId} />
+        </aside>
+
+        <div className="max-w-3xl space-y-12">
+          <Section id="overview" title="Overview">
+            <P>
+              The 3x Opportunity Score is a 0-100 heuristic that estimates how well a stock fits the profile of companies
+              that have historically had room for a large move: strong growth, reasonable valuation, positive momentum,
+              solid fundamentals and identifiable catalysts. It combines {DIMENSIONS.length} weighted dimensions into a
+              single number.
+            </P>
+            <P>
+              3x Hunter is an educational research tool. A higher score means a stronger fit for the model, not a
+              prediction that the price will triple and not a recommendation to act. The score is deterministic: the same
+              inputs always produce the same output, and missing inputs are never fabricated.
+            </P>
+          </Section>
+
+          <Section id="dimensions" title="Score dimensions">
+            <P>
+              Each dimension is scored 0-100 from the inputs listed below, then combined using the weights shown. The
+              total is the weighted average of the dimensions that have data.
+            </P>
+            <DimensionTable />
+            <P>
+              {unavailable.length > 0 && (
+                <>
+                  {unavailable.map((d) => d.label).join(', ')} ({unavailableWeight}% of {totalWeight}%) is currently
+                  unavailable.{' '}
+                </>
+              )}
+              When a dimension has no usable inputs for a stock it is left unscored and its weight is re-normalized
+              across the remaining dimensions, so the total stays on a 0-100 scale.
+            </P>
+            <Card className="space-y-2 p-5">
+              <h3 className="text-sm font-semibold text-neutral-900">Confidence</h3>
+              <P>
+                Confidence reflects how much of the total weight is backed by data for a given stock: high when at least
+                85% of weight has data, medium from 65% to below 85%, and low below 65%. Low-confidence scores rest on
+                fewer inputs and deserve more skepticism.
+              </P>
+            </Card>
+          </Section>
+
+          <Section id="risk" title="Risk score">
+            <P>
+              The risk score is a separate 0-100 measure where higher means riskier. It is not the inverse of the
+              opportunity score: a stock can rank high on opportunity and high on risk at the same time.
+            </P>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {bands.map((b) => (
+                <div key={b.label} className="rounded-lg border border-border p-3">
+                  <p className="text-[12px] font-medium capitalize text-neutral-900">{b.label}</p>
+                  <p className="text-[12px] tabular-nums text-muted-foreground">
+                    {b.min}-{b.max}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-neutral-900">Inputs</p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+                {RISK_INPUTS.map((i) => (
+                  <li key={i}>{i}</li>
+                ))}
+              </ul>
+            </div>
+            <P>
+              Inputs are weighted and averaged over whichever are available. With no risk inputs at all the score
+              defaults to a neutral 50. The detail view also lists invalidation signals: observable conditions, such as
+              decelerating revenue growth or a break below the 52-week low, that would weaken the opportunity thesis.
+            </P>
+          </Section>
+
+          <Section id="cases" title="Bull, neutral and bear cases">
+            <P>
+              Cases are generated only from metrics the stock actually has. They describe scenarios and never recommend
+              an action.
+            </P>
+            <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-700">
+              <li>
+                <span className="font-medium text-neutral-900">Bull case:</span> built from the strongest dimensions
+                (scores of 60 or more), plus a revenue-tripling estimate when growth exceeds 30% and the analyst mean
+                target when it sits above the current price.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Neutral case:</span> assumes the stock tracks its current
+                score and risk profile, citing middling dimensions (45 to 59), dimensions not yet scored and model
+                confidence.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Bear case:</span> built from the weakest dimensions
+                (below 45) and the main risk-score drivers.
+              </li>
+            </ul>
+          </Section>
+
+          <Section id="presets" title="Preset screens">
+            <P>Preset screens are fixed filter and sort rules applied to scored stocks on the Explore page.</P>
+            <dl className="divide-y divide-border rounded-xl border border-border">
+              {PRESET_SCREENS.map((p) => (
+                <div key={p.id} className="grid gap-1 px-4 py-3 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-4">
+                  <dt className="text-sm font-medium text-neutral-900">{p.label}</dt>
+                  <dd className="text-sm text-muted-foreground">{p.description}</dd>
+                </div>
+              ))}
+            </dl>
+          </Section>
+
+          <Section id="data" title="Data and limitations">
+            <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-700">
+              <li>
+                <span className="font-medium text-neutral-900">Source:</span> Yahoo Finance unofficial endpoints, fetched
+                server-side by a Supabase Edge Function. These endpoints are undocumented and can change or fail without
+                notice.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Refresh cadence:</span> on demand. Data is only as fresh as
+                the last refresh and may be delayed.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Seed data:</span> rows not yet refreshed from Yahoo Finance
+                are approximate placeholder values entered at setup. They are marked with a{' '}
+                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-800">
+                  Seed
+                </span>{' '}
+                badge and should not be relied on.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Known gaps:</span> market regime is not yet scored; the
+                catalyst dimension is a proxy from pipeline count and R&amp;D intensity because there is no dated catalyst
+                calendar yet; valuation inputs may be missing for unprofitable or thinly covered companies; the stock
+                universe is limited.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Model version:</span> {MODEL_VERSION}
+              </li>
+            </ul>
+          </Section>
+
+          <Section id="disclaimer" title="Disclaimer">
+            <Disclaimer />
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }
