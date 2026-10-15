@@ -1,13 +1,14 @@
 export const meta = {
   name: 'roadmap-swarm',
   description: 'Release the 3x Hunter engineering swarm on roadmap items: plan, build in parallel worktrees, review, integrate, QA',
-  whenToUse: 'Pass args: { items: ["1", "2", "Multi-page navigation"], fixRounds?: 2 }. Items are PROGRESS.md roadmap numbers or free text.',
+  whenToUse: 'Pass args: { items: ["1", "2", "Multi-page navigation"], fixRounds?: 2, autoShip?: true, context?: "extra guidance" }. Items are PROGRESS.md roadmap numbers or free text.',
   phases: [
     { title: 'Plan', detail: 'swarm-lead splits items into conflict-free work packages and waves' },
     { title: 'Build', detail: 'one role agent per package, isolated git worktree each' },
     { title: 'Review', detail: 'swarm-reviewer on each branch, owner fixes until approved' },
     { title: 'Integrate', detail: 'merge approved branches into one integration branch' },
     { title: 'QA', detail: 'swarm-qa gate: SHIP or BLOCK' },
+    { title: 'Ship', detail: 'autoShip: merge to main, deploy, smoke test, rollback on failure' },
   ],
 }
 
@@ -74,6 +75,7 @@ const QA = {
 phase('Plan')
 const plan = await agent(
   `Plan work packages for these roadmap items: ${JSON.stringify(items)}.
+${args?.context ?? ''}
 Packages in the same wave must not share any file. Contracts (types, migrations, endpoint shapes) go in earlier waves.`,
   { agentType: 'swarm-lead', schema: PLAN, label: 'lead:plan' })
 log(`${plan.waves.length} wave(s), ${plan.waves.flat().length} package(s). ${plan.notes ?? ''}`)
@@ -88,7 +90,7 @@ for (let w = 0; w < plan.waves.length; w++) {
     wave,
     pkg => agent(
       `Work package "${pkg.id}" (wave ${w + 1}).
-Start by running: git checkout -b swarm/${pkg.id} ${base}
+Start by running: git checkout -b swarm/${pkg.id} ${base} && npm ci --silent
 Spec: ${pkg.spec}
 You may ONLY touch: ${pkg.files.join(', ')}
 Acceptance: ${pkg.acceptance.map(a => '- ' + a).join('\n')}
@@ -133,7 +135,23 @@ const qa = await agent(
   `Check out swarm/integration and verify against these acceptance criteria:\n${approved.flatMap(r => r.pkg.acceptance.map(a => `[${r.pkg.id}] ${a}`)).join('\n')}`,
   { agentType: 'swarm-qa', schema: QA, label: 'qa:gate' })
 
+let ship = 'not shipped'
+if (qa.verdict === 'SHIP' && args?.autoShip) {
+  phase('Ship')
+  ship = await agent(
+    `QA passed. Ship swarm/integration to production:
+1. git checkout main && git pull && git merge --no-ff swarm/integration -m "Ship roadmap: ${items.join(', ')}" (commit author must be yashgaddam05@gmail.com; repo-local config already set).
+2. npm ci && npm run build && npm run typecheck must pass, else abort and report.
+3. git push origin main.
+4. Git-triggered Vercel builds are unreliable for this project, so also run: vercel deploy --prod --yes --scope bolot1 (from the repo root).
+5. Smoke test the new deployment URL: vercel curl /api/stocks --deployment <url> --yes must return a JSON array; check vercel logs --scope bolot1 --project stockanalyzer for new errors.
+6. If the smoke test fails, roll back with: vercel rollback --scope bolot1 --yes and report.
+Return the deployment URL and smoke-test results.`,
+    { agentType: 'swarm-devops', label: 'devops:ship' })
+}
+
 return {
+  ship,
   verdict: qa.verdict,
   defects: qa.defects,
   shipped: approved.map(r => ({ id: r.pkg.id, title: r.pkg.title, branch: r.built.branch, summary: r.built.summary, blocked: r.built.blocked })),
