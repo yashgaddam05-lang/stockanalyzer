@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { AlertCircle, Check, Menu, RefreshCw, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AccountMenu } from '@/components/auth/AccountMenu';
 import { useStocks } from '@/components/data/StocksProvider';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/explore', label: 'Explore', end: false },
   { to: '/watchlists', label: 'Watchlists', end: false },
+  { to: '/catalysts', label: 'Catalysts', end: false },
   { to: '/methodology', label: 'Methodology', end: false },
 ];
 
@@ -91,6 +93,7 @@ export function NavBar() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
+          <AccountMenu />
           <Button
             variant="ghost"
             size="sm"
