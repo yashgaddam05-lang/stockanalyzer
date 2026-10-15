@@ -18,7 +18,7 @@ export interface Stock {
   risk_level: 'low' | 'medium' | 'high' | 'extreme';
   thesis: string;
   updated_at: string;
-  // Added by 20261015120000_scoring_inputs_and_score_history.sql.
+  // Added by 20261015191519_scoring_inputs_and_score_history.sql.
   // Optional because the live DB may not have the migration applied yet.
   industry?: string | null;
   forward_pe?: number | null;

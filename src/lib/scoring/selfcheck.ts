@@ -1,7 +1,7 @@
 /**
  * Self-check for model v2 on three seeded tickers (values copied from
  * supabase/migrations/20261012191154_create_stocks_and_watchlist.sql and the
- * backfill in 20261015120200_expand_universe_seed.sql).
+ * backfill in 20261015192133_expand_universe_seed.sql).
  *
  *   ticker  v1 total  v2 total  confidence (avail wt)  risk v2
  *   NVDA    81        75        high (95)             20 low

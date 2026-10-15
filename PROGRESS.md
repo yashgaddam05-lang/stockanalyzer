@@ -200,9 +200,9 @@ Scope document section 13 recommends ~30+ tables. We have 5 (pending migration a
 ### Current tables
 - [x] `stocks` — stock metrics and scores
 - [x] `watchlist` — simple watchlist (ticker + added_at)
-- [x] `score_history` — historical score snapshots (migration 20261015120000)
-- [x] `watchlists` — named watchlists (migration 20261015120100)
-- [x] `watchlist_items` — per-list items with notes and tags (migration 20261015120100)
+- [x] `score_history` — historical score snapshots (migration 20261015191519)
+- [x] `watchlists` — named watchlists (migration 20261015191530)
+- [x] `watchlist_items` — per-list items with notes and tags (migration 20261015191530)
 
 ### Phase 1 target tables
 - [x] `score_history` — historical score snapshots for tracking changes
@@ -267,7 +267,7 @@ These items need no new external data or infrastructure. Mostly frontend, schema
 | 6 | Preset screens | - [x] | Small | Shipped: preset screens on Explore (highest 3x, best risk-adjusted, most undervalued, etc.) |
 | 7 | Named watchlists with notes and tags | - [x] | Medium | Shipped: watchlists + watchlist_items tables, `/api/watchlists` and `/api/watchlist-items`, Watchlists page with notes/tags |
 | 8 | Score-change tracking | - [x] | Small | Shipped: score_history table, `/api/score-history`, deltas on cards and detail page; refresh rescoring writes history |
-| 9 | Expand stock universe (24 → 100+) | - [x] | Small | Shipped: seed expanded to 137 tickers (migration 20261015120200) |
+| 9 | Expand stock universe (24 → 100+) | - [x] | Small | Shipped: seed expanded to 137 tickers (migration 20261015192133) |
 | 10 | Disclaimer and compliance text | - [x] | Small | Shipped: Methodology page, disclaimers in footer, data-source attribution |
 
 ## 10. Roadmap — Medium Difficulty
@@ -345,9 +345,9 @@ Roadmap items 1–10 built by the engineering swarm (`roadmap-swarm` workflow), 
 
 ## 14. Unapplied Migrations / Pending Ops
 
-Not confirmed applied to the production Supabase project as of 2026-10-15. Apply in order via `apply_migration`, then verify.
-- [ ] `supabase/migrations/20261015120000_scoring_inputs_and_score_history.sql` — scoring input columns + `score_history`
-- [ ] `supabase/migrations/20261015120100_named_watchlists.sql` — `watchlists`, `watchlist_items`
-- [ ] `supabase/migrations/20261015120200_expand_universe_seed.sql` — expand seed to 137 tickers
+All three migrations confirmed applied to production Supabase (irbwaucilrznbqynhtmr) on 2026-10-15; local filenames match live versions.
+- [x] `supabase/migrations/20261015191519_scoring_inputs_and_score_history.sql` — scoring input columns + `score_history`
+- [x] `supabase/migrations/20261015191530_named_watchlists.sql` — `watchlists`, `watchlist_items`
+- [x] `supabase/migrations/20261015192133_expand_universe_seed.sql` — expand seed to 137 tickers
 - [ ] Redeploy `refresh-stocks` edge function (v2 refresh + rescoring) and run one refresh
 - [ ] Post-deploy smoke test: `/`, `/api/stocks`, `/api/watchlist`, `/api/watchlists`, `/api/score-history` return 200 + sane JSON

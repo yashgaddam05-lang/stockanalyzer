@@ -15,7 +15,7 @@ Units follow the existing schema: growth rates and margins are percent
 cash_runway_months = 200 means cash-flow positive / not runway constrained.
 
 1. Idempotent ADD COLUMN IF NOT EXISTS for every new column written here
-   (definitions identical to 20261015120000_scoring_inputs_and_score_history;
+   (definitions identical to 20261015191519_scoring_inputs_and_score_history;
    that migration owns the CHECK constraints).
 2. INSERT 113 new US-traded tickers, ON CONFLICT (ticker) DO NOTHING.
 3. Fill NULL new columns on the original 24 rows (never overwrites non-NULL).
