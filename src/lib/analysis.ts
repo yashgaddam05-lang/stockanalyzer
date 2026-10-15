@@ -1,4 +1,14 @@
 import type { Stock } from './supabase';
+import {
+  DIMENSIONS,
+  MODEL_VERSION,
+  buildCases,
+  computeRiskScore,
+  scoreStock,
+} from './scoring/index.js';
+import type { CaseKey, CaseSummary, DimensionKey, DimensionResult, RiskResult, ScoreResult } from './scoring/index.js';
+
+export { MODEL_VERSION };
 
 export interface ScoreBreakdown {
   label: string;
@@ -17,72 +27,44 @@ export interface AnalysisResult {
   timeframe: string;
   keyCatalysts: string[];
   keyRisks: string[];
+  dimensions: DimensionResult[];
+  confidence: ScoreResult['confidence'];
+  modelVersion: string;
+  riskScore: number;
+  riskLabel: RiskResult['label'];
+  riskDrivers: string[];
+  invalidationSignals: string[];
+  cases: Record<CaseKey, CaseSummary>;
 }
 
+const DIMENSION_ICONS: Record<DimensionKey, string> = {
+  growth: 'TrendingUp',
+  valuation: 'DollarSign',
+  momentum: 'Activity',
+  quality: 'ShieldCheck',
+  catalyst: 'FlaskConical',
+  position: 'BarChart3',
+  risk: 'Zap',
+  regime: 'Clock',
+};
+
 export function analyzeStock(stock: Stock): AnalysisResult {
-  const breakdown: ScoreBreakdown[] = [];
+  const score = scoreStock(stock);
+  const risk = computeRiskScore(stock);
 
-  // 1. Revenue Growth (0-25 pts)
-  const revGrowthScore = Math.min(25, Math.max(0, (stock.revenue_growth_yoy / 100) * 20 + 5));
-  breakdown.push({
-    label: 'Revenue Growth',
-    score: Math.round(revGrowthScore),
-    maxScore: 25,
-    description: `${stock.revenue_growth_yoy.toFixed(1)}% YoY revenue growth. ${stock.revenue_growth_yoy > 50 ? 'Exceptional top-line expansion.' : stock.revenue_growth_yoy > 20 ? 'Strong growth trajectory.' : stock.revenue_growth_yoy > 0 ? 'Moderate growth.' : 'Revenue declining — risky.'}`,
-    icon: 'TrendingUp',
+  const breakdown: ScoreBreakdown[] = DIMENSIONS.map((def) => {
+    const d = score.dimensions.find((x) => x.key === def.key);
+    const dimScore = d?.score ?? null;
+    return {
+      label: def.label,
+      score: dimScore === null ? 0 : Math.round((def.weight * dimScore) / 100),
+      maxScore: def.weight,
+      description: (dimScore === null ? 'Not scored — ' : '') + (d?.drivers.join('. ') ?? ''),
+      icon: DIMENSION_ICONS[def.key],
+    };
   });
 
-  // 2. Earnings Growth (0-20 pts)
-  const earnGrowthScore = Math.min(20, Math.max(0, (stock.earnings_growth_yoy / 100) * 15 + 5));
-  breakdown.push({
-    label: 'Earnings Growth',
-    score: Math.round(earnGrowthScore),
-    maxScore: 20,
-    description: `${stock.earnings_growth_yoy.toFixed(1)}% YoY earnings growth. ${stock.earnings_growth_yoy > 50 ? 'Explosive profit growth.' : stock.earnings_growth_yoy > 0 ? 'Profitable and growing.' : 'Not yet profitable or earnings declining.'}`,
-    icon: 'DollarSign',
-  });
-
-  // 3. Technical Momentum (0-15 pts)
-  const momentumScore = Math.min(15, Math.max(0, (stock.momentum_score / 100) * 15));
-  breakdown.push({
-    label: 'Price Momentum',
-    score: Math.round(momentumScore),
-    maxScore: 15,
-    description: `Momentum score of ${stock.momentum_score}/100. ${stock.momentum_score > 75 ? 'Strong bullish momentum.' : stock.momentum_score > 50 ? 'Positive but cooling.' : 'Weak or bearish momentum.'}`,
-    icon: 'Activity',
-  });
-
-  // 4. Innovation / Pipeline (0-15 pts)
-  const innovationScore = Math.min(15, Math.max(0, (stock.rd_ratio / 50) * 7.5 + Math.min(7.5, stock.pipeline_count * 1.5)));
-  breakdown.push({
-    label: 'Innovation & Pipeline',
-    score: Math.round(innovationScore),
-    maxScore: 15,
-    description: `R&D intensity: ${stock.rd_ratio.toFixed(1)}% of revenue. ${stock.pipeline_count} pipeline candidate${stock.pipeline_count !== 1 ? 's' : ''}. ${stock.pipeline_count > 5 || stock.rd_ratio > 30 ? 'Deep innovation bench.' : stock.pipeline_count > 0 || stock.rd_ratio > 10 ? 'Moderate innovation pipeline.' : 'Limited innovation pipeline.'}`,
-    icon: 'FlaskConical',
-  });
-
-  // 5. Financial Health (0-15 pts)
-  const healthScore = Math.min(15, Math.max(0, 15 - (stock.debt_to_equity * 8) + Math.min(5, stock.cash_runway_months / 24)));
-  breakdown.push({
-    label: 'Financial Health',
-    score: Math.round(healthScore),
-    maxScore: 15,
-    description: `Debt-to-equity: ${stock.debt_to_equity.toFixed(2)}. Cash runway: ${stock.cash_runway_months} months. ${stock.cash_runway_months > 60 ? 'Very well-funded.' : stock.cash_runway_months > 24 ? 'Adequate cash position.' : 'Cash burn is a concern.'}`,
-    icon: 'ShieldCheck',
-  });
-
-  // 6. Volatility / Asymmetry (0-10 pts) — higher volatility = more potential for 3x (but more risk)
-  const volScore = Math.min(10, Math.max(2, (stock.volatility / 100) * 12));
-  breakdown.push({
-    label: 'Volatility / Upside Potential',
-    score: Math.round(volScore),
-    maxScore: 10,
-    description: `Annualized volatility: ${stock.volatility.toFixed(0)}%. Beta: ${stock.beta.toFixed(2)}. ${stock.volatility > 70 ? 'High volatility — large swings possible both ways.' : stock.volatility > 40 ? 'Moderate volatility.' : 'Relatively stable.'}`,
-    icon: 'Zap',
-  });
-
-  const totalScore = Math.round(breakdown.reduce((sum, b) => sum + b.score, 0));
+  const totalScore = score.total;
 
   // Three-x probability estimate (rough heuristic)
   const threeXProbability = Math.min(85, Math.max(5, totalScore * 0.85 + (stock.volatility > 60 ? 5 : 0)));
@@ -128,7 +110,7 @@ export function analyzeStock(stock: Stock): AnalysisResult {
   if (stock.volatility > 70) keyRisks.push('Extreme volatility — sharp drawdowns possible');
   if (stock.beta > 2) keyRisks.push(`High beta (${stock.beta.toFixed(2)}) — amplified market sensitivity`);
   if (stock.revenue_growth_yoy < 0) keyRisks.push('Revenue is contracting');
-  if (stock.risk_level === 'extreme') keyRisks.push('Extreme risk profile — total loss possible');
+  if (risk.label === 'extreme') keyRisks.push(`Extreme risk score (${risk.score}/100) — total loss possible`);
   if (keyRisks.length === 0) keyRisks.push('Standard market and sector risks apply');
 
   return {
@@ -140,6 +122,14 @@ export function analyzeStock(stock: Stock): AnalysisResult {
     timeframe,
     keyCatalysts,
     keyRisks,
+    dimensions: score.dimensions,
+    confidence: score.confidence,
+    modelVersion: score.modelVersion,
+    riskScore: risk.score,
+    riskLabel: risk.label,
+    riskDrivers: risk.drivers,
+    invalidationSignals: risk.invalidationSignals,
+    cases: buildCases(stock, score, risk),
   };
 }
 
