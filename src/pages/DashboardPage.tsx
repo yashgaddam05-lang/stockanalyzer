@@ -2,6 +2,7 @@ import { useStocks } from '@/components/data/StocksProvider';
 import { StatsOverview } from '@/components/StatsOverview';
 import { TopOpportunities } from '@/components/dashboard/TopOpportunities';
 import { ScoreMovers } from '@/components/dashboard/ScoreMovers';
+import { SectorCapHeatmap } from '@/components/dashboard/SectorCapHeatmap';
 import { PresetShortcuts } from '@/components/dashboard/PresetShortcuts';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ export default function DashboardPage() {
           <StatsOverview stocks={stocks} analyses={analyses} watchlistCount={watchlist.size} />
           <TopOpportunities stocks={stocks} analyses={analyses} />
           <ScoreMovers stocks={stocks} analyses={analyses} />
+          <SectorCapHeatmap stocks={stocks} analyses={analyses} />
           <PresetShortcuts stocks={stocks} />
         </>
       )}
