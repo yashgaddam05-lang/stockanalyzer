@@ -44,7 +44,7 @@ export function StocksProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const rows = await getStocks();
-      setStocks(rows.map((row) => ({ score_change: null, previous_score: null, ...row })));
+      setStocks(rows.map((row) => ({ ...row, score_change: row.score_change ?? null, previous_score: row.previous_score ?? null })));
     } catch {
       setError('Could not load stock data. Please try again.');
     } finally {
