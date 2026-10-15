@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Info, RefreshCw, Star } from 'lucide-react';
+import { Info, Lock, LogIn, RefreshCw, Star, Users } from 'lucide-react';
 import { useStocks } from '@/components/data/StocksProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,6 +12,7 @@ import type { WatchlistRow } from '@/components/watchlists/WatchlistItemsTable';
 import { WatchlistSummary } from '@/components/watchlists/WatchlistSummary';
 import { AddTickerInput } from '@/components/watchlists/AddTickerInput';
 import {
+  ApiError,
   addWatchlistItem,
   createWatchlist,
   deleteWatchlist,
@@ -22,6 +24,7 @@ import {
 import type { WatchlistItem, WatchlistWithItems } from '@/lib/supabase';
 
 const LEGACY_BANNER = 'Named lists, notes and tags activate after the database upgrade.';
+const LOGIN_NEXT = '/login?next=%2Fwatchlists';
 
 function pickActive(lists: WatchlistWithItems[], current: string | null): string | null {
   if (current && lists.some((l) => l.id === current)) return current;
@@ -35,6 +38,18 @@ export default function WatchlistsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const { enabled: authEnabled, loading: authLoading, user } = useAuth();
+  const userId = user?.id ?? null;
+
+  /** Flags an expired session (401) so the page can prompt re-login; rethrows everything else. */
+  const guard = useCallback((err: unknown): never => {
+    if (err instanceof ApiError && err.status === 401) {
+      setSessionExpired(true);
+      throw new Error('Your session has expired. Please sign in again.');
+    }
+    throw err;
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,17 +58,27 @@ export default function WatchlistsPage() {
       const data = await getWatchlists();
       setLists(data.lists);
       setLegacy(data.legacy);
+      setSessionExpired(false);
       setActiveId((current) => pickActive(data.lists, current));
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : 'Could not load watchlists.');
+      if (err instanceof ApiError && err.status === 401) {
+        setSessionExpired(true);
+        setLoadError('Your session has expired. Please sign in again.');
+      } else {
+        setLoadError(err instanceof Error ? err.message : 'Could not load watchlists.');
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Refetch whenever the signed-in user changes (sign in / sign out) so lists never leak across accounts.
   useEffect(() => {
+    if (authLoading) return;
+    setLists([]);
+    setActiveId(null);
     void load();
-  }, [load]);
+  }, [load, authLoading, userId]);
 
   const active = lists.find((l) => l.id === activeId) ?? null;
 
@@ -70,7 +95,7 @@ export default function WatchlistsPage() {
   );
 
   const handleCreate = async (name: string) => {
-    const created = await createWatchlist(name);
+    const created = await createWatchlist(name).catch(guard);
     setLists((prev) => [...prev, { ...created, items: [] }]);
     setActiveId(created.id);
   };
@@ -79,7 +104,7 @@ export default function WatchlistsPage() {
     const previous = lists.find((l) => l.id === id)?.name;
     setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name } : l)));
     try {
-      const updated = await renameWatchlist(id, name);
+      const updated = await renameWatchlist(id, name).catch(guard);
       setLists((prev) => prev.map((l) => (l.id === id ? { ...l, ...updated, items: l.items } : l)));
     } catch (err) {
       if (previous !== undefined) setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name: previous } : l)));
@@ -88,7 +113,7 @@ export default function WatchlistsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteWatchlist(id);
+    await deleteWatchlist(id).catch(guard);
     const next = lists.filter((l) => l.id !== id);
     setLists((prev) => prev.filter((l) => l.id !== id));
     setActiveId(pickActive(next, null));
@@ -102,7 +127,7 @@ export default function WatchlistsPage() {
     const temp: WatchlistItem = { id: tempId, watchlist_id: listId, ticker, notes: '', tags: [], added_at: now, updated_at: now };
     setItems(listId, (items) => [temp, ...items]);
     try {
-      const created = await addWatchlistItem({ watchlist_id: listId, ticker });
+      const created = await addWatchlistItem({ watchlist_id: listId, ticker }).catch(guard);
       setItems(listId, (items) => items.map((i) => (i.id === tempId ? created : i)));
       syncDefault(listId);
     } catch (err) {
@@ -117,7 +142,7 @@ export default function WatchlistsPage() {
     const index = active.items.findIndex((i) => i.id === item.id);
     setItems(listId, (items) => items.filter((i) => i.id !== item.id));
     try {
-      await removeWatchlistItem(item.id);
+      await removeWatchlistItem(item.id).catch(guard);
       syncDefault(listId);
     } catch (err) {
       setItems(listId, (items) => {
@@ -136,7 +161,7 @@ export default function WatchlistsPage() {
     const before = { notes: item.notes, tags: item.tags };
     setItems(listId, (items) => items.map((i) => (i.id === item.id ? { ...i, ...patch } : i)));
     try {
-      const updated = await updateWatchlistItem(item.id, patch);
+      const updated = await updateWatchlistItem(item.id, patch).catch(guard);
       setItems(listId, (items) => items.map((i) => (i.id === item.id ? updated : i)));
     } catch (err) {
       setItems(listId, (items) => items.map((i) => (i.id === item.id ? { ...i, ...before } : i)));
@@ -155,7 +180,7 @@ export default function WatchlistsPage() {
 
   const existing = useMemo(() => new Set((active?.items ?? []).map((i) => i.ticker.toUpperCase())), [active]);
 
-  const showSkeleton = loading || (stocksLoading && stocks.length === 0);
+  const showSkeleton = loading || authLoading || (stocksLoading && stocks.length === 0);
 
   return (
     <div className="space-y-8">
@@ -163,6 +188,52 @@ export default function WatchlistsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Watchlists</h1>
         <p className="text-sm text-muted-foreground">Track candidates, keep notes and watch score changes.</p>
       </div>
+
+      {authEnabled && !authLoading && (
+        sessionExpired ? (
+          <div
+            role="alert"
+            className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-2">
+              <Info className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>Your session has expired. Sign in again to keep editing your private lists.</p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="shrink-0">
+              <Link to={LOGIN_NEXT}>
+                <LogIn className="mr-1 h-4 w-4" />
+                Sign in again
+              </Link>
+            </Button>
+          </div>
+        ) : user ? (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700"
+          >
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="min-w-0 truncate">
+              Private to <span className="font-medium text-neutral-900">{user.email ?? 'your account'}</span>
+            </p>
+          </div>
+        ) : (
+          <div
+            role="status"
+            className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-2">
+              <Users className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>You are viewing shared watchlists. Sign in to keep private lists.</p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="shrink-0">
+              <Link to={LOGIN_NEXT}>
+                <LogIn className="mr-1 h-4 w-4" />
+                Sign in
+              </Link>
+            </Button>
+          </div>
+        )
+      )}
 
       {legacy && (
         <div
@@ -179,10 +250,19 @@ export default function WatchlistsPage() {
           <p role="alert" className="text-sm text-red-600">
             {loadError}
           </p>
-          <Button type="button" variant="outline" onClick={() => void load()}>
-            <RefreshCw className="mr-1 h-4 w-4" />
-            Retry
-          </Button>
+          {sessionExpired ? (
+            <Button asChild variant="outline">
+              <Link to={LOGIN_NEXT}>
+                <LogIn className="mr-1 h-4 w-4" />
+                Sign in again
+              </Link>
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" onClick={() => void load()}>
+              <RefreshCw className="mr-1 h-4 w-4" />
+              Retry
+            </Button>
+          )}
         </Card>
       ) : showSkeleton ? (
         <div className="space-y-4">
