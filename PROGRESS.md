@@ -1,7 +1,7 @@
 # 3x Hunter — Project Progress Tracker
 
 **Last updated:** 2026-10-15
-**Current phase:** Phase 1 MVP (subset) — Stage A (roadmap items 1–10) shipped; ~55% complete
+**Current phase:** Phase 1 MVP (subset) — Stage A (roadmap items 1–10) and Stage B (items 11–15) built; ~70% complete
 **Scope reference:** `3x_hunter_app_scope.md` (attached)
 
 ---
@@ -52,11 +52,16 @@ These standards must be followed in every build session to maintain consistency.
 - **Styling:** Tailwind CSS 3 + tailwindcss-animate + Radix UI primitives
 - **Icons:** lucide-react
 - **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, Storage)
+- **Charts:** Recharts (`recharts@2.15.4`)
 - **Data refresh:** Supabase Edge Function (Deno runtime) fetching from Yahoo Finance free endpoints
 
 ### Import conventions
 - Use `@/` path alias for all project imports (maps to `src/`)
 - Example: `import { Stock } from '@/lib/supabase'` not `import { Stock } from '../../lib/supabase'`
+
+### Data access
+- Browser never talks to Supabase directly for data; it calls `/api/*` via `src/lib/api.ts`, and the `api/*.ts` routes hold the server-side Supabase access.
+- **Auth-only exception:** the browser uses `supabase-js` (`src/lib/auth-client.ts`, `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`) solely for Supabase Auth sign-in/session. The access token is forwarded to `/api/*` as a bearer header; no table reads/writes from the browser.
 
 ### File organization
 - `src/lib/` — business logic, API clients, utilities
@@ -68,8 +73,8 @@ These standards must be followed in every build session to maintain consistency.
 
 ### Supabase rules
 - RLS enabled on every table — no exceptions.
-- No-auth app pattern: policies scoped to `TO anon, authenticated` (anyone can read/write since there's no login yet).
-- When auth is added: switch to `TO authenticated` with `auth.uid()` ownership checks.
+- Shared/public tables: policies scoped to `TO anon, authenticated`.
+- User-owned rows: `TO authenticated` with `auth.uid()` ownership checks (e.g. `watchlists.owner_id`); anon access limited to rows with `owner_id IS NULL` (shared anonymous lists).
 - DDL via `apply_migration` MCP tool only. Never raw SQL outside that tool.
 - DML/diagnostics via `execute_sql` MCP tool.
 - Edge functions must include CORS headers on every response.
@@ -85,15 +90,15 @@ These standards must be followed in every build session to maintain consistency.
 
 | Area | Status | Notes |
 |---|---|---|
-| Phase | Phase 1 MVP subset | Stage A (low-hanging roadmap items 1–10) complete |
+| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built |
 | Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
 | Scoring dimensions | 8 of 8 | Aligned to document weights; Innovation & Pipeline removed (model v2) |
 | Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
 | UX | Multi-page routing | react-router: Dashboard, Explore, Stock Detail, Watchlists, Methodology; SPA rewrite excludes `/api/` |
-| User accounts | None | No auth, no per-user data |
-| Database tables | 5 of ~30+ | stocks, watchlist, watchlists, watchlist_items, score_history |
-| Data pipeline | 1 edge function + Vercel `/api/*` routes | Yahoo Finance free endpoints; bounded-concurrency refresh with rescoring |
-| Charts | None | No price charts or visualizations beyond progress bars |
+| User accounts | Supabase Auth (email/password) | Per-user watchlists via `watchlists.owner_id` + RLS; anonymous shared lists (owner_id NULL) preserved |
+| Database tables | 6 of ~30+ | stocks, watchlist, watchlists, watchlist_items, score_history, catalysts |
+| Data pipeline | 1 edge function + Vercel `/api/*` routes | Yahoo Finance free endpoints; `refresh-stocks` v5 (bounded-concurrency refresh, rescoring, earnings-date ingest into catalysts); `/api/price-history` proxies Yahoo v8 chart |
+| Charts | Recharts | Price chart on stock detail; sector x market-cap heat map on dashboard |
 
 ---
 
@@ -127,9 +132,9 @@ Features from scope document sections 8.1–8.7.
 - [ ] Top 10 / Top 25 / Top 100 opportunity lists
 - [ ] Filters by: industry, market cap bucket, price, liquidity, profitability, catalyst date
 - [x] Preset screens (highest 3x, best risk-adjusted, highest momentum, most undervalued, new score breakouts, oversold quality, profitable compounders, lower risk)
-- [ ] "Catalysts imminent" preset (waits on the catalysts table; no catalyst-date data yet)
+- [ ] "Catalysts imminent" preset (catalysts table now exists; preset not built yet)
 - [x] Score-change leaderboard
-- [ ] Sector and market-cap heat maps
+- [x] Sector and market-cap heat maps (dashboard)
 - [ ] Saved custom screens
 
 ### 8.2 Stock detail page
@@ -142,22 +147,25 @@ Features from scope document sections 8.1–8.7.
 - [x] Dedicated page at `/stock/:ticker` (replaces modal)
 - [ ] Price, market cap, volume, and liquidity summary
 - [x] Bull case, bear case, and neutral case
-- [ ] Catalyst calendar
+- [x] Catalyst calendar (stock panel + `/catalysts` page)
 - [ ] Valuation versus peers
 - [ ] Financial trend charts
-- [ ] Price chart with earnings, news, and score-change markers
+- [x] Price chart (Recharts, `/api/price-history`)
+- [ ] Earnings, news, and score-change markers on the price chart
 - [ ] Analyst estimates and revisions
 - [ ] Short interest and insider activity
 - [ ] News and SEC filings
-- [ ] 3x scenario calculator
+- [x] 3x scenario calculator
 - [ ] Thesis invalidation signals
 - [x] Historical score trend
 
 ### 8.3 3x scenario calculator
-- [ ] Not started
+- [x] Started: pure engine in `src/lib/scenario` (scenario set, sanity flags, sensitivity table) + calculator card on stock detail
+- [ ] Saved scenarios (`scenario_calculations` table)
 
 ### 8.4 Watchlists and simulated portfolios
 - [x] Basic watchlist (add/remove stocks, single shared list)
+- [x] Per-user watchlists for signed-in users (owner_id + RLS); anonymous shared lists preserved
 - [x] Named watchlists (multiple lists)
 - [x] Notes and tags per stock
 - [x] Score change tracking per watchlist
@@ -195,7 +203,7 @@ Data categories from scope document section 6.
 
 ## 8. Database Tables Status
 
-Scope document section 13 recommends ~30+ tables. We have 5 (pending migration apply — see section 14).
+Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for migration status).
 
 ### Current tables
 - [x] `stocks` — stock metrics and scores
@@ -203,17 +211,18 @@ Scope document section 13 recommends ~30+ tables. We have 5 (pending migration a
 - [x] `score_history` — historical score snapshots (migration 20261015191519)
 - [x] `watchlists` — named watchlists (migration 20261015191530)
 - [x] `watchlist_items` — per-list items with notes and tags (migration 20261015191530)
+- [x] `catalysts` — dated events per stock: Yahoo earnings ingest + manual entries (migration 20261015220504)
 
 ### Phase 1 target tables
 - [x] `score_history` — historical score snapshots for tracking changes
-- [ ] `catalysts` — upcoming events per stock
+- [x] `catalysts` — upcoming events per stock
 - [ ] `price_daily` — stored daily OHLCV (instead of on-demand fetch)
 
 ### Full document table list (Phase 2+)
 - [ ] `users`
 - [ ] `subscriptions`
 - [ ] `user_preferences`
-- [x] `watchlists` (named; per-user ownership pending auth)
+- [x] `watchlists` (named; per-user ownership via `owner_id` + RLS, migration 20261015220517)
 - [x] `watchlist_items`
 - [ ] `alerts`
 - [ ] `alert_events`
@@ -276,11 +285,11 @@ Need some new data or infrastructure, but achievable without paid services.
 
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
-| 11 | Price charts on stock detail pages | - [ ] | Medium | Add charting library (Recharts), wire to Yahoo Finance chart data |
-| 12 | Catalyst calendar | - [ ] | Medium | New table, populate earnings dates from Yahoo, manual entry for others |
-| 13 | 3x scenario calculator | - [ ] | Medium | Math + UI. No external data needed. Logic in scope doc section 8.3. |
-| 14 | User accounts and authentication | - [ ] | Medium | Supabase Auth, email/password. Tie watchlists to users. |
-| 15 | Sector and market-cap heat maps | - [ ] | Medium | Visualization from existing sector/market cap data |
+| 11 | Price charts on stock detail pages | - [x] | Medium | Shipped: `/api/price-history` proxies Yahoo v8 chart; Recharts price chart on stock detail |
+| 12 | Catalyst calendar | - [x] | Medium | Shipped: `catalysts` table, Yahoo earnings ingest in `refresh-stocks` v5, manual entries by signed-in users (`/api/catalysts`), `/catalysts` page |
+| 13 | 3x scenario calculator | - [x] | Medium | Shipped: engine in `src/lib/scenario` (sanity flags, sensitivity table) + calculator UI on stock detail |
+| 14 | User accounts and authentication | - [x] | Medium | Shipped: Supabase Auth email/password; per-user watchlists via `owner_id` + RLS; anonymous shared lists preserved |
+| 15 | Sector and market-cap heat maps | - [x] | Medium | Shipped: sector x market-cap heat map on dashboard |
 
 ## 11. Roadmap — Tough Items
 
@@ -330,15 +339,22 @@ Roadmap items 1–10 built by the engineering swarm (`roadmap-swarm` workflow), 
 - Wave 3: `dashboard`, `explore-presets`, `stock-detail-page`, `watchlists-page`, `methodology-compliance`, `refresh-rescore`, `progress-doc-stage-a`
 - Earlier same day: fixed ESM `.js` import paths in Vercel API routes (prod `ERR_MODULE_NOT_FOUND`); added swarm agents and CLAUDE.md
 
+### Session 4 — 2026-10-15 (Stage B swarm build)
+Roadmap items 11–15 built by the engineering swarm (`roadmap-swarm` workflow), one worktree per package on `swarm/<id>`, merged via `swarm/wave-1` and `swarm/wave-2`.
+- Wave 1: `db-catalysts-watchlist-ownership` (catalysts table, `watchlists.owner_id` + per-owner RLS), `api-contracts` (catalyst/price-history types, auth-aware API client, server auth helpers), `scenario-engine` (pure 3x scenario engine, sanity flags, sensitivity table), `sector-cap-heatmap` (dashboard heat map), `recharts-and-public-env` (recharts@2.15.4, public `VITE_` env)
+- Wave 2: `api-price-history` (Yahoo v8 chart proxy), `api-catalysts` (GET list, POST manual, DELETE own), `api-watchlists-per-user` (watchlists scoped via resolveAuth), `edge-refresh-catalysts` (refresh-stocks v5 earnings ingest), `price-chart-ui`, `catalysts-ui` (calendar page, stock panel, add dialog), `scenario-calculator-ui`, `auth-ui` (supabase-js auth only, AuthProvider, AccountMenu, LoginPage)
+- Wave 3: `progress-doc-stage-b`
+
 ---
 
 ## 13. Environment
 
 - **Supabase URL:** configured in `.env` (project: irbwaucilrznbqynhtmr)
 - **Supabase Anon Key:** configured in `.env`
-- **Edge function deployed:** `refresh-stocks` (Yahoo Finance integration)
+- **Edge function deployed:** `refresh-stocks` v5 (Yahoo Finance integration + earnings-date ingest into catalysts)
 - **Git:** repository on GitHub; commits must be authored as `yashgaddam05@gmail.com` or Vercel skips the build
-- **Vercel:** project `stockanalyzer` in team scope `bolot1`; pushing to `main` deploys to production. Env vars (`DATABASE_URL`, `DATABASE_ANON_KEY`) are Production-only, so preview deploys 500 until they are added to Preview
+- **Vercel:** project `stockanalyzer` in team scope `bolot1`; pushing to `main` deploys to production. Env vars (`DATABASE_URL`, `DATABASE_ANON_KEY`, and the new public `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are Production-only, so preview deploys 500 until they are added to Preview
+- **Browser Supabase access:** `supabase-js` in the browser is used for Auth only (`src/lib/auth-client.ts`); all data goes through `/api/*`
 - **Swarm branches:** work lands on `swarm/integration`, never directly on `main`
 
 ---
@@ -349,5 +365,12 @@ All three migrations confirmed applied to production Supabase (irbwaucilrznbqynh
 - [x] `supabase/migrations/20261015191519_scoring_inputs_and_score_history.sql` — scoring input columns + `score_history`
 - [x] `supabase/migrations/20261015191530_named_watchlists.sql` — `watchlists`, `watchlist_items`
 - [x] `supabase/migrations/20261015192133_expand_universe_seed.sql` — expand seed to 137 tickers
-- [ ] Redeploy `refresh-stocks` edge function (v2 refresh + rescoring) and run one refresh
-- [ ] Post-deploy smoke test: `/`, `/api/stocks`, `/api/watchlist`, `/api/watchlists`, `/api/score-history` return 200 + sane JSON
+- [x] Redeploy `refresh-stocks` edge function (v2 refresh + rescoring) and run one refresh
+
+Stage B (session 4) migrations, applied to production Supabase; local filenames match live versions:
+- [x] `supabase/migrations/20261015220504_catalysts.sql` — `catalysts` table (live version 20261015220504)
+- [x] `supabase/migrations/20261015220517_watchlist_ownership.sql` — `watchlists.owner_id`, per-owner default index, per-owner RLS (live version 20261015220517)
+- [x] `refresh-stocks` edge function v5 deployed (earnings-date ingest into catalysts)
+- [ ] Wire Stage B UI on `swarm/wave-2`: `/catalysts` and `/login` routes are not yet registered in `src/App.tsx`; `PriceChart`, `CatalystPanel`, `ScenarioCalculator` are not yet mounted in `StockDetailPage`; `AccountMenu` is not yet in `NavBar`
+- [ ] **Owner action:** set Supabase Auth Site URL and redirect URLs to the production domain (Dashboard > Authentication > URL Configuration) so email confirmation / login links resolve
+- [ ] Post-deploy smoke test: `/`, `/api/stocks`, `/api/watchlist`, `/api/watchlists`, `/api/score-history`, `/api/price-history`, `/api/catalysts`, `/catalysts`, `/login` return 200 + sane JSON / page
