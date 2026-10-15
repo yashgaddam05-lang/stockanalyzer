@@ -1,4 +1,4 @@
-import { sendServerError, supabaseUrl, type ApiRequest, type ApiResponse } from './_supabase';
+import { sendServerError, supabaseUrl, type ApiRequest, type ApiResponse } from './_supabase.js';
 
 export default async function handler(request: ApiRequest, response: ApiResponse): Promise<void> {
   if (request.method !== 'POST') {

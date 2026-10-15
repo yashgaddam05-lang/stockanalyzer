@@ -1,4 +1,4 @@
-import { getQueryValue, sendServerError, supabase, type ApiRequest, type ApiResponse } from './_supabase';
+import { getQueryValue, sendServerError, supabase, type ApiRequest, type ApiResponse } from './_supabase.js';
 
 function getTicker(request: ApiRequest): string | null {
   const body = request.body;
