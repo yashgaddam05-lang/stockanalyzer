@@ -72,12 +72,30 @@ const QA = {
   required: ['verdict', 'defects'],
 }
 
+const REPO = args?.repo ?? '/Users/yashgaddam/ai/stockanalyzer'
+const WT = `${REPO}-wt`
+
+// Use the native project agent when this session registered it; otherwise load the role file.
+async function role(name, prompt, opts) {
+  try {
+    return await agent(`Repo: ${REPO}. ${prompt}`, { ...opts, agentType: name })
+  } catch (e) {
+    return await agent(
+      `You are the ${name} agent of the 3x Hunter engineering swarm. Repo: ${REPO}.
+FIRST read ${REPO}/.claude/agents/${name}.md (your role definition) and ${REPO}/CLAUDE.md, and follow them strictly.
+Run every command from the directory named below, never elsewhere.
+
+${prompt}`,
+      { ...opts, agentType: 'general-purpose' })
+  }
+}
+
 phase('Plan')
-const plan = await agent(
+const plan = await role('swarm-lead',
   `Plan work packages for these roadmap items: ${JSON.stringify(items)}.
 ${args?.context ?? ''}
-Packages in the same wave must not share any file. Contracts (types, migrations, endpoint shapes) go in earlier waves.`,
-  { agentType: 'swarm-lead', schema: PLAN, label: 'lead:plan' })
+Work in ${REPO} (read-only). Packages in the same wave must not share any file. Contracts (types, migrations, endpoint shapes) go in earlier waves.`,
+  { schema: PLAN, label: 'lead:plan' })
 log(`${plan.waves.length} wave(s), ${plan.waves.flat().length} package(s). ${plan.notes ?? ''}`)
 
 const approved = []
@@ -86,75 +104,83 @@ let base = 'main'
 
 for (let w = 0; w < plan.waves.length; w++) {
   const wave = plan.waves[w]
+  const waveBase = base
   const results = await pipeline(
     wave,
-    pkg => agent(
+    pkg => role(ROLE_AGENT[pkg.role],
       `Work package "${pkg.id}" (wave ${w + 1}).
-Start by running: git checkout -b swarm/${pkg.id} ${base} && npm ci --silent
+Set up your own git worktree first:
+  cd ${REPO} && git worktree add ${WT}/${pkg.id} -b swarm/${pkg.id} ${waveBase} && cd ${WT}/${pkg.id} && npm ci --silent
+Work ONLY inside ${WT}/${pkg.id}.
 Spec: ${pkg.spec}
 You may ONLY touch: ${pkg.files.join(', ')}
-Acceptance: ${pkg.acceptance.map(a => '- ' + a).join('\n')}
+Acceptance:
+${pkg.acceptance.map(a => '- ' + a).join('\n')}
 Commit your work on swarm/${pkg.id}. Return the branch name and commit sha.`,
-      { agentType: ROLE_AGENT[pkg.role], isolation: 'worktree', schema: BUILD, phase: 'Build', label: `${pkg.role}:${pkg.id}` }),
+      { schema: BUILD, phase: 'Build', label: `${pkg.role}:${pkg.id}` }),
     async (built, pkg) => {
       let review = null
       for (let round = 0; round <= FIX_ROUNDS; round++) {
-        review = await agent(
-          `Review branch ${built.branch} (git diff ${base}...${built.branch}). Package spec: ${pkg.spec}`,
-          { agentType: 'swarm-reviewer', schema: REVIEW, phase: 'Review', label: `review:${pkg.id}:r${round}` })
+        review = await role('swarm-reviewer',
+          `Review branch swarm/${pkg.id}: run git diff ${waveBase}...swarm/${pkg.id} inside ${WT}/${pkg.id}. Package spec: ${pkg.spec}`,
+          { schema: REVIEW, phase: 'Review', label: `review:${pkg.id}:r${round}` })
         if (review.verdict === 'APPROVE' || round === FIX_ROUNDS) break
-        built = await agent(
-          `git checkout ${built.branch}. Address these review findings, commit, return the branch:\n${review.findings.join('\n')}`,
-          { agentType: ROLE_AGENT[pkg.role], isolation: 'worktree', schema: BUILD, phase: 'Review', label: `fix:${pkg.id}:r${round}` })
+        built = await role(ROLE_AGENT[pkg.role],
+          `cd ${WT}/${pkg.id} (worktree on swarm/${pkg.id}). Address these review findings, commit, return the branch:
+${review.findings.join('\n')}`,
+          { schema: BUILD, phase: 'Review', label: `fix:${pkg.id}:r${round}` })
       }
       return { pkg, built, review }
     })
-  for (const r of results.filter(Boolean)) {
-    (r.review.verdict === 'APPROVE' ? approved : rejected).push(r)
-  }
-  if (rejected.length) log(`Wave ${w + 1}: ${rejected.length} package(s) not approved: ${rejected.map(r => r.pkg.id).join(', ')}`)
+  const ok = results.filter(Boolean).filter(r => r.review.verdict === 'APPROVE')
+  for (const r of results.filter(Boolean)) (r.review.verdict === 'APPROVE' ? approved : rejected).push(r)
+  log(`Wave ${w + 1}: ${ok.length}/${wave.length} approved` + (rejected.length ? `; not approved so far: ${rejected.map(r => r.pkg.id).join(', ')}` : ''))
 
-  if (w < plan.waves.length - 1) {
+  if (w < plan.waves.length - 1 && ok.length) {
     // later waves build on this wave's approved work
     const next = `swarm/wave-${w + 1}`
-    await agent(
-      `Create branch ${next} from ${base} and merge these branches into it: ${results.filter(Boolean).filter(r => r.review.verdict === 'APPROVE').map(r => r.built.branch).join(', ')}. Resolve conflicts conservatively, run npm run build, commit.`,
-      { agentType: 'swarm-devops', phase: 'Integrate', label: `integrate:wave-${w + 1}` })
+    await role('swarm-devops',
+      `cd ${REPO} && git worktree add ${WT}/wave-${w + 1} -b ${next} ${waveBase} && cd ${WT}/wave-${w + 1} && npm ci --silent.
+Merge these branches into ${next}: ${ok.map(r => `swarm/${r.pkg.id}`).join(', ')}. Resolve conflicts conservatively, npm run build must pass, commit. Do not push.`,
+      { phase: 'Integrate', label: `integrate:wave-${w + 1}` })
     base = next
   }
 }
 
 phase('Integrate')
-const integration = await agent(
-  `Create branch swarm/integration from main and merge, in order: ${approved.map(r => r.built.branch).join(', ')}.
-Resolve conflicts, then npm run build and npm run typecheck must pass. Do NOT push and do NOT merge into main. Return a short report.`,
-  { agentType: 'swarm-devops', label: 'integrate:final' })
+const integration = await role('swarm-devops',
+  `cd ${REPO} && git worktree add ${WT}/integration -b swarm/integration main && cd ${WT}/integration && npm ci --silent.
+Merge, in order: ${approved.map(r => `swarm/${r.pkg.id}`).join(', ')}.
+Resolve conflicts, then npm run build and npm run typecheck must pass. Commit. Do NOT push and do NOT touch main. Return a short report.`,
+  { label: 'integrate:final' })
 
 phase('QA')
-const qa = await agent(
-  `Check out swarm/integration and verify against these acceptance criteria:\n${approved.flatMap(r => r.pkg.acceptance.map(a => `[${r.pkg.id}] ${a}`)).join('\n')}`,
-  { agentType: 'swarm-qa', schema: QA, label: 'qa:gate' })
+const qa = await role('swarm-qa',
+  `Verify inside ${WT}/integration (branch swarm/integration, deps installed). Acceptance criteria:
+${approved.flatMap(r => r.pkg.acceptance.map(a => `[${r.pkg.id}] ${a}`)).join('\n')}`,
+  { schema: QA, label: 'qa:gate' })
 
 let ship = 'not shipped'
 if (qa.verdict === 'SHIP' && args?.autoShip) {
   phase('Ship')
-  ship = await agent(
-    `QA passed. Ship swarm/integration to production:
-1. git checkout main && git pull && git merge --no-ff swarm/integration -m "Ship roadmap: ${items.join(', ')}" (commit author must be yashgaddam05@gmail.com; repo-local config already set).
+  ship = await role('swarm-devops',
+    `QA passed. Ship swarm/integration to production, working in ${REPO}:
+1. cd ${REPO} && git checkout main && git pull && git merge --no-ff swarm/integration -m "Ship roadmap: ${items.join(', ')}" (author must be yashgaddam05@gmail.com; repo-local config already set).
 2. npm ci && npm run build && npm run typecheck must pass, else abort and report.
 3. git push origin main.
-4. Git-triggered Vercel builds are unreliable for this project, so also run: vercel deploy --prod --yes --scope bolot1 (from the repo root).
-5. Smoke test the new deployment URL: vercel curl /api/stocks --deployment <url> --yes must return a JSON array; check vercel logs --scope bolot1 --project stockanalyzer for new errors.
-6. If the smoke test fails, roll back with: vercel rollback --scope bolot1 --yes and report.
+4. Git-triggered Vercel builds are unreliable for this project, so also run from ${REPO}: vercel deploy --prod --yes --scope bolot1
+5. Smoke test from ${REPO}: vercel curl /api/stocks --deployment <url> --yes must return a JSON array; check vercel logs --scope bolot1 --project stockanalyzer for new errors.
+6. If the smoke test fails: vercel rollback --scope bolot1 --yes, and report.
+7. Clean up: git worktree remove --force for each dir under ${WT}, then git worktree prune.
 Return the deployment URL and smoke-test results.`,
-    { agentType: 'swarm-devops', label: 'devops:ship' })
+    { label: 'devops:ship' })
 }
 
 return {
   ship,
   verdict: qa.verdict,
   defects: qa.defects,
-  shipped: approved.map(r => ({ id: r.pkg.id, title: r.pkg.title, branch: r.built.branch, summary: r.built.summary, blocked: r.built.blocked })),
+  shipped: approved.map(r => ({ id: r.pkg.id, title: r.pkg.title, summary: r.built?.summary, blocked: r.built?.blocked })),
   notApproved: rejected.map(r => ({ id: r.pkg.id, findings: r.review.findings })),
   integration,
 }
