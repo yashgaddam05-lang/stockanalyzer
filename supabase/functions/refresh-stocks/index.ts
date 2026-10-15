@@ -13,6 +13,8 @@ const REQUEST_TIMEOUT_MS = 8000;
 const RUN_BUDGET_MS = 90_000;
 const MIN_MOMENTUM_CLOSES = 20;
 const MIN_VOLATILITY_CLOSES = 10;
+const CATALYST_CHUNK = 100;
+const DAY_MS = 86_400_000;
 
 const LEGACY_COLUMNS = [
   "current_price",
@@ -27,6 +29,52 @@ const LEGACY_COLUMNS = [
 ] as const;
 
 type Row = Record<string, number | string>;
+
+interface EarningsEvent {
+  ticker: string;
+  event_type: "earnings";
+  title: string;
+  event_date: string; // YYYY-MM-DD (UTC)
+  date_status: "confirmed" | "estimated";
+  source: "yahoo";
+  source_url: string;
+  created_by: null;
+  updated_at: string;
+}
+
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+// deno-lint-ignore no-explicit-any
+function extractEarnings(ticker: string, summary: any): EarningsEvent | null {
+  try {
+    const earn = summary?.calendarEvents?.earnings;
+    const arr: unknown[] = Array.isArray(earn?.earningsDate) ? earn.earningsDate : [];
+    const days = new Set<string>();
+    for (const d of arr) {
+      // deno-lint-ignore no-explicit-any
+      const raw = typeof d === "number" ? d : (d as any)?.raw;
+      if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) days.add(isoDay(raw * 1000));
+    }
+    if (days.size === 0) return null;
+    const cutoff = isoDay(Date.now() - DAY_MS);
+    const upcoming = [...days].filter((d) => d >= cutoff).sort();
+    if (upcoming.length === 0) return null;
+    const estimated = earn?.isEarningsDateEstimate === true || days.size === 2;
+    return {
+      ticker,
+      event_type: "earnings",
+      title: estimated ? "Earnings report (estimated window)" : "Earnings report",
+      event_date: upcoming[0],
+      date_status: estimated ? "estimated" : "confirmed",
+      source: "yahoo",
+      source_url: `https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}/`,
+      created_by: null,
+      updated_at: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -142,7 +190,7 @@ async function fetchChart(ticker: string): Promise<{ closes: number[]; price?: n
 // ---------- quoteSummary v10 ----------
 // deno-lint-ignore no-explicit-any
 async function fetchQuoteSummary(ticker: string): Promise<any | null> {
-  const modules = "price,summaryDetail,defaultKeyStatistics,financialData,assetProfile";
+  const modules = "price,summaryDetail,defaultKeyStatistics,financialData,assetProfile,calendarEvents";
   const attempt = async (c: Crumb | null) => {
     const crumbParam = c ? `&crumb=${encodeURIComponent(c.crumb)}` : "";
     const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}${crumbParam}`;
@@ -184,9 +232,10 @@ async function fetchQuoteV7(ticker: string): Promise<any | null> {
 }
 
 // ---------- Build update row (only fields Yahoo actually returned) ----------
-async function buildUpdate(ticker: string): Promise<Row | null> {
+async function buildUpdate(ticker: string): Promise<{ row: Row | null; earnings: EarningsEvent | null }> {
   const [chart, summary] = await Promise.all([fetchChart(ticker), fetchQuoteSummary(ticker)]);
   const row: Row = {};
+  const earnings = summary ? extractEarnings(ticker, summary) : null;
 
   if (chart) {
     const momentum = calcMomentum(chart.closes);
@@ -256,12 +305,12 @@ async function buildUpdate(ticker: string): Promise<Row | null> {
     }
   }
 
-  if (Object.keys(row).length === 0) return null;
+  if (Object.keys(row).length === 0) return { row: null, earnings };
   const now = new Date().toISOString();
   row.data_source = "yahoo";
   row.last_refreshed_at = now;
   row.updated_at = now;
-  return row;
+  return { row, earnings };
 }
 
 function isMissingColumnError(err: { code?: string; message?: string } | null): boolean {
@@ -294,6 +343,56 @@ async function runPool<T>(
   return items.slice(idx);
 }
 
+// Upserts Yahoo earnings dates into `catalysts`, then removes stale future Yahoo
+// earnings rows for tickers whose date moved. Past rows are kept (chart history).
+// Never throws: any failure (including a missing table) is logged and skipped.
+async function syncEarningsCatalysts(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  rows: EarningsEvent[],
+): Promise<number> {
+  // One row per ticker: duplicate conflict keys in one statement fail the whole chunk.
+  rows = [...new Map(rows.map((r) => [r.ticker, r])).values()];
+  if (rows.length === 0) return 0;
+  let upserted = 0;
+  const written: EarningsEvent[] = [];
+  try {
+    for (let i = 0; i < rows.length; i += CATALYST_CHUNK) {
+      const chunk = rows.slice(i, i + CATALYST_CHUNK);
+      const { error } = await supabase
+        .from("catalysts")
+        .upsert(chunk, { onConflict: "ticker,event_type,event_date,source" });
+      if (error) {
+        console.error(`catalysts upsert failed (chunk ${i / CATALYST_CHUNK}): ${error.code} ${error.message}`);
+        continue;
+      }
+      upserted += chunk.length;
+      written.push(...chunk);
+    }
+  } catch (e) {
+    console.error(`catalysts upsert threw: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (written.length === 0) return upserted;
+
+  const today = isoDay(Date.now());
+  await runPool(written, 10, Number.POSITIVE_INFINITY, async (r) => {
+    try {
+      const { error } = await supabase
+        .from("catalysts")
+        .delete()
+        .eq("ticker", r.ticker)
+        .eq("source", "yahoo")
+        .eq("event_type", "earnings")
+        .gte("event_date", today)
+        .neq("event_date", r.event_date);
+      if (error) console.error(`catalysts stale cleanup failed for ${r.ticker}: ${error.message}`);
+    } catch (e) {
+      console.error(`catalysts stale cleanup threw for ${r.ticker}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
+  return upserted;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -321,12 +420,13 @@ Deno.serve(async (req: Request) => {
 
     const list = (stocks || []) as { id: string; ticker: string }[];
     if (list.length === 0) {
-      return json({ updated: 0, total: 0, failed: [], degraded: false });
+      return json({ updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0 });
     }
 
     let degraded = false;
     let updated = 0;
     const failed: string[] = [];
+    const earningsRows: EarningsEvent[] = [];
 
     const legacyOnly = (row: Row): Row => {
       const out: Row = {};
@@ -336,7 +436,9 @@ Deno.serve(async (req: Request) => {
 
     const skipped = await runPool(list, CONCURRENCY, deadline, async (stock) => {
       try {
-        const full = await buildUpdate(stock.ticker);
+        const built = await buildUpdate(stock.ticker);
+        if (built.earnings) earningsRows.push(built.earnings);
+        const full = built.row;
         if (!full) {
           failed.push(stock.ticker);
           return;
@@ -359,9 +461,14 @@ Deno.serve(async (req: Request) => {
     });
     for (const s of skipped) failed.push(s.ticker);
 
-    return json({ updated, total: list.length, failed, degraded });
+    const catalysts_upserted = await syncEarningsCatalysts(supabase, earningsRows);
+
+    return json({ updated, total: list.length, failed, degraded, catalysts_upserted });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return json({ error: message, updated: 0, total: 0, failed: [], degraded: false }, 500);
+    return json(
+      { error: message, updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0 },
+      500,
+    );
   }
 });
