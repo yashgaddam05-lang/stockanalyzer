@@ -1,148 +1,115 @@
-import { useMemo, useState } from 'react';
-import { Activity, ArrowUpDown, Search, Star, X } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Activity } from 'lucide-react';
 import { useStocks } from '@/components/data/StocksProvider';
 import { StockCard, StockCardSkeleton } from '@/components/stock/StockCard';
+import { PresetScreenBar } from '@/components/explore/PresetScreenBar';
+import { FilterBar } from '@/components/explore/FilterBar';
+import {
+  CAP_OPTIONS,
+  DEFAULT_FILTERS,
+  RISK_OPTIONS,
+  SOURCE_OPTIONS,
+  applyFilters,
+  applyPreset,
+  buildRows,
+  hasActiveFilters,
+  isSortKey,
+  pickOption,
+  sortRows,
+} from '@/components/explore/filters';
+import type { ExploreFilters, SortKey } from '@/components/explore/filters';
+import { getPresetScreen } from '@/lib/scoring';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
-type SortKey = 'three_x_score' | 'revenue_growth_yoy' | 'momentum_score' | 'volatility' | 'market_cap';
-type SortDir = 'asc' | 'desc';
-
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'three_x_score', label: 'Score' },
-  { key: 'revenue_growth_yoy', label: 'Revenue Growth' },
-  { key: 'momentum_score', label: 'Momentum' },
-  { key: 'volatility', label: 'Volatility' },
-  { key: 'market_cap', label: 'Market Cap' },
-];
+const FILTER_PARAMS = ['q', 'sector', 'risk', 'cap', 'source', 'watch', 'sort'] as const;
 
 export default function ExplorePage() {
   const { stocks, analyses, loading, error, watchlist, toggleWatch, reload } = useStocks();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSector, setSelectedSector] = useState('all');
-  const [selectedRisk, setSelectedRisk] = useState('all');
-  const [sortKey, setSortKey] = useState<SortKey>('three_x_score');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  const [params, setParams] = useSearchParams();
 
-  const sectors = useMemo(() => ['all', ...Array.from(new Set(stocks.map((s) => s.sector))).sort()], [stocks]);
+  const rawPreset = params.get('preset');
+  const presetId = rawPreset && getPresetScreen(rawPreset) ? rawPreset : null;
+  const rawSort = params.get('sort');
+  const explicitSort: SortKey | null = isSortKey(rawSort) ? rawSort : null;
+  const sortKey: SortKey = explicitSort ?? 'score';
 
-  const filtered = useMemo(() => {
-    let result = [...stocks];
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      result = result.filter((s) => s.ticker.toLowerCase().includes(q) || s.company_name.toLowerCase().includes(q));
-    }
-    if (selectedSector !== 'all') result = result.filter((s) => s.sector === selectedSector);
-    if (selectedRisk !== 'all') result = result.filter((s) => s.risk_level === selectedRisk);
-    if (showWatchlistOnly) result = result.filter((s) => watchlist.has(s.ticker));
-    result.sort((a, b) => {
-      const cmp = a[sortKey] - b[sortKey];
-      return sortDir === 'desc' ? -cmp : cmp;
+  const filters = useMemo<ExploreFilters>(() => ({
+    query: params.get('q') ?? DEFAULT_FILTERS.query,
+    sector: params.get('sector') ?? DEFAULT_FILTERS.sector,
+    risk: pickOption(params.get('risk'), RISK_OPTIONS, DEFAULT_FILTERS.risk),
+    cap: pickOption(params.get('cap'), CAP_OPTIONS, DEFAULT_FILTERS.cap),
+    source: pickOption(params.get('source'), SOURCE_OPTIONS, DEFAULT_FILTERS.source),
+    watchOnly: params.get('watch') === '1',
+  }), [params]);
+
+  const update = useCallback(
+    (mutate: (p: URLSearchParams) => void) => {
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          mutate(next);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setParams]
+  );
+
+  const setPreset = (id: string | null) =>
+    update((p) => {
+      if (id) p.set('preset', id);
+      else p.delete('preset');
+      // A preset brings its own ordering; drop an explicit sort so it shows.
+      p.delete('sort');
     });
-    return result;
-  }, [stocks, searchQuery, selectedSector, selectedRisk, showWatchlistOnly, watchlist, sortKey, sortDir]);
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
-    else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-  };
+  const patchFilters = (patch: Partial<ExploreFilters>) =>
+    update((p) => {
+      const set = (key: string, value: string, def: string) => (value === def ? p.delete(key) : p.set(key, value));
+      if (patch.query !== undefined) set('q', patch.query, '');
+      if (patch.sector !== undefined) set('sector', patch.sector, 'all');
+      if (patch.risk !== undefined) set('risk', patch.risk, 'all');
+      if (patch.cap !== undefined) set('cap', patch.cap, 'all');
+      if (patch.source !== undefined) set('source', patch.source, 'all');
+      if (patch.watchOnly !== undefined) set('watch', patch.watchOnly ? '1' : '0', '0');
+    });
+
+  const setSort = (key: SortKey) => update((p) => (key === 'score' && !presetId ? p.delete('sort') : p.set('sort', key)));
+
+  const clearFilters = () => update((p) => FILTER_PARAMS.forEach((k) => p.delete(k)));
+
+  const sectors = useMemo(() => Array.from(new Set(stocks.map((s) => s.sector).filter(Boolean))).sort(), [stocks]);
+  const rows = useMemo(() => buildRows(stocks, analyses), [stocks, analyses]);
+  const presetRows = useMemo(() => applyPreset(rows, presetId), [rows, presetId]);
+
+  const visible = useMemo(() => {
+    const filtered = applyFilters(presetRows, filters, watchlist);
+    // With a preset active and no explicit sort, keep the preset's own ordering.
+    return presetId && !explicitSort ? filtered : sortRows(filtered, sortKey);
+  }, [presetRows, filters, watchlist, presetId, explicitSort, sortKey]);
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Explore</h1>
-          <p className="text-sm text-muted-foreground">Search, filter, and sort every stock in the scanner.</p>
-        </div>
-        <Button
-          variant={showWatchlistOnly ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setShowWatchlistOnly((v) => !v)}
-          className="h-8 gap-2 self-start text-[13px] sm:self-auto"
-          aria-pressed={showWatchlistOnly}
-        >
-          <Star className={cn('h-3.5 w-3.5', showWatchlistOnly && 'fill-white')} />
-          Watchlist only
-          <span className="text-xs opacity-70">{watchlist.size}</span>
-        </Button>
+      <div className="space-y-2 pt-2">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Explore</h1>
+        <p className="text-sm text-muted-foreground">
+          Start from a preset screen, then search, filter, and sort every stock in the scanner.
+        </p>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search ticker or company..."
-              className="h-9 pl-10 pr-10 text-[13px]"
-              aria-label="Search ticker or company"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <Select value={selectedSector} onValueChange={setSelectedSector}>
-            <SelectTrigger className="h-9 w-full text-[13px] sm:w-[160px]" aria-label="Sector">
-              <SelectValue placeholder="All Sectors" />
-            </SelectTrigger>
-            <SelectContent>
-              {sectors.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s === 'all' ? 'All Sectors' : s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedRisk} onValueChange={setSelectedRisk}>
-            <SelectTrigger className="h-9 w-full text-[13px] sm:w-[160px]" aria-label="Risk level">
-              <SelectValue placeholder="All Risk Levels" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Risk Levels</SelectItem>
-              <SelectItem value="low">Low Risk</SelectItem>
-              <SelectItem value="medium">Medium Risk</SelectItem>
-              <SelectItem value="high">High Risk</SelectItem>
-              <SelectItem value="extreme">Extreme Risk</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <PresetScreenBar value={presetId} onChange={setPreset} />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-            <ArrowUpDown className="h-3 w-3" /> Sort
-          </span>
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              type="button"
-              key={opt.key}
-              onClick={() => handleSort(opt.key)}
-              className={cn(
-                'rounded-md px-2.5 py-1 text-[12px] font-medium transition-all',
-                sortKey === opt.key ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
-              )}
-            >
-              {opt.label}
-              {sortKey === opt.key && <span className="ml-1">{sortDir === 'desc' ? '↓' : '↑'}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterBar
+        filters={filters}
+        onChange={patchFilters}
+        sectors={sectors}
+        sortKey={presetId && !explicitSort ? null : sortKey}
+        onSortChange={setSort}
+        watchCount={watchlist.size}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -157,29 +124,52 @@ export default function ExplorePage() {
             Try again
           </Button>
         </Card>
-      ) : filtered.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center p-16 text-center">
-          <Activity className="mb-3 h-10 w-10 text-neutral-300" />
-          <p className="text-sm font-medium text-neutral-900">No stocks match your filters</p>
-          <p className="mt-1 text-xs text-muted-foreground">Try adjusting your search or filters</p>
-        </Card>
       ) : (
         <>
-          <p className="text-[13px] text-muted-foreground">
-            {filtered.length} opportunit{filtered.length === 1 ? 'y' : 'ies'}
-            {showWatchlistOnly && ' on your watchlist'}
+          <p className="text-[13px] text-muted-foreground" aria-live="polite" data-testid="explore-count">
+            Showing {visible.length} of {rows.length}
+            {presetId && ` · ${getPresetScreen(presetId)?.label} preset`}
           </p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((stock) => (
-              <StockCard
-                key={stock.id}
-                stock={stock}
-                analysis={analyses[stock.ticker]}
-                isWatched={watchlist.has(stock.ticker)}
-                onToggleWatch={(t) => void toggleWatch(t)}
-              />
-            ))}
-          </div>
+          {visible.length === 0 ? (
+            <Card className="flex flex-col items-center justify-center p-16 text-center">
+              <Activity className="mb-3 h-10 w-10 text-neutral-300" />
+              <p className="text-sm font-medium text-neutral-900">No stocks match these filters</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {presetId ? 'Try another preset or loosen the filters.' : 'Try adjusting your search or filters.'}
+              </p>
+              {(hasActiveFilters(filters) || presetId) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => update((p) => [...FILTER_PARAMS, 'preset'].forEach((k) => p.delete(k)))}
+                >
+                  Clear filters
+                </Button>
+              )}
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map(({ stock, analysis }) => (
+                <StockCard
+                  key={stock.id}
+                  stock={stock}
+                  analysis={analysis}
+                  isWatched={watchlist.has(stock.ticker.toUpperCase())}
+                  onToggleWatch={(t) => void toggleWatch(t)}
+                />
+              ))}
+            </div>
+          )}
+          {hasActiveFilters(filters) && visible.length > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-[12px] text-neutral-500 underline underline-offset-2 hover:text-neutral-900"
+            >
+              Clear filters
+            </button>
+          )}
         </>
       )}
     </div>
