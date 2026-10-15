@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase, type Stock, type WatchlistEntry } from '@/lib/supabase';
+import { addToWatchlist, getStocks, getWatchlist, refreshStocks, removeFromWatchlist } from '@/lib/api';
+import type { Stock, WatchlistEntry } from '@/lib/supabase';
 import { analyzeStock, formatMarketCap, getScoreColor, getScoreBg, getRiskLabel } from '@/lib/analysis';
 import { StockDetailModal } from '@/components/StockDetailModal';
 import { StatsOverview } from '@/components/StatsOverview';
@@ -44,20 +45,20 @@ export default function App() {
   const fetchStocks = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error: fetchError } = await supabase.from('stocks').select('*');
-    if (fetchError) {
+    try {
+      setStocks(await getStocks());
+    } catch {
       setError('Could not load stock data. Please try again.');
-      setLoading(false);
-      return;
     }
-    setStocks(data || []);
     setLoading(false);
   }, []);
 
   const fetchWatchlist = useCallback(async () => {
-    const { data } = await supabase.from('watchlist').select('*');
-    if (data) {
-      setWatchlist(new Set(data.map((w: WatchlistEntry) => w.ticker)));
+    try {
+      const entries: WatchlistEntry[] = await getWatchlist();
+      setWatchlist(new Set(entries.map((w) => w.ticker)));
+    } catch {
+      setError('Could not load your watchlist. Please try again.');
     }
   }, []);
 
@@ -70,13 +71,7 @@ export default function App() {
     setRefreshing(true);
     setRefreshMsg(null);
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/refresh-stocks`;
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      };
-      const resp = await fetch(url, { method: 'POST', headers });
-      if (!resp.ok) throw new Error(`Refresh failed (${resp.status})`);
-      const data = await resp.json();
+      const data = await refreshStocks();
       const updated = data.updated ?? 0;
       const total = data.total ?? 0;
       if (updated === 0 && total > 0) {
@@ -102,10 +97,10 @@ export default function App() {
         next.delete(ticker);
         return next;
       });
-      await supabase.from('watchlist').delete().eq('ticker', ticker);
+      await removeFromWatchlist(ticker);
     } else {
       setWatchlist((prev) => new Set(prev).add(ticker));
-      await supabase.from('watchlist').insert({ ticker });
+      await addToWatchlist(ticker);
     }
   }, [watchlist]);
 
