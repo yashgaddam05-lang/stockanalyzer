@@ -1,7 +1,7 @@
 # 3x Hunter — Project Progress Tracker
 
-**Last updated:** 2026-10-14
-**Current phase:** Phase 1 MVP (subset) — ~30% complete
+**Last updated:** 2026-10-15
+**Current phase:** Phase 1 MVP (subset) — Stage A (roadmap items 1–10) shipped; ~55% complete
 **Scope reference:** `3x_hunter_app_scope.md` (attached)
 
 ---
@@ -85,34 +85,34 @@ These standards must be followed in every build session to maintain consistency.
 
 | Area | Status | Notes |
 |---|---|---|
-| Phase | Phase 1 MVP subset | ~30% through Phase 1 |
-| Stock universe | 24 stocks seeded | Document targets 200–500 |
-| Scoring dimensions | 6 of 8 | 2 missing, 2 non-standard |
-| Risk model | Basic labels only | No independent 0–100 risk score |
-| UX | Single page + modal | No multi-page navigation |
+| Phase | Phase 1 MVP subset | Stage A (low-hanging roadmap items 1–10) complete |
+| Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
+| Scoring dimensions | 8 of 8 | Aligned to document weights; Innovation & Pipeline removed (model v2) |
+| Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
+| UX | Multi-page routing | react-router: Dashboard, Explore, Stock Detail, Watchlists, Methodology; SPA rewrite excludes `/api/` |
 | User accounts | None | No auth, no per-user data |
-| Database tables | 2 of ~30+ | stocks, watchlist only |
-| Data pipeline | 1 edge function | Yahoo Finance free endpoints, on-demand refresh |
+| Database tables | 5 of ~30+ | stocks, watchlist, watchlists, watchlist_items, score_history |
+| Data pipeline | 1 edge function + Vercel `/api/*` routes | Yahoo Finance free endpoints; bounded-concurrency refresh with rescoring |
 | Charts | None | No price charts or visualizations beyond progress bars |
 
 ---
 
 ## 5. Scoring Dimensions Status
 
-The scope document specifies 8 dimensions. Current implementation has 6, with 2 that don't match the document.
+The scope document specifies 8 dimensions. Scoring model v2 (2026-10-15) implements all 8 at the document weights. Dimensions marked done below are implemented from available free data; the "What's needed" column lists remaining data depth.
 
 | # | Document dimension | Weight | Status | Current implementation | What's needed |
 |---|---|---:|---|---|---|
-| 1 | Growth Potential | 20% | - [ ] Partial | Split into "Revenue Growth" (25pts) + "Earnings Growth" (20pts) — non-standard | Merge into single Growth Potential dimension with 20% weight |
-| 2 | Valuation Upside | 18% | - [ ] Missing | Not implemented at all | Forward P/E, EV/Sales, PEG, price-target upside, peer comparison |
-| 3 | Momentum | 15% | - [ ] Partial | Basic MA5/MA20 ratio + 20-day return. No estimate revisions, earnings surprises, short interest, relative strength | Add estimate revisions, relative strength vs sector, volume trends |
-| 4 | Fundamental Quality | 12% | - [ ] Partial | "Financial Health" — debt-to-equity + cash runway only. No margins, FCF, ROIC, dilution | Add gross/operating/net margins, FCF margin, ROIC, dilution tracking |
-| 5 | Catalyst Strength | 12% | - [ ] Missing | Not implemented | Catalyst calendar table, earnings dates, product launches, regulatory events |
-| 6 | Market Position | 10% | - [ ] Missing | Not implemented | Market share, moat indicators, pricing power, customer concentration |
-| 7 | Risk & Volatility | 8% | - [ ] Partial | "Volatility / Upside Potential" — volatility + beta only. Not scored independently | Separate risk score (0–100), risk label, risk explanation, invalidation signals |
-| 8 | Market Regime Fit | 5% | - [ ] Missing | Not implemented | Macro indicators, rate trends, sector rotation, growth vs value |
+| 1 | Growth Potential | 20% | - [x] Implemented (v2) | Split into "Revenue Growth" (25pts) + "Earnings Growth" (20pts) — non-standard | Merge into single Growth Potential dimension with 20% weight |
+| 2 | Valuation Upside | 18% | - [x] Implemented (v2) | Not implemented at all | Forward P/E, EV/Sales, PEG, price-target upside, peer comparison |
+| 3 | Momentum | 15% | - [x] Implemented (v2) | Basic MA5/MA20 ratio + 20-day return. No estimate revisions, earnings surprises, short interest, relative strength | Add estimate revisions, relative strength vs sector, volume trends |
+| 4 | Fundamental Quality | 12% | - [x] Implemented (v2) | "Financial Health" — debt-to-equity + cash runway only. No margins, FCF, ROIC, dilution | Add gross/operating/net margins, FCF margin, ROIC, dilution tracking |
+| 5 | Catalyst Strength | 12% | - [x] Implemented (v2) | Not implemented | Catalyst calendar table, earnings dates, product launches, regulatory events |
+| 6 | Market Position | 10% | - [x] Implemented (v2) | Not implemented | Market share, moat indicators, pricing power, customer concentration |
+| 7 | Risk & Volatility | 8% | - [x] Implemented (v2) | "Volatility / Upside Potential" — volatility + beta only. Not scored independently | Separate risk score (0–100), risk label, risk explanation, invalidation signals |
+| 8 | Market Regime Fit | 5% | - [x] Implemented (v2) | Not implemented | Macro indicators, rate trends, sector rotation, growth vs value |
 
-**Non-standard dimension to remove:** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
+**Non-standard dimension removed (model v2):** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
 
 ---
 
@@ -126,21 +126,21 @@ Features from scope document sections 8.1–8.7.
 - [x] Sort by: score, revenue growth, momentum, volatility, market cap
 - [ ] Top 10 / Top 25 / Top 100 opportunity lists
 - [ ] Filters by: industry, market cap bucket, price, liquidity, profitability, catalyst date
-- [ ] Preset screens (highest 3x, best risk-adjusted, highest momentum, most undervalued, catalysts imminent, new score breakouts, oversold quality, profitable compounders)
-- [ ] Score-change leaderboard
+- [x] Preset screens (highest 3x, best risk-adjusted, highest momentum, most undervalued, catalysts imminent, new score breakouts, oversold quality, profitable compounders)
+- [x] Score-change leaderboard
 - [ ] Sector and market-cap heat maps
 - [ ] Saved custom screens
 
 ### 8.2 Stock detail page
 - [x] 3x Opportunity Score and risk badge
 - [x] One-sentence investment thesis
-- [x] Dimension score breakdown (partial — 6 of 8 dimensions)
+- [x] Dimension score breakdown (8 of 8 dimensions)
 - [x] Key catalysts list
 - [x] Key risks list
 - [x] Basic metrics table
-- [ ] Dedicated page (currently a modal popup, not a full page)
+- [x] Dedicated page at `/stock/:ticker` (replaces modal)
 - [ ] Price, market cap, volume, and liquidity summary
-- [ ] Bull case, bear case, and neutral case (currently only generic catalysts/risks)
+- [x] Bull case, bear case, and neutral case
 - [ ] Catalyst calendar
 - [ ] Valuation versus peers
 - [ ] Financial trend charts
@@ -150,16 +150,16 @@ Features from scope document sections 8.1–8.7.
 - [ ] News and SEC filings
 - [ ] 3x scenario calculator
 - [ ] Thesis invalidation signals
-- [ ] Historical score trend
+- [x] Historical score trend
 
 ### 8.3 3x scenario calculator
 - [ ] Not started
 
 ### 8.4 Watchlists and simulated portfolios
 - [x] Basic watchlist (add/remove stocks, single shared list)
-- [ ] Named watchlists (multiple lists)
-- [ ] Notes and tags per stock
-- [ ] Score change tracking per watchlist
+- [x] Named watchlists (multiple lists)
+- [x] Notes and tags per stock
+- [x] Score change tracking per watchlist
 - [ ] Aggregate risk and sector exposure view
 - [ ] Sort watchlist by score, risk, catalyst date, price change, valuation
 - [ ] Simulated portfolios (positions, cost basis, unrealized gains)
@@ -194,14 +194,17 @@ Data categories from scope document section 6.
 
 ## 8. Database Tables Status
 
-Scope document section 13 recommends ~30+ tables. We have 2.
+Scope document section 13 recommends ~30+ tables. We have 5 (pending migration apply — see section 14).
 
 ### Current tables
 - [x] `stocks` — stock metrics and scores
 - [x] `watchlist` — simple watchlist (ticker + added_at)
+- [x] `score_history` — historical score snapshots (migration 20261015120000)
+- [x] `watchlists` — named watchlists (migration 20261015120100)
+- [x] `watchlist_items` — per-list items with notes and tags (migration 20261015120100)
 
 ### Phase 1 target tables
-- [ ] `score_history` — historical score snapshots for tracking changes
+- [x] `score_history` — historical score snapshots for tracking changes
 - [ ] `catalysts` — upcoming events per stock
 - [ ] `price_daily` — stored daily OHLCV (instead of on-demand fetch)
 
@@ -209,8 +212,8 @@ Scope document section 13 recommends ~30+ tables. We have 2.
 - [ ] `users`
 - [ ] `subscriptions`
 - [ ] `user_preferences`
-- [ ] `watchlists` (named, per-user)
-- [ ] `watchlist_items`
+- [x] `watchlists` (named; per-user ownership pending auth)
+- [x] `watchlist_items`
 - [ ] `alerts`
 - [ ] `alert_events`
 - [ ] `portfolios`
@@ -255,16 +258,16 @@ These items need no new external data or infrastructure. Mostly frontend, schema
 
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
-| 1 | Multi-page navigation and layout shell | - [ ] | Medium | Add routing, nav bar, separate pages for Dashboard, Explore, Stock Detail |
-| 2 | Dedicated stock detail page (replace modal) | - [ ] | Small | Move modal content to full page with clean URL |
-| 3 | Expand scoring from 6 to 8 dimensions | - [ ] | Medium | Add Valuation Upside + Market Position, remove Innovation & Pipeline, align weights to document |
-| 4 | Independent risk score (0–100) | - [ ] | Small | Calculate from existing fields: volatility, beta, debt-to-equity, cash runway, market cap |
-| 5 | Bull case / bear case / neutral case | - [ ] | Small | Expand existing catalysts/risks into three structured cases |
-| 6 | Preset screens | - [ ] | Small | Add preset filter buttons: highest 3x, best risk-adjusted, most undervalued, etc. |
-| 7 | Named watchlists with notes and tags | - [ ] | Medium | New tables: watchlists, watchlist_items. Per-stock notes. |
-| 8 | Score-change tracking | - [ ] | Small | Store previous score, show delta on cards and detail page |
-| 9 | Expand stock universe (24 → 100+) | - [ ] | Small | Insert more seed data into existing stocks table |
-| 10 | Disclaimer and compliance text | - [ ] | Small | Methodology page, proper disclaimers, data-source attribution |
+| 1 | Multi-page navigation and layout shell | - [x] | Medium | Shipped: react-router shell, NavBar/Footer, Dashboard/Explore/Detail/Watchlists/Methodology pages, SPA rewrite |
+| 2 | Dedicated stock detail page (replace modal) | - [x] | Small | Shipped: `/stock/:ticker` full page replaces modal |
+| 3 | Expand scoring from 6 to 8 dimensions | - [x] | Medium | Shipped: scoring model v2 with 8 document dimensions and weights; Innovation & Pipeline removed |
+| 4 | Independent risk score (0–100) | - [x] | Small | Shipped: independent 0–100 risk score from existing fields |
+| 5 | Bull case / bear case / neutral case | - [x] | Small | Shipped: structured bull/bear/neutral cases on detail page |
+| 6 | Preset screens | - [x] | Small | Shipped: preset screens on Explore (highest 3x, best risk-adjusted, most undervalued, etc.) |
+| 7 | Named watchlists with notes and tags | - [x] | Medium | Shipped: watchlists + watchlist_items tables, `/api/watchlists` and `/api/watchlist-items`, Watchlists page with notes/tags |
+| 8 | Score-change tracking | - [x] | Small | Shipped: score_history table, `/api/score-history`, deltas on cards and detail page; refresh rescoring writes history |
+| 9 | Expand stock universe (24 → 100+) | - [x] | Small | Shipped: seed expanded to 137 tickers (migration 20261015120200) |
+| 10 | Disclaimer and compliance text | - [x] | Small | Shipped: Methodology page, disclaimers in footer, data-source attribution |
 
 ## 10. Roadmap — Medium Difficulty
 
@@ -313,11 +316,18 @@ Running log of what was done in each build session.
 - Single-page app with header, hero, stats overview, filters, stock grid, detail modal
 - Watchlist add/remove functionality
 
-### Session 2 — 2026-10-14 (this session)
+### Session 2 — 2026-10-14
 - Created PROGRESS.md tracking document
 - Assessed current state against full scope document
 - Identified low-hanging fruit, medium, and tough roadmap items
 - Documented design and architecture standards
+
+### Session 3 — 2026-10-15 (Stage A swarm build)
+Roadmap items 1–10 built by the engineering swarm (`roadmap-swarm` workflow), one worktree per package on `swarm/<id>`, merged via wave branches.
+- Wave 1: `router-deps-spa-rewrite` (react-router-dom v6 + `vercel.json` SPA rewrite excluding `/api/`), `schema-contracts` (scoring inputs, score_history, named watchlists, shared types), `universe-seed-100` (137 tickers), `edge-refresh-v2` (bounded concurrency, crumb auth, v7 fallback, expanded fields, schema degrade)
+- Wave 2: `scoring-model-v2` (8 dimensions, independent risk score, bull/bear/neutral cases, preset screens), `api-v2` (score history + named watchlist endpoints with graceful DB degradation), `app-shell-routing` (routed shell, StocksProvider, StockCard, pages)
+- Wave 3: `dashboard`, `explore-presets`, `stock-detail-page`, `watchlists-page`, `methodology-compliance`, `refresh-rescore`, `progress-doc-stage-a`
+- Earlier same day: fixed ESM `.js` import paths in Vercel API routes (prod `ERR_MODULE_NOT_FOUND`); added swarm agents and CLAUDE.md
 
 ---
 
@@ -326,5 +336,17 @@ Running log of what was done in each build session.
 - **Supabase URL:** configured in `.env` (project: irbwaucilrznbqynhtmr)
 - **Supabase Anon Key:** configured in `.env`
 - **Edge function deployed:** `refresh-stocks` (Yahoo Finance integration)
-- **No git repository** — not under version control
-- **No GitHub remote** — not pushed to any remote
+- **Git:** repository on GitHub; commits must be authored as `yashgaddam05@gmail.com` or Vercel skips the build
+- **Vercel:** project `stockanalyzer` in team scope `bolot1`; pushing to `main` deploys to production. Env vars (`DATABASE_URL`, `DATABASE_ANON_KEY`) are Production-only, so preview deploys 500 until they are added to Preview
+- **Swarm branches:** work lands on `swarm/integration`, never directly on `main`
+
+---
+
+## 14. Unapplied Migrations / Pending Ops
+
+Not confirmed applied to the production Supabase project as of 2026-10-15. Apply in order via `apply_migration`, then verify.
+- [ ] `supabase/migrations/20261015120000_scoring_inputs_and_score_history.sql` — scoring input columns + `score_history`
+- [ ] `supabase/migrations/20261015120100_named_watchlists.sql` — `watchlists`, `watchlist_items`
+- [ ] `supabase/migrations/20261015120200_expand_universe_seed.sql` — expand seed to 137 tickers
+- [ ] Redeploy `refresh-stocks` edge function (v2 refresh + rescoring) and run one refresh
+- [ ] Post-deploy smoke test: `/`, `/api/stocks`, `/api/watchlist`, `/api/watchlists`, `/api/score-history` return 200 + sane JSON
