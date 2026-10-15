@@ -7,9 +7,12 @@ import {
   isUniqueViolation,
   normalizeTicker,
   readJsonBody,
+  resolveAuth,
   sendBadRequest,
+  sendLegacyUnavailable,
   sendMethodNotAllowed,
   sendServerError,
+  sendUnauthorized,
   supabase,
   type ApiRequest,
   type ApiResponse,
@@ -32,6 +35,14 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     return;
   }
 
+  const auth = await resolveAuth(request);
+  if (auth.kind === 'invalid') {
+    sendUnauthorized(response, 'Your session expired. Sign in again.');
+    return;
+  }
+  // Anonymous => shared anon client + shared default list; user => user-JWT client + their own default.
+  const db = auth.db;
+
   let ticker: string | null = null;
   if (method !== 'GET') {
     ticker = getTicker(request);
@@ -42,7 +53,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
-    const fallback = await getOrCreateDefaultWatchlist();
+    const fallback = await getOrCreateDefaultWatchlist(db, auth.userId);
     if (fallback.kind === 'error') {
       sendServerError(response);
       return;
@@ -51,7 +62,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (fallback.kind === 'ok') {
       const listId = fallback.list.id;
       if (method === 'GET') {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('watchlist_items')
           .select('id, ticker, added_at')
           .eq('watchlist_id', listId)
@@ -64,7 +75,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         return;
       }
       if (method === 'POST') {
-        const { error } = await supabase.from('watchlist_items').insert({ watchlist_id: listId, ticker });
+        const { error } = await db.from('watchlist_items').insert({ watchlist_id: listId, ticker });
         if (error && !isUniqueViolation(error)) {
           sendServerError(response);
           return;
@@ -72,7 +83,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         response.status(201).json({ ticker });
         return;
       }
-      const { error } = await supabase
+      const { error } = await db
         .from('watchlist_items')
         .delete()
         .eq('watchlist_id', listId)
@@ -85,7 +96,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
 
-    // Legacy table fallback.
+    // Legacy table fallback (shared, anonymous only).
+    if (auth.kind === 'user') {
+      sendLegacyUnavailable(response);
+      return;
+    }
     if (method === 'GET') {
       const { data, error } = await supabase
         .from('watchlist')

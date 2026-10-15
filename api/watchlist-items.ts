@@ -8,18 +8,26 @@ import {
   parseNotes,
   parseTags,
   readJsonBody,
+  resolveAuth,
   sendBadRequest,
   sendLegacyUnavailable,
   sendMethodNotAllowed,
   sendServerError,
+  sendUnauthorized,
   supabase,
   WATCHLIST_ITEM_COLUMNS,
   type ApiRequest,
   type ApiResponse,
 } from './_supabase.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const ALLOWED = ['POST', 'PATCH', 'DELETE'];
 const LEGACY_ID = 'legacy';
+/** Postgres codes meaning the target watchlist is missing or not visible to this caller (FK / RLS WITH CHECK). */
+const NOT_FOUND_CODES = new Set(['23503', '42501']);
+
+/** Who the request runs as: db is the shared anon client (ownerId null) or the user-JWT client. */
+type Scope = { db: SupabaseClient; ownerId: string | null };
 
 type LegacyRow = { id: string; ticker: string; added_at: string | null };
 
@@ -29,13 +37,13 @@ function legacyToItem(row: LegacyRow) {
 }
 
 /** Probe whether the named-watchlist tables exist. null = unexpected error. */
-async function namedTablesExist(): Promise<boolean | null> {
-  const { error } = await supabase.from('watchlist_items').select('id').limit(1);
+async function namedTablesExist(db: SupabaseClient): Promise<boolean | null> {
+  const { error } = await db.from('watchlist_items').select('id').limit(1);
   if (!error) return true;
   return isMissingRelation(error) ? false : null;
 }
 
-async function handlePost(request: ApiRequest, response: ApiResponse): Promise<void> {
+async function handlePost(request: ApiRequest, response: ApiResponse, scope: Scope): Promise<void> {
   const body = readJsonBody(request);
   if (!body) {
     sendBadRequest(response, 'Request body must be a JSON object.');
@@ -62,14 +70,14 @@ async function handlePost(request: ApiRequest, response: ApiResponse): Promise<v
     return;
   }
 
-  const exists = await namedTablesExist();
+  const exists = await namedTablesExist(scope.db);
   if (exists === null) {
     sendServerError(response);
     return;
   }
 
   if (!exists) {
-    if (watchlistId !== LEGACY_ID) {
+    if (watchlistId !== LEGACY_ID || scope.ownerId !== null) {
       sendLegacyUnavailable(response);
       return;
     }
@@ -89,7 +97,11 @@ async function handlePost(request: ApiRequest, response: ApiResponse): Promise<v
   let targetId = watchlistId as string;
   if (watchlistId === LEGACY_ID) {
     // Client still holds the legacy id after the migration landed: use the default list.
-    const fallback = await getOrCreateDefaultWatchlist();
+    const fallback = await getOrCreateDefaultWatchlist(scope.db, scope.ownerId);
+    if (fallback.kind === 'legacy' && scope.ownerId !== null) {
+      sendLegacyUnavailable(response);
+      return;
+    }
     if (fallback.kind !== 'ok') {
       sendServerError(response);
       return;
@@ -97,7 +109,7 @@ async function handlePost(request: ApiRequest, response: ApiResponse): Promise<v
     targetId = fallback.list.id;
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await scope.db
     .from('watchlist_items')
     .insert({ watchlist_id: targetId, ticker, notes: notes ?? '', tags: tags ?? [] })
     .select(WATCHLIST_ITEM_COLUMNS)
@@ -106,7 +118,7 @@ async function handlePost(request: ApiRequest, response: ApiResponse): Promise<v
     response.status(409).json({ error: `${ticker} is already on this watchlist.` });
     return;
   }
-  if (error?.code === '23503') {
+  if (error?.code && NOT_FOUND_CODES.has(error.code)) {
     response.status(404).json({ error: 'Watchlist not found.' });
     return;
   }
@@ -117,7 +129,7 @@ async function handlePost(request: ApiRequest, response: ApiResponse): Promise<v
   response.status(201).json(data);
 }
 
-async function handlePatch(request: ApiRequest, response: ApiResponse, id: string): Promise<void> {
+async function handlePatch(request: ApiRequest, response: ApiResponse, scope: Scope, id: string): Promise<void> {
   const body = readJsonBody(request);
   if (!body) {
     sendBadRequest(response, 'Request body must be a JSON object.');
@@ -138,7 +150,7 @@ async function handlePatch(request: ApiRequest, response: ApiResponse, id: strin
     return;
   }
 
-  const exists = await namedTablesExist();
+  const exists = await namedTablesExist(scope.db);
   if (exists === null) {
     sendServerError(response);
     return;
@@ -152,7 +164,8 @@ async function handlePatch(request: ApiRequest, response: ApiResponse, id: strin
   if (notes !== undefined) patch.notes = notes;
   if (tags !== undefined) patch.tags = tags;
 
-  const { data, error } = await supabase
+  // RLS limits the update to items in watchlists this caller can see; zero rows => 404.
+  const { data, error } = await scope.db
     .from('watchlist_items')
     .update(patch)
     .eq('id', id)
@@ -169,17 +182,34 @@ async function handlePatch(request: ApiRequest, response: ApiResponse, id: strin
   response.status(200).json(data);
 }
 
-async function handleDelete(response: ApiResponse, id: string): Promise<void> {
-  const exists = await namedTablesExist();
+async function handleDelete(response: ApiResponse, scope: Scope, id: string): Promise<void> {
+  const exists = await namedTablesExist(scope.db);
   if (exists === null) {
     sendServerError(response);
     return;
   }
-  // Legacy mode: item ids returned by GET /api/watchlists are legacy watchlist row ids.
-  const table = exists ? 'watchlist_items' : 'watchlist';
-  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (!exists) {
+    if (scope.ownerId !== null) {
+      sendLegacyUnavailable(response);
+      return;
+    }
+    // Legacy mode: item ids returned by GET /api/watchlists are legacy watchlist row ids.
+    const { error } = await supabase.from('watchlist').delete().eq('id', id);
+    if (error) {
+      sendServerError(response);
+      return;
+    }
+    response.status(204).end();
+    return;
+  }
+  // RLS limits the delete to items in watchlists this caller can see; zero rows => 404.
+  const { data, error } = await scope.db.from('watchlist_items').delete().eq('id', id).select('id');
   if (error) {
     sendServerError(response);
+    return;
+  }
+  if (!data || data.length === 0) {
+    response.status(404).json({ error: 'Watchlist item not found.' });
     return;
   }
   response.status(204).end();
@@ -193,8 +223,15 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
+    const auth = await resolveAuth(request);
+    if (auth.kind === 'invalid') {
+      sendUnauthorized(response, 'Your session expired. Sign in again.');
+      return;
+    }
+    const scope: Scope = { db: auth.db, ownerId: auth.userId };
+
     if (method === 'POST') {
-      await handlePost(request, response);
+      await handlePost(request, response, scope);
       return;
     }
 
@@ -205,10 +242,10 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     if (method === 'PATCH') {
-      await handlePatch(request, response, id);
+      await handlePatch(request, response, scope, id);
       return;
     }
-    await handleDelete(response, id);
+    await handleDelete(response, scope, id);
   } catch {
     sendServerError(response);
   }
