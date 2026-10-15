@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Star } from 'lucide-react';
+import { ArrowDown, ArrowUp, Star } from 'lucide-react';
 import type { StockListItem } from '@/lib/supabase';
 import type { AnalysisResult } from '@/lib/analysis';
 import { formatMarketCap, getRiskLabel, getScoreBg, getScoreColor } from '@/lib/analysis';
@@ -15,6 +15,8 @@ export interface StockCardProps {
   analysis: AnalysisResult;
   isWatched: boolean;
   onToggleWatch: (ticker: string) => void;
+  /** Hide the score-change chip even when stock.score_change is set. */
+  hideScoreChange?: boolean;
 }
 
 const RISK_VARIANT: Record<string, 'success' | 'secondary' | 'warning' | 'danger'> = {
@@ -24,7 +26,10 @@ const RISK_VARIANT: Record<string, 'success' | 'secondary' | 'warning' | 'danger
   extreme: 'danger',
 };
 
-export function StockCard({ stock, analysis, isWatched, onToggleWatch }: StockCardProps) {
+export function StockCard({ stock, analysis, isWatched, onToggleWatch, hideScoreChange = false }: StockCardProps) {
+  const change = typeof stock.score_change === 'number' && Number.isFinite(stock.score_change) ? Math.round(stock.score_change) : 0;
+  const riskLabel = analysis.riskLabel ?? stock.risk_level;
+
   const handleWatch = (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -55,10 +60,18 @@ export function StockCard({ stock, analysis, isWatched, onToggleWatch }: StockCa
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-base font-semibold tracking-tight text-neutral-900">{stock.ticker}</h3>
-              <Badge variant={RISK_VARIANT[stock.risk_level] ?? 'secondary'}>{getRiskLabel(stock.risk_level)}</Badge>
-              {stock.data_source === 'seed' && (
-                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-800">
-                  Seed
+              <Badge
+                variant={RISK_VARIANT[riskLabel] ?? 'secondary'}
+                aria-label={`Risk score ${analysis.riskScore} of 100, ${getRiskLabel(riskLabel)}`}
+              >
+                {getRiskLabel(riskLabel)} · {analysis.riskScore}
+              </Badge>
+              {stock.data_source !== 'yahoo' && (
+                <span
+                  className="rounded border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-800"
+                  title="Approximate placeholder values until the next data refresh"
+                >
+                  Seed data
                 </span>
               )}
             </div>
@@ -72,7 +85,10 @@ export function StockCard({ stock, analysis, isWatched, onToggleWatch }: StockCa
         <div className="mb-4 flex items-center gap-4">
           <ScoreRing score={analysis.totalScore} />
           <div className="flex-1">
-            <p className={cn('text-[13px] font-semibold', getScoreColor(analysis.totalScore))}>{analysis.rating}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={cn('text-[13px] font-semibold', getScoreColor(analysis.totalScore))}>{analysis.rating}</p>
+              {!hideScoreChange && change !== 0 && <ScoreChangeChip change={change} />}
+            </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">~{analysis.threeXProbability}% est. 3x probability</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground/60">{analysis.timeframe}</p>
           </div>
@@ -164,5 +180,25 @@ export function Metric({ label, value, positive }: { label: string; value: strin
       <p className="text-[9px] uppercase tracking-wider text-muted-foreground/70">{label}</p>
       <p className={cn('mt-0.5 text-[13px] font-semibold', positive ? 'text-neutral-900' : 'text-neutral-600')}>{value}</p>
     </div>
+  );
+}
+
+export function ScoreChangeChip({ change }: { change: number }) {
+  const up = change > 0;
+  const abs = Math.abs(change);
+  const Icon = up ? ArrowUp : ArrowDown;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded border px-1.5 py-px text-[11px] font-semibold',
+        up ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'
+      )}
+      aria-label={`Score ${up ? 'up' : 'down'} ${abs} since last snapshot`}
+      title={`Score ${up ? 'up' : 'down'} ${abs} since last snapshot`}
+    >
+      <Icon className="h-3 w-3" aria-hidden="true" />
+      {up ? '+' : '-'}
+      {abs}
+    </span>
   );
 }
