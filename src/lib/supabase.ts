@@ -74,6 +74,7 @@ export interface Watchlist {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  owner_id?: string | null;
 }
 
 export interface WatchlistItem {
@@ -93,4 +94,57 @@ export interface WatchlistWithItems extends Watchlist {
 export interface WatchlistsResponse {
   legacy: boolean;
   lists: WatchlistWithItems[];
+}
+
+export type CatalystType = 'earnings' | 'product' | 'regulatory' | 'clinical' | 'conference' | 'corporate' | 'other';
+
+export interface Catalyst {
+  id: string;
+  ticker: string;
+  event_type: CatalystType;
+  title: string;
+  /** YYYY-MM-DD */
+  event_date: string;
+  date_status: 'confirmed' | 'estimated';
+  source: 'yahoo' | 'manual';
+  source_url: string | null;
+  notes: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalystsResponse {
+  available: boolean;
+  catalysts: Catalyst[];
+}
+
+export interface CatalystInput {
+  ticker: string;
+  event_type: CatalystType;
+  title: string;
+  event_date: string;
+  date_status?: 'confirmed' | 'estimated';
+  source_url?: string | null;
+  notes?: string;
+}
+
+export type PriceRange = '1mo' | '3mo' | '6mo' | '1y' | '5y';
+
+export interface PricePoint {
+  /** ISO 8601 date YYYY-MM-DD */
+  t: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  volume: number | null;
+}
+
+export interface PriceHistoryResponse {
+  ticker: string;
+  range: PriceRange;
+  interval: '1d' | '1wk';
+  currency: string | null;
+  points: PricePoint[];
 }
