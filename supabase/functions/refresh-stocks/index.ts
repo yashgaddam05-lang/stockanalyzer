@@ -9,6 +9,10 @@ const corsHeaders = {
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const CONCURRENCY = 5;
 const REQUEST_TIMEOUT_MS = 8000;
+// Stop picking up new tickers after this; Edge Function wall clock is 150s on Free.
+const RUN_BUDGET_MS = 90_000;
+const MIN_MOMENTUM_CLOSES = 20;
+const MIN_VOLATILITY_CLOSES = 10;
 
 const LEGACY_COLUMNS = [
   "current_price",
@@ -91,8 +95,9 @@ function getCrumb(): Promise<Crumb | null> {
 }
 
 // ---------- Chart (momentum / volatility / price) ----------
-function calcMomentum(closes: number[]): number {
-  if (closes.length < 20) return 50;
+// Return undefined below threshold so we never write a fabricated placeholder.
+function calcMomentum(closes: number[]): number | undefined {
+  if (closes.length < MIN_MOMENTUM_CLOSES) return undefined;
   const recent = closes.slice(-20);
   const ma5 = recent.slice(-5).reduce((a, b) => a + b, 0) / 5;
   const ma20 = recent.reduce((a, b) => a + b, 0) / recent.length;
@@ -102,13 +107,13 @@ function calcMomentum(closes: number[]): number {
   return Math.min(100, Math.max(0, Math.round(score)));
 }
 
-function calcVolatility(closes: number[]): number {
-  if (closes.length < 10) return 50;
+function calcVolatility(closes: number[]): number | undefined {
+  if (closes.length < MIN_VOLATILITY_CLOSES) return undefined;
   const returns: number[] = [];
   for (let i = 1; i < closes.length; i++) {
     if (closes[i - 1] > 0) returns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
   }
-  if (returns.length === 0) return 50;
+  if (returns.length === 0) return undefined;
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length;
   return Math.round(Math.sqrt(variance) * Math.sqrt(252) * 100);
@@ -183,9 +188,11 @@ async function buildUpdate(ticker: string): Promise<Row | null> {
   const [chart, summary] = await Promise.all([fetchChart(ticker), fetchQuoteSummary(ticker)]);
   const row: Row = {};
 
-  if (chart && chart.closes.length > 0) {
-    row.momentum_score = calcMomentum(chart.closes);
-    row.volatility = calcVolatility(chart.closes);
+  if (chart) {
+    const momentum = calcMomentum(chart.closes);
+    if (momentum !== undefined) row.momentum_score = momentum;
+    const volatility = calcVolatility(chart.closes);
+    if (volatility !== undefined) row.volatility = volatility;
   }
   if (chart?.price && chart.price > 0) row.current_price = chart.price;
 
@@ -263,10 +270,18 @@ function isMissingColumnError(err: { code?: string; message?: string } | null): 
   return /column .* (does not exist|could not find)|Could not find the .* column/i.test(err.message || "");
 }
 
-async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+// Runs worker over items with bounded concurrency. Once deadline passes, no new
+// items are started; returns the items that were never picked up.
+async function runPool<T>(
+  items: T[],
+  limit: number,
+  deadline: number,
+  worker: (item: T) => Promise<void>,
+): Promise<T[]> {
   let idx = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (idx < items.length) {
+      if (Date.now() >= deadline) return;
       const item = items[idx++];
       try {
         await worker(item);
@@ -276,6 +291,7 @@ async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promis
     }
   });
   await Promise.all(runners);
+  return items.slice(idx);
 }
 
 Deno.serve(async (req: Request) => {
@@ -284,6 +300,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const deadline = Date.now() + RUN_BUDGET_MS;
     crumbPromise = null; // fresh crumb per invocation
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -317,7 +334,7 @@ Deno.serve(async (req: Request) => {
       return out;
     };
 
-    await runPool(list, CONCURRENCY, async (stock) => {
+    const skipped = await runPool(list, CONCURRENCY, deadline, async (stock) => {
       try {
         const full = await buildUpdate(stock.ticker);
         if (!full) {
@@ -325,8 +342,11 @@ Deno.serve(async (req: Request) => {
           return;
         }
         let payload = degraded ? legacyOnly(full) : full;
+        // Decide on what was actually sent, not the shared flag: concurrent workers may
+        // have sent the full payload before another worker flipped `degraded`.
+        const sentFull = payload === full;
         let { error } = await supabase.from("stocks").update(payload).eq("id", stock.id);
-        if (error && !degraded && isMissingColumnError(error)) {
+        if (error && sentFull && isMissingColumnError(error)) {
           degraded = true;
           payload = legacyOnly(full);
           ({ error } = await supabase.from("stocks").update(payload).eq("id", stock.id));
@@ -337,6 +357,7 @@ Deno.serve(async (req: Request) => {
         failed.push(stock.ticker);
       }
     });
+    for (const s of skipped) failed.push(s.ticker);
 
     return json({ updated, total: list.length, failed, degraded });
   } catch (err) {
