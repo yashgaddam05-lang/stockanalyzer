@@ -236,8 +236,17 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
             variant="ghost"
             size="sm"
             onClick={() => {
-              setParam('type', null);
-              setParam('sector', null);
+              // One navigation: setSearchParams' updater sees render-time params, so two
+              // back-to-back setParam calls would overwrite each other.
+              setParams(
+                (prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete('type');
+                  next.delete('sector');
+                  return next;
+                },
+                { replace: true }
+              );
             }}
           >
             Clear filters
