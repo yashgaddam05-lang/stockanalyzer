@@ -99,18 +99,18 @@ These standards must be followed in every build session to maintain consistency.
 
 ## 5. Scoring Dimensions Status
 
-The scope document specifies 8 dimensions. Scoring model v2 (2026-10-15) implements all 8 at the document weights. Dimensions marked done below are implemented from available free data; the "What's needed" column lists remaining data depth.
+The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/model.ts`, 2026-10-15) defines all 8 at the document weights and scores 7 of them from available free data. Market Regime Fit returns null until macro data exists, and its weight is re-normalized across the other dimensions. The "What's needed" column lists only the data depth still missing.
 
-| # | Document dimension | Weight | Status | Current implementation | What's needed |
+| # | Document dimension | Weight | Status | Current implementation (v2 inputs) | What's needed |
 |---|---|---:|---|---|---|
-| 1 | Growth Potential | 20% | - [x] Implemented (v2) | Split into "Revenue Growth" (25pts) + "Earnings Growth" (20pts) — non-standard | Merge into single Growth Potential dimension with 20% weight |
-| 2 | Valuation Upside | 18% | - [x] Implemented (v2) | Not implemented at all | Forward P/E, EV/Sales, PEG, price-target upside, peer comparison |
-| 3 | Momentum | 15% | - [x] Implemented (v2) | Basic MA5/MA20 ratio + 20-day return. No estimate revisions, earnings surprises, short interest, relative strength | Add estimate revisions, relative strength vs sector, volume trends |
-| 4 | Fundamental Quality | 12% | - [x] Implemented (v2) | "Financial Health" — debt-to-equity + cash runway only. No margins, FCF, ROIC, dilution | Add gross/operating/net margins, FCF margin, ROIC, dilution tracking |
-| 5 | Catalyst Strength | 12% | - [x] Implemented (v2) | Not implemented | Catalyst calendar table, earnings dates, product launches, regulatory events |
-| 6 | Market Position | 10% | - [x] Implemented (v2) | Not implemented | Market share, moat indicators, pricing power, customer concentration |
-| 7 | Risk & Volatility | 8% | - [x] Implemented (v2) | "Volatility / Upside Potential" — volatility + beta only. Not scored independently | Separate risk score (0–100), risk label, risk explanation, invalidation signals |
-| 8 | Market Regime Fit | 5% | - [x] Implemented (v2) | Not implemented | Macro indicators, rate trends, sector rotation, growth vs value |
+| 1 | Growth Potential | 20% | - [x] Implemented (v2) | Single dimension: revenue growth YoY (60%) + earnings growth YoY (40%), plus up to +10 for R&D intensity | Forward revenue/EPS estimates, multi-year growth history |
+| 2 | Valuation Upside | 18% | - [x] Implemented (v2) | Mean of forward P/E, growth-adjusted P/S, PEG and analyst mean-target upside vs current price | EV/Sales, peer/sector-relative comparison |
+| 3 | Momentum | 15% | - [x] Implemented (v2) | Momentum score (MA5/MA20 + 20-day return, 70%) + position in 52-week range (30%) | Estimate revisions, earnings surprises, relative strength vs sector, volume trends, short interest |
+| 4 | Fundamental Quality | 12% | - [x] Implemented (v2) | Gross/operating/net margins, debt-to-equity, cash runway | FCF margin, ROIC, share-dilution tracking |
+| 5 | Catalyst Strength | 12% | - [x] Implemented (v2, proxy) | Proxy from pipeline count (60%) + R&D intensity (40%); no dated events | Catalyst calendar table: earnings dates, product launches, regulatory events |
+| 6 | Market Position | 10% | - [x] Implemented (v2) | Market-cap tier, gross margin as pricing-power indicator, average volume (liquidity) | Market share, moat indicators, customer concentration |
+| 7 | Risk & Volatility | 8% | - [x] Implemented (v2) | Opportunity-side asymmetry from volatility + beta. Separate independent 0-100 risk score with label, drivers and invalidation signals in `src/lib/scoring/risk.ts` (volatility, beta, leverage, runway, market cap, profitability) | Drawdown history, liquidity/float risk inputs |
+| 8 | Market Regime Fit | 5% | - [ ] Defined, not scored | Weight defined; scorer returns null and the weight is re-normalized | Macro indicators, rate trends, sector rotation, growth vs value (roadmap item 21) |
 
 **Non-standard dimension removed (model v2):** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
 
@@ -126,7 +126,8 @@ Features from scope document sections 8.1–8.7.
 - [x] Sort by: score, revenue growth, momentum, volatility, market cap
 - [ ] Top 10 / Top 25 / Top 100 opportunity lists
 - [ ] Filters by: industry, market cap bucket, price, liquidity, profitability, catalyst date
-- [x] Preset screens (highest 3x, best risk-adjusted, highest momentum, most undervalued, catalysts imminent, new score breakouts, oversold quality, profitable compounders)
+- [x] Preset screens (highest 3x, best risk-adjusted, highest momentum, most undervalued, new score breakouts, oversold quality, profitable compounders, lower risk)
+- [ ] "Catalysts imminent" preset (waits on the catalysts table; no catalyst-date data yet)
 - [x] Score-change leaderboard
 - [ ] Sector and market-cap heat maps
 - [ ] Saved custom screens
@@ -134,7 +135,7 @@ Features from scope document sections 8.1–8.7.
 ### 8.2 Stock detail page
 - [x] 3x Opportunity Score and risk badge
 - [x] One-sentence investment thesis
-- [x] Dimension score breakdown (8 of 8 dimensions)
+- [x] Dimension score breakdown (all 8 dimensions shown; Market Regime Fit shows "not scored")
 - [x] Key catalysts list
 - [x] Key risks list
 - [x] Basic metrics table
@@ -260,7 +261,7 @@ These items need no new external data or infrastructure. Mostly frontend, schema
 |---|---|---|---|---|
 | 1 | Multi-page navigation and layout shell | - [x] | Medium | Shipped: react-router shell, NavBar/Footer, Dashboard/Explore/Detail/Watchlists/Methodology pages, SPA rewrite |
 | 2 | Dedicated stock detail page (replace modal) | - [x] | Small | Shipped: `/stock/:ticker` full page replaces modal |
-| 3 | Expand scoring from 6 to 8 dimensions | - [x] | Medium | Shipped: scoring model v2 with 8 document dimensions and weights; Innovation & Pipeline removed |
+| 3 | Expand scoring from 6 to 8 dimensions | - [x] | Medium | Shipped: scoring model v2 with 8 document dimensions and weights (7 scored; Market Regime Fit waits on macro data); Innovation & Pipeline removed |
 | 4 | Independent risk score (0–100) | - [x] | Small | Shipped: independent 0–100 risk score from existing fields |
 | 5 | Bull case / bear case / neutral case | - [x] | Small | Shipped: structured bull/bear/neutral cases on detail page |
 | 6 | Preset screens | - [x] | Small | Shipped: preset screens on Explore (highest 3x, best risk-adjusted, most undervalued, etc.) |
