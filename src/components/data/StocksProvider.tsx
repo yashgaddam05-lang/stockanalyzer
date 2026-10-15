@@ -10,6 +10,7 @@ import {
 import type { RefreshResponse } from '@/lib/api';
 import type { StockListItem } from '@/lib/supabase';
 import { analyzeStock } from '@/lib/analysis';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { AnalysisResult } from '@/lib/analysis';
 
 export interface StocksContextValue {
@@ -61,10 +62,20 @@ export function StocksProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const { loading: authLoading, user } = useAuth();
+  const userId = user?.id ?? null;
+
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // Load the watchlist once auth has resolved, and again whenever the user signs in or out,
+  // so the star state switches between the shared and the personal list.
+  useEffect(() => {
+    if (authLoading) return;
+    if (userId === null) setWatchlist(new Set());
     void reloadWatchlist();
-  }, [reload, reloadWatchlist]);
+  }, [authLoading, userId, reloadWatchlist]);
 
   const toggleWatch = useCallback(async (rawTicker: string) => {
     const ticker = rawTicker.toUpperCase();
