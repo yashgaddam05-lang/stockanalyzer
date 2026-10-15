@@ -5,10 +5,12 @@ import {
   isUuid,
   parseWatchlistName,
   readJsonBody,
+  resolveAuth,
   sendBadRequest,
   sendLegacyUnavailable,
   sendMethodNotAllowed,
   sendServerError,
+  sendUnauthorized,
   supabase,
   WATCHLIST_COLUMNS,
   WATCHLIST_ITEM_COLUMNS,
@@ -16,6 +18,7 @@ import {
   type ApiResponse,
   type WatchlistRow,
 } from './_supabase.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ItemRow = {
   id: string;
@@ -31,9 +34,18 @@ type LegacyRow = { id: string; ticker: string; added_at: string | null };
 
 const ALLOWED = ['GET', 'POST', 'PATCH', 'DELETE'];
 
+/** Who the request runs as: db is the shared anon client (ownerId null) or the user-JWT client. */
+type Scope = { db: SupabaseClient; ownerId: string | null };
+
+/** Selects watchlists visible to the scope: shared rows for anonymous, own rows for users (RLS enforces both). */
+function watchlistsQuery(scope: Scope, columns: string) {
+  const query = scope.db.from('watchlists').select(columns);
+  return scope.ownerId === null ? query.is('owner_id', null) : query.eq('owner_id', scope.ownerId);
+}
+
 /** Probe whether the named-watchlist tables exist. null = unexpected error. */
-async function namedTablesExist(): Promise<boolean | null> {
-  const { error } = await supabase.from('watchlists').select('id').limit(1);
+async function namedTablesExist(db: SupabaseClient): Promise<boolean | null> {
+  const { error } = await db.from('watchlists').select('id').limit(1);
   if (!error) return true;
   return isMissingRelation(error) ? false : null;
 }
@@ -60,9 +72,13 @@ async function sendLegacyList(response: ApiResponse): Promise<void> {
   });
 }
 
-async function handleGet(response: ApiResponse): Promise<void> {
-  const fallback = await getOrCreateDefaultWatchlist();
+async function handleGet(response: ApiResponse, scope: Scope): Promise<void> {
+  const fallback = await getOrCreateDefaultWatchlist(scope.db, scope.ownerId);
   if (fallback.kind === 'legacy') {
+    if (scope.ownerId !== null) {
+      sendLegacyUnavailable(response);
+      return;
+    }
     await sendLegacyList(response);
     return;
   }
@@ -71,11 +87,20 @@ async function handleGet(response: ApiResponse): Promise<void> {
     return;
   }
 
-  const [lists, items] = await Promise.all([
-    supabase.from('watchlists').select(WATCHLIST_COLUMNS).order('created_at', { ascending: true }),
-    supabase.from('watchlist_items').select(WATCHLIST_ITEM_COLUMNS).order('added_at', { ascending: false }),
-  ]);
-  if (lists.error || items.error) {
+  const lists = await watchlistsQuery(scope, WATCHLIST_COLUMNS).order('created_at', { ascending: true });
+  if (lists.error) {
+    sendServerError(response);
+    return;
+  }
+  const listIds = ((lists.data as unknown as WatchlistRow[] | null) ?? []).map((list) => list.id);
+  const items = listIds.length === 0
+    ? { data: [] as ItemRow[], error: null }
+    : await scope.db
+      .from('watchlist_items')
+      .select(WATCHLIST_ITEM_COLUMNS)
+      .in('watchlist_id', listIds)
+      .order('added_at', { ascending: false });
+  if (items.error) {
     sendServerError(response);
     return;
   }
@@ -87,7 +112,7 @@ async function handleGet(response: ApiResponse): Promise<void> {
     byList.set(item.watchlist_id, bucket);
   }
 
-  const rows = ((lists.data as WatchlistRow[] | null) ?? []).slice();
+  const rows = ((lists.data as unknown as WatchlistRow[] | null) ?? []).slice();
   rows.sort((a, b) => Number(b.is_default) - Number(a.is_default));
   response.status(200).json({
     legacy: false,
@@ -106,8 +131,16 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
+    const auth = await resolveAuth(request);
+    if (auth.kind === 'invalid') {
+      sendUnauthorized(response, 'Your session expired. Sign in again.');
+      return;
+    }
+    const scope: Scope = { db: auth.db, ownerId: auth.userId };
+    const { db } = scope;
+
     if (method === 'GET') {
-      await handleGet(response);
+      await handleGet(response, scope);
       return;
     }
 
@@ -135,7 +168,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       }
     }
 
-    const exists = await namedTablesExist();
+    const exists = await namedTablesExist(db);
     if (exists === null) {
       sendServerError(response);
       return;
@@ -146,9 +179,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     if (method === 'POST') {
-      const { data, error } = await supabase
+      // Anonymous inserts rely on the column default (auth.uid() = NULL) so pre-ownership schemas keep working.
+      const row = scope.ownerId === null
+        ? { name, is_default: false }
+        : { name, is_default: false, owner_id: scope.ownerId };
+      const { data, error } = await db
         .from('watchlists')
-        .insert({ name, is_default: false })
+        .insert(row)
         .select(WATCHLIST_COLUMNS)
         .single();
       if (error || !data) {
@@ -160,10 +197,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     if (method === 'PATCH') {
-      const { data, error } = await supabase
+      const update = db
         .from('watchlists')
         .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', id as string)
+        .eq('id', id as string);
+      const { data, error } = await (scope.ownerId === null ? update.is('owner_id', null) : update.eq('owner_id', scope.ownerId))
         .select(WATCHLIST_COLUMNS)
         .maybeSingle();
       if (error) {
@@ -179,7 +217,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     // DELETE
-    const found = await supabase.from('watchlists').select('id, is_default').eq('id', id as string).maybeSingle();
+    const found = await watchlistsQuery(scope, 'id, is_default').eq('id', id as string).maybeSingle();
     if (found.error) {
       sendServerError(response);
       return;
@@ -188,13 +226,18 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       response.status(404).json({ error: 'Watchlist not found.' });
       return;
     }
-    if ((found.data as { is_default: boolean }).is_default) {
+    if ((found.data as unknown as { is_default: boolean }).is_default) {
       sendBadRequest(response, 'The default watchlist cannot be deleted.');
       return;
     }
-    const removed = await supabase.from('watchlists').delete().eq('id', id as string);
+    const del = db.from('watchlists').delete().eq('id', id as string);
+    const removed = await (scope.ownerId === null ? del.is('owner_id', null) : del.eq('owner_id', scope.ownerId)).select('id');
     if (removed.error) {
       sendServerError(response);
+      return;
+    }
+    if (!removed.data || removed.data.length === 0) {
+      response.status(404).json({ error: 'Watchlist not found.' });
       return;
     }
     response.status(204).end();
