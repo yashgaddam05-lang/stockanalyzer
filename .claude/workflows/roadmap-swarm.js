@@ -155,10 +155,19 @@ Resolve conflicts, then npm run build and npm run typecheck must pass. Commit. D
   { label: 'integrate:final' })
 
 phase('QA')
-const qa = await role('swarm-qa',
-  `Verify inside ${WT}/integration (branch swarm/integration, deps installed). Acceptance criteria:
-${approved.flatMap(r => r.pkg.acceptance.map(a => `[${r.pkg.id}] ${a}`)).join('\n')}`,
+const criteria = approved.flatMap(r => r.pkg.acceptance.map(a => `[${r.pkg.id}] ${a}`)).join('\n')
+let qa = await role('swarm-qa',
+  `Verify inside ${WT}/integration (branch swarm/integration, deps installed). Acceptance criteria:\n${criteria}`,
   { schema: QA, label: 'qa:gate' })
+for (let round = 0; qa.verdict === 'BLOCK' && round < (args?.qaFixRounds ?? 2); round++) {
+  log(`QA BLOCK (round ${round + 1}): ${qa.defects.length} defect(s), auto-fixing`)
+  await role('swarm-frontend',
+    `cd ${WT}/integration (branch swarm/integration). QA blocked the release. Fix every defect below with the smallest correct change (any file is allowed here), keep npm run build, npm run typecheck, npm run lint and the api nodenext tsc check green, and commit:\n${qa.defects.join('\n')}`,
+    { phase: 'QA', label: `qa-fix:r${round}` })
+  qa = await role('swarm-qa',
+    `Re-verify inside ${WT}/integration after fixes. Acceptance criteria:\n${criteria}`,
+    { schema: QA, phase: 'QA', label: `qa:gate:r${round + 1}` })
+}
 
 let ship = 'not shipped'
 if (qa.verdict === 'SHIP' && args?.autoShip) {
