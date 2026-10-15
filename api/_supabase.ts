@@ -1,13 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const supabaseUrl = process.env.DATABASE_URL
+  ?? process.env.database_url
+  ?? process.env.SUPABASE_URL;
+const anonKey = process.env.DATABASE_ANON_KEY
+  ?? process.env.database_anon_key
+  ?? process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !serviceRoleKey) {
+if (!supabaseUrl || !anonKey) {
   throw new Error('Supabase server configuration is missing.');
 }
 
-export const supabase = createClient(supabaseUrl, serviceRoleKey);
+export const supabase = createClient(supabaseUrl, anonKey);
 
 export type ApiRequest = {
   method?: string;

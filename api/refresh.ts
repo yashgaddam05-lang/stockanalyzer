@@ -1,4 +1,4 @@
-import { sendServerError, type ApiRequest, type ApiResponse } from './_supabase';
+import { sendServerError, supabaseUrl, type ApiRequest, type ApiResponse } from './_supabase';
 
 export default async function handler(request: ApiRequest, response: ApiResponse): Promise<void> {
   if (request.method !== 'POST') {
@@ -6,9 +6,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     return;
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl) {
     sendServerError(response);
     return;
   }
@@ -16,9 +14,6 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   try {
     const refreshResponse = await fetch(`${supabaseUrl}/functions/v1/refresh-stocks`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
-      },
     });
 
     const payload: unknown = await refreshResponse.json();
