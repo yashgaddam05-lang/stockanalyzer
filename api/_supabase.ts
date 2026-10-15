@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 function firstHttpUrl(values: Array<string | undefined>): string | undefined {
   return values.find((value) => value?.startsWith('https://') || value?.startsWith('http://'));
@@ -19,19 +19,82 @@ if (!supabaseUrl || !anonKey) {
   throw new Error('Supabase server configuration is missing.');
 }
 
-export const supabase = createClient(supabaseUrl, anonKey);
+const resolvedUrl: string = supabaseUrl;
+const resolvedAnonKey: string = anonKey;
+
+export const supabase = createClient(resolvedUrl, resolvedAnonKey);
 
 export type ApiRequest = {
   method?: string;
   body?: unknown;
   query?: Record<string, string | string[] | undefined>;
+  headers?: Record<string, string | string[] | undefined>;
 };
 
 export type ApiResponse = {
   status: (code: number) => ApiResponse;
   json: (body: unknown) => void;
   end: () => void;
+  setHeader?: (name: string, value: string) => void;
 };
+
+// ---------- Auth helpers ----------
+
+const BEARER_RE = /^Bearer\s+(\S+)\s*$/i;
+
+/** Extracts the JWT from a case-insensitive `Authorization: Bearer <jwt>` header. */
+export function getBearerToken(request: ApiRequest): string | null {
+  const headers = request.headers;
+  if (!headers) return null;
+  let raw: string | string[] | undefined;
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === 'authorization') {
+      raw = headers[key];
+      break;
+    }
+  }
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== 'string') return null;
+  const match = BEARER_RE.exec(value.trim());
+  return match ? match[1] : null;
+}
+
+/** Supabase client that runs queries as the given user (RLS applies). */
+export function createUserClient(token: string): SupabaseClient {
+  return createClient(resolvedUrl, resolvedAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export type AuthContext =
+  | { kind: 'anonymous'; db: SupabaseClient; userId: null }
+  | { kind: 'user'; db: SupabaseClient; userId: string }
+  | { kind: 'invalid' };
+
+/** No Authorization header => anonymous; valid JWT => user-scoped client; anything else => invalid. */
+export async function resolveAuth(request: ApiRequest): Promise<AuthContext> {
+  const headers = request.headers;
+  const hasHeader = Boolean(headers && Object.keys(headers).some(
+    (key) => key.toLowerCase() === 'authorization' && headers[key] !== undefined && headers[key] !== '',
+  ));
+  if (!hasHeader) return { kind: 'anonymous', db: supabase, userId: null };
+
+  const token = getBearerToken(request);
+  if (!token) return { kind: 'invalid' };
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    const userId = data?.user?.id;
+    if (error || !userId) return { kind: 'invalid' };
+    return { kind: 'user', db: createUserClient(token), userId };
+  } catch {
+    return { kind: 'invalid' };
+  }
+}
+
+export function sendUnauthorized(response: ApiResponse, message = 'Sign in required.'): void {
+  response.status(401).json({ error: message });
+}
 
 export function getQueryValue(request: ApiRequest, name: string): string | null {
   const value = request.query?.[name];
@@ -152,11 +215,47 @@ export type DefaultWatchlistResult =
   | { kind: 'error' };
 
 /**
- * Resolves the default named watchlist, creating 'My Watchlist' when the
- * tables exist but no default does. Returns legacy when tables are missing.
+ * Resolves the default named watchlist for an owner (null = anonymous/shared),
+ * creating 'My Watchlist' when the tables exist but no default does.
+ * Returns legacy when tables are missing. Falls back to the unscoped lookup
+ * when the owner_id column has not been migrated yet.
  */
-export async function getOrCreateDefaultWatchlist(): Promise<DefaultWatchlistResult> {
-  const { data, error } = await supabase
+export async function getOrCreateDefaultWatchlist(
+  db: SupabaseClient = supabase,
+  ownerId: string | null = null,
+): Promise<DefaultWatchlistResult> {
+  const findDefault = () => {
+    const query = db.from('watchlists').select(WATCHLIST_COLUMNS).eq('is_default', true);
+    return (ownerId === null ? query.is('owner_id', null) : query.eq('owner_id', ownerId)).limit(1);
+  };
+
+  const { data, error } = await findDefault();
+  if (error) {
+    return isMissingRelation(error) ? getOrCreateUnscopedDefault(db) : { kind: 'error' };
+  }
+  const existing = (data as WatchlistRow[] | null)?.[0];
+  if (existing) return { kind: 'ok', list: existing };
+
+  const created = await db
+    .from('watchlists')
+    .insert({ name: 'My Watchlist', is_default: true, owner_id: ownerId })
+    .select(WATCHLIST_COLUMNS)
+    .single();
+  if (!created.error && created.data) return { kind: 'ok', list: created.data as WatchlistRow };
+  if (isMissingRelation(created.error)) return getOrCreateUnscopedDefault(db);
+
+  // A concurrent request may have created the default (partial unique index).
+  if (isUniqueViolation(created.error)) {
+    const retry = await findDefault();
+    const row = (retry.data as WatchlistRow[] | null)?.[0];
+    if (!retry.error && row) return { kind: 'ok', list: row };
+  }
+  return { kind: 'error' };
+}
+
+/** Pre-owner_id behavior: a single global default watchlist. */
+async function getOrCreateUnscopedDefault(db: SupabaseClient): Promise<DefaultWatchlistResult> {
+  const { data, error } = await db
     .from('watchlists')
     .select(WATCHLIST_COLUMNS)
     .eq('is_default', true)
@@ -165,7 +264,7 @@ export async function getOrCreateDefaultWatchlist(): Promise<DefaultWatchlistRes
   const existing = (data as WatchlistRow[] | null)?.[0];
   if (existing) return { kind: 'ok', list: existing };
 
-  const created = await supabase
+  const created = await db
     .from('watchlists')
     .insert({ name: 'My Watchlist', is_default: true })
     .select(WATCHLIST_COLUMNS)
@@ -174,7 +273,7 @@ export async function getOrCreateDefaultWatchlist(): Promise<DefaultWatchlistRes
 
   // A concurrent request may have created the default (partial unique index).
   if (isUniqueViolation(created.error)) {
-    const retry = await supabase
+    const retry = await db
       .from('watchlists')
       .select(WATCHLIST_COLUMNS)
       .eq('is_default', true)
