@@ -11,8 +11,25 @@
   "functions": {
     "api/refresh.ts": {
       "maxDuration": 120
+    },
+    "api/cron.ts": {
+      "maxDuration": 120
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron?job=market",
+      "schedule": "0 22 * * 1-5"
+    },
+    {
+      "path": "/api/cron?job=stocks",
+      "schedule": "0 23 * * 1-5"
+    },
+    {
+      "path": "/api/cron?job=filings",
+      "schedule": "0 10 * * *"
+    }
+  ],
   "regions": [
     "pdx1"
   ]
