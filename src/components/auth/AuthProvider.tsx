@@ -3,10 +3,18 @@ import type { ReactNode } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
 import { authClient } from '@/lib/auth-client';
 import { setAuthTokenProvider } from '@/lib/api';
+import { landedFromRecoveryLink } from '@/components/auth/auth-redirect';
 
 export interface AuthUser {
   id: string;
   email: string | null;
+  /** ISO timestamp the account was created. */
+  createdAt: string | null;
+}
+
+export interface SignUpOptions {
+  /** Where the confirmation email link lands. Defaults to `/login?confirmed=1`. */
+  emailRedirectTo?: string;
 }
 
 export interface AuthContextValue {
@@ -14,9 +22,15 @@ export interface AuthContextValue {
   loading: boolean;
   user: AuthUser | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, options?: SignUpOptions) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  /** Sets a new password for the signed-in (or recovery-session) user. */
+  updatePassword: (password: string) => Promise<void>;
+  /** Re-checks the current password without changing session identity. */
+  verifyPassword: (password: string) => Promise<void>;
+  /** True while a password-recovery session from an email link is active. */
+  recovery: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -25,7 +39,7 @@ const DISABLED_MESSAGE = 'Sign-in is not available right now.';
 
 function toUser(session: Session | null): AuthUser | null {
   const u = session?.user;
-  return u ? { id: u.id, email: u.email ?? null } : null;
+  return u ? { id: u.id, email: u.email ?? null, createdAt: u.created_at ?? null } : null;
 }
 
 /** Maps Supabase auth errors to human-readable messages. */
@@ -44,6 +58,15 @@ function friendlyError(error: AuthError | Error): Error {
   if (code === 'weak_password' || raw.includes('password should be')) {
     return new Error('Password is too weak. Use at least 8 characters.');
   }
+  if (code === 'same_password' || raw.includes('different from the old password')) {
+    return new Error('Your new password must be different from your current password.');
+  }
+  if (code === 'reauthentication_needed' || raw.includes('reauthentication')) {
+    return new Error('For security, sign out and sign back in, then change your password.');
+  }
+  if (code === 'session_not_found' || raw.includes('auth session missing')) {
+    return new Error('Your reset link has expired. Request a new one.');
+  }
   if (code === 'over_email_send_rate_limit' || raw.includes('rate limit')) {
     return new Error('Too many attempts. Please wait a minute and try again.');
   }
@@ -59,6 +82,7 @@ function friendlyError(error: AuthError | Error): Error {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(authClient !== null);
+  const [recovery, setRecovery] = useState<boolean>(() => landedFromRecoveryLink('/reset-password'));
 
   useEffect(() => {
     const client = authClient;
@@ -79,11 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (active) setLoading(false);
       });
 
-    const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange((event, session) => {
       if (!active) return;
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+      if (event === 'SIGNED_OUT') setRecovery(false);
       const next = toUser(session);
       // Keep identity stable when only the token refreshes, so dependents do not refetch.
-      setUser((prev) => (prev?.id === next?.id && prev?.email === next?.email ? prev : next));
+      setUser((prev) =>
+        prev?.id === next?.id && prev?.email === next?.email && prev?.createdAt === next?.createdAt ? prev : next
+      );
       setLoading(false);
     });
 
@@ -100,12 +128,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw friendlyError(error);
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
+  const signUp = useCallback(async (email: string, password: string, options?: SignUpOptions) => {
     if (!authClient) throw new Error(DISABLED_MESSAGE);
     const { data, error } = await authClient.auth.signUp({
       email: email.trim(),
       password,
-      options: { emailRedirectTo: `${window.location.origin}/login` },
+      options: { emailRedirectTo: options?.emailRedirectTo ?? `${window.location.origin}/login?confirmed=1` },
     });
     if (error) throw friendlyError(error);
     // Supabase returns a user with an empty identities array when the email is already registered.
@@ -124,14 +152,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendPasswordReset = useCallback(async (email: string) => {
     if (!authClient) throw new Error(DISABLED_MESSAGE);
     const { error } = await authClient.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) throw friendlyError(error);
   }, []);
 
+  const updatePassword = useCallback(async (password: string) => {
+    if (!authClient) throw new Error(DISABLED_MESSAGE);
+    const { error } = await authClient.auth.updateUser({ password });
+    if (error) throw friendlyError(error);
+    setRecovery(false);
+  }, []);
+
+  const verifyPassword = useCallback(
+    async (password: string) => {
+      if (!authClient) throw new Error(DISABLED_MESSAGE);
+      const email = user?.email;
+      if (!email) throw new Error('Your session has expired. Please sign in again.');
+      const { error } = await authClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        const friendly = friendlyError(error);
+        throw friendly.message === 'Incorrect email or password.' ? new Error('Current password is incorrect.') : friendly;
+      }
+    },
+    [user?.email]
+  );
+
   const value = useMemo<AuthContextValue>(
-    () => ({ enabled: authClient !== null, loading, user, signIn, signUp, signOut, sendPasswordReset }),
-    [loading, user, signIn, signUp, signOut, sendPasswordReset]
+    () => ({
+      enabled: authClient !== null,
+      loading,
+      user,
+      signIn,
+      signUp,
+      signOut,
+      sendPasswordReset,
+      updatePassword,
+      verifyPassword,
+      recovery,
+    }),
+    [loading, user, signIn, signUp, signOut, sendPasswordReset, updatePassword, verifyPassword, recovery]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

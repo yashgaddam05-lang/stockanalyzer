@@ -35,7 +35,7 @@ function BackLink() {
     );
   }
   return (
-    <Link to="/explore" className={linkClass}>
+    <Link to="/app/explore" className={linkClass}>
       <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to Explore
     </Link>
   );
@@ -111,7 +111,7 @@ export default function StockDetailPage() {
             We do not track <span className="font-medium text-neutral-900">{upper}</span> yet.
           </p>
           <Link
-            to="/explore"
+            to="/app/explore"
             className="mt-4 inline-flex text-[13px] font-medium text-neutral-900 underline underline-offset-4 hover:text-neutral-600"
           >
             Browse all stocks in Explore

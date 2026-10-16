@@ -153,7 +153,7 @@ export function WatchlistItemsTable({ rows, legacy, onRemove, onUpdate }: Watchl
               <tr key={item.id} className="align-top">
                 <td className="px-3 py-3">
                   <Link
-                    to={`/stock/${encodeURIComponent(item.ticker)}`}
+                    to={`/app/stock/${encodeURIComponent(item.ticker)}`}
                     className="font-semibold text-neutral-900 underline-offset-2 hover:underline"
                   >
                     {item.ticker}

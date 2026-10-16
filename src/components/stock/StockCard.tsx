@@ -38,7 +38,7 @@ export function StockCard({ stock, analysis, isWatched, onToggleWatch, hideScore
 
   return (
     <Link
-      to={`/stock/${encodeURIComponent(stock.ticker)}`}
+      to={`/app/stock/${encodeURIComponent(stock.ticker)}`}
       className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2"
       aria-label={`${stock.ticker} ${stock.company_name}, score ${analysis.totalScore}`}
     >

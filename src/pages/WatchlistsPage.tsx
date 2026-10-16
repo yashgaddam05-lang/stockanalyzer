@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Info, Lock, LogIn, RefreshCw, Star, Users } from 'lucide-react';
+import { Info, Lock, LogIn, RefreshCw, Star } from 'lucide-react';
 import { useStocks } from '@/components/data/StocksProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import {
 import type { WatchlistItem, WatchlistWithItems } from '@/lib/supabase';
 
 const LEGACY_BANNER = 'Named lists, notes and tags activate after the database upgrade.';
-const LOGIN_NEXT = '/login?next=%2Fwatchlists';
+const LOGIN_NEXT = '/login?next=%2Fapp%2Fwatchlists';
 
 function pickActive(lists: WatchlistWithItems[], current: string | null): string | null {
   if (current && lists.some((l) => l.id === current)) return current;
@@ -216,23 +216,7 @@ export default function WatchlistsPage() {
               Private to <span className="font-medium text-neutral-900">{user.email ?? 'your account'}</span>
             </p>
           </div>
-        ) : (
-          <div
-            role="status"
-            className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex items-start gap-2">
-              <Users className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>You are viewing shared watchlists. Sign in to keep private lists.</p>
-            </div>
-            <Button asChild size="sm" variant="outline" className="shrink-0">
-              <Link to={LOGIN_NEXT}>
-                <LogIn className="mr-1 h-4 w-4" />
-                Sign in
-              </Link>
-            </Button>
-          </div>
-        )
+        ) : null
       )}
 
       {legacy && (
@@ -294,7 +278,7 @@ export default function WatchlistsPage() {
                   <p className="text-sm font-medium text-neutral-900">This list is empty</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Add a ticker above or star stocks on the{' '}
-                    <Link to="/explore" className="underline underline-offset-2">
+                    <Link to="/app/explore" className="underline underline-offset-2">
                       Explore
                     </Link>{' '}
                     page.

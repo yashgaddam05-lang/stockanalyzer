@@ -68,7 +68,7 @@ function MoverList({
         <ul className="divide-y divide-border">
           {rows.map((s) => (
             <li key={s.ticker} className="flex items-center gap-3 py-2">
-              <Link to={`/stock/${encodeURIComponent(s.ticker)}`} className="text-sm font-semibold text-neutral-900 hover:underline">
+              <Link to={`/app/stock/${encodeURIComponent(s.ticker)}`} className="text-sm font-semibold text-neutral-900 hover:underline">
                 {s.ticker}
               </Link>
               <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{s.company_name}</span>

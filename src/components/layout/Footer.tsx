@@ -12,12 +12,17 @@ export function Footer() {
             Market data: Yahoo Finance (unofficial endpoints), refreshed on demand. Rows marked Seed are approximate
             placeholders.
           </p>
-          <Link
-            to="/methodology#disclaimer"
-            className="inline-block text-[11px] text-neutral-700 underline underline-offset-2 hover:text-neutral-900"
-          >
-            Read the full disclaimer
-          </Link>
+          <nav className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Legal">
+            <Link to="/legal/disclaimer" className="text-[11px] text-neutral-700 underline underline-offset-2 hover:text-neutral-900">
+              Read the full disclaimer
+            </Link>
+            <Link to="/legal/terms" className="text-[11px] text-neutral-700 underline underline-offset-2 hover:text-neutral-900">
+              Terms
+            </Link>
+            <Link to="/legal/privacy" className="text-[11px] text-neutral-700 underline underline-offset-2 hover:text-neutral-900">
+              Privacy
+            </Link>
+          </nav>
         </div>
         <span className="text-[11px] text-muted-foreground/60 font-medium">3x Hunter</span>
       </div>

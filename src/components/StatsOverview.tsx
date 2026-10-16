@@ -68,7 +68,7 @@ export function StatsOverview({ stocks, analyses, watchlistCount = 0 }: StatsOve
             <>
               <div className="flex items-baseline gap-2">
                 <Link
-                  to={`/stock/${encodeURIComponent(stats.topPick.stock.ticker)}`}
+                  to={`/app/stock/${encodeURIComponent(stats.topPick.stock.ticker)}`}
                   className="text-xl font-bold tracking-tight text-neutral-900 hover:underline"
                 >
                   {stats.topPick.stock.ticker}
