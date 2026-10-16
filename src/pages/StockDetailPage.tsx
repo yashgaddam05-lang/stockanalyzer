@@ -16,6 +16,9 @@ import { CatalystPanel } from '@/components/stock-detail/CatalystPanel';
 import { ScenarioCalculator } from '@/components/stock-detail/ScenarioCalculator';
 import type { PriceChartMarker } from '@/components/stock-detail/PriceChart';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { SecActivityPanel } from '@/components/filings/SecActivityPanel';
+import { CreateAlertButton } from '@/components/alerts';
+import { AddPositionButton } from '@/components/portfolio';
 import type { Catalyst } from '@/lib/supabase';
 
 // Lazy so recharts stays out of the main bundle.
@@ -125,6 +128,10 @@ export default function StockDetailPage() {
     <div className="space-y-6">
       <BackLink />
       <DetailHeader stock={stock} watched={watchlist.has(stock.ticker.toUpperCase())} onToggleWatch={() => void toggleWatch(stock.ticker)} />
+      <div className="-mt-2 flex flex-wrap items-center gap-2" aria-label="Stock actions">
+        <CreateAlertButton ticker={stock.ticker} currentPrice={stock.current_price} currentScore={stock.three_x_score} />
+        <AddPositionButton ticker={stock.ticker} currentPrice={stock.current_price} />
+      </div>
 
       <Suspense fallback={<Skeleton className="h-[280px] w-full" aria-label="Loading price chart" />}>
         <PriceChart ticker={stock.ticker} markers={markers} />
@@ -148,6 +155,8 @@ export default function StockDetailPage() {
           <ScoreHistoryPanel ticker={stock.ticker} />
         </div>
       </div>
+
+      <SecActivityPanel ticker={stock.ticker} />
 
       <MetricsTable stock={stock} />
 
