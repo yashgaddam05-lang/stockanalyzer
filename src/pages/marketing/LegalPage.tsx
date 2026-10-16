@@ -64,7 +64,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
       {
         heading: 'The service',
         body: [
-          '3x Hunter provides educational stock research tools, including scores, watchlists, catalyst tracking and scenario calculators. Features may change, be added or be removed at any time, especially while the product is in beta.',
+          '3x Hunter provides educational stock research tools, including scores, watchlists, catalyst tracking, scenario calculators, in-app alerts, backtests, simulated portfolios and SEC filings data. Features may change, be added or be removed at any time, especially while the product is in beta.',
         ],
       },
       {
@@ -83,6 +83,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
         heading: 'No advice and no warranty',
         body: [
           'The service is provided "as is" and "as available" without warranties of any kind. Nothing in the service is investment advice; see the Disclaimer for details.',
+          'Simulated portfolios and backtests are hypothetical. No money is invested and no orders are placed. Backtest results are based on limited stored history and do not predict future returns.',
         ],
       },
       {
@@ -112,6 +113,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
         body: [
           'Account information: your email address and a securely hashed password, handled by Supabase Auth. Your email is used for authentication and essential account messages (such as confirmation and password reset) only.',
           'Content you create: watchlists, notes, tags and catalyst entries, stored so the service can show them back to you.',
+          'Alerts and simulated portfolios: the alert rules you set, the in-app alert notifications they generate, and the positions you enter in simulated portfolios. These are stored per account, visible only to you, and deleted when your account is deleted.',
           'Basic technical data: standard server logs (such as IP address and request time) kept by our hosting providers for security and reliability.',
         ],
       },
@@ -136,7 +138,7 @@ const DOCS: Record<LegalDoc, DocContent> = {
       {
         heading: 'Retention and deletion',
         body: [
-          'We keep your data while your account is active. You can request deletion of your account and associated data at any time by contacting us.',
+          'We keep your data while your account is active. You can request deletion of your account at any time by contacting us. Deleting your account also deletes its watchlists, notes, alerts, alert notifications and simulated portfolio positions.',
         ],
       },
       {

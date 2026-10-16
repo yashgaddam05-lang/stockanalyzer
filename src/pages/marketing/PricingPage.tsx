@@ -7,23 +7,28 @@ import { ComplianceNote } from '@/components/marketing/ComplianceNote';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 import { cn } from '@/lib/utils';
 
-const FREE_FEATURES = [
-  '3x Opportunity Score on every tracked stock',
-  'Independent 0-100 risk score',
-  'Bull, neutral and bear cases',
-  '3x scenario calculator',
-  'Catalyst calendar',
-  'Named watchlists with notes and tags',
-  'Score-change tracking and movers',
-  'Sector heat map and price charts',
+type Feature = { label: string; isNew?: boolean };
+
+const FREE_FEATURES: Feature[] = [
+  { label: '3x Opportunity Score on every tracked stock' },
+  { label: 'Independent 0-100 risk score' },
+  { label: 'Bull, neutral and bear cases' },
+  { label: '3x scenario calculator' },
+  { label: 'Catalyst calendar' },
+  { label: 'Named watchlists with notes and tags' },
+  { label: 'Score-change tracking and movers' },
+  { label: 'Sector heat map and price charts' },
+  { label: 'In-app score and catalyst alerts', isNew: true },
+  { label: 'Strategy backtesting on stored score history', isNew: true },
+  { label: 'Simulated (hypothetical) portfolios', isNew: true },
+  { label: 'SEC filings and insider activity (Form 4)', isNew: true },
+  { label: 'Market regime dashboard and regime-fit scoring', isNew: true },
 ];
 
-const PRO_FEATURES = [
-  'Score and catalyst alerts',
-  'Strategy backtesting',
-  'Simulated portfolios',
-  'SEC filings and insider activity',
-  'Expanded stock coverage',
+const PRO_FEATURES: Feature[] = [
+  { label: 'Expanded stock coverage' },
+  { label: 'Longer score and price history' },
+  { label: 'Deeper fundamental and filings data' },
 ];
 
 const FAQ = [
@@ -33,7 +38,7 @@ const FAQ = [
   },
   {
     q: 'When will Pro be available?',
-    a: 'Pro is in development. Join the waitlist and we will email you when it opens. Joining does not commit you to anything and no payment details are collected.',
+    a: 'There is no date yet. Alerts, backtesting, simulated portfolios, SEC filings and market regime are all free during the beta. Pro is planned for deeper data and broader coverage later. Join the waitlist and we will email you if it opens. Joining does not commit you to anything and no payment details are collected.',
   },
   {
     q: 'Is this investment advice?',
@@ -49,17 +54,24 @@ const FAQ = [
   },
 ];
 
-function FeatureList({ items, muted = false }: { items: string[]; muted?: boolean }) {
+function FeatureList({ items, muted = false }: { items: Feature[]; muted?: boolean }) {
   return (
     <ul className="space-y-3">
       {items.map((f) => (
-        <li key={f} className="flex items-start gap-3 text-[14px] leading-snug text-neutral-700">
+        <li key={f.label} className="flex items-start gap-3 text-[14px] leading-snug text-neutral-700">
           {muted ? (
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" aria-hidden="true" />
           ) : (
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
           )}
-          {f}
+          <span>
+            {f.label}
+            {f.isNew && (
+              <span className="ml-2 rounded border border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-800">
+                New
+              </span>
+            )}
+          </span>
         </li>
       ))}
     </ul>
@@ -77,7 +89,7 @@ export default function PricingPage() {
           Free while in beta
         </h1>
         <p className="text-[15px] leading-relaxed text-neutral-600">
-          Every feature we have shipped is free. Pro will add alerts, backtesting and deeper data when it launches.
+          Every feature we have shipped is free, including alerts, backtesting, simulated portfolios, SEC filings and market regime. A future Pro plan may add deeper data and broader coverage.
         </p>
       </div>
 
@@ -108,7 +120,7 @@ export default function PricingPage() {
               <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Pro</h2>
               <Badge variant="outline">Coming soon</Badge>
             </div>
-            <p className="text-[13px] text-neutral-500">For deeper, ongoing research.</p>
+            <p className="text-[13px] text-neutral-500">Future plan for deeper data. Not available yet.</p>
           </div>
           <p className="mt-6 flex items-baseline gap-1">
             <span className="text-4xl font-semibold tracking-tight text-neutral-400">TBD</span>
@@ -117,8 +129,11 @@ export default function PricingPage() {
             <Link to="/signup?plan=pro">Join waitlist</Link>
           </Button>
           <div className="mt-8 space-y-4 border-t border-border pt-6">
-            <p className="text-[13px] font-medium text-neutral-900">Everything in Free, plus:</p>
+            <p className="text-[13px] font-medium text-neutral-900">Everything in Free, plus ideas we are exploring:</p>
             <FeatureList items={PRO_FEATURES} muted />
+            <p className="text-[12px] leading-relaxed text-neutral-500">
+              Join the waitlist to hear if Pro opens. No payment details are collected.
+            </p>
           </div>
         </Card>
       </div>

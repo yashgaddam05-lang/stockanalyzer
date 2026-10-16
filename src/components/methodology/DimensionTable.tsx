@@ -1,4 +1,10 @@
-import { DIMENSIONS } from '@/lib/scoring';
+import { DIMENSIONS, type DimensionKey } from '@/lib/scoring';
+
+/** Plain-language notes for dimensions whose stored input is itself derived. */
+const NOTES: Partial<Record<DimensionKey, string>> = {
+  regime:
+    'Computed daily from VIX, 10-year Treasury yield trend, SPY vs its 200-day MA and 3-month return, small-cap and Nasdaq relative strength, and sector ETF strength vs SPY; stored per stock.',
+};
 
 export function DimensionTable() {
   const total = DIMENSIONS.reduce((a, d) => a + d.weight, 0);
@@ -26,9 +32,12 @@ export function DimensionTable() {
               <td className="px-4 py-3 text-right tabular-nums text-neutral-700">{d.weight}%</td>
               <td className="px-4 py-3 text-[13px] text-muted-foreground">
                 {d.inputs.length ? (
-                  <span className="font-mono text-[12px]">{d.inputs.join(', ')}</span>
+                  <>
+                    <span className="font-mono text-[12px]">{d.inputs.join(', ')}</span>
+                    {NOTES[d.key] && <span className="mt-1 block">{NOTES[d.key]}</span>}
+                  </>
                 ) : (
-                  'Not scored yet (requires macro data); weight re-normalized across the other dimensions'
+                  'Not scored yet; weight re-normalized across the other dimensions'
                 )}
               </td>
             </tr>

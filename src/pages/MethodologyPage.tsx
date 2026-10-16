@@ -12,8 +12,22 @@ const SECTIONS: TocItem[] = [
   { id: 'risk', label: 'Risk score' },
   { id: 'cases', label: 'Bull, neutral and bear cases' },
   { id: 'presets', label: 'Preset screens' },
+  { id: 'regime', label: 'Market regime fit' },
+  { id: 'backtesting', label: 'Backtesting' },
+  { id: 'alerts', label: 'Alerts' },
+  { id: 'portfolios', label: 'Simulated portfolios' },
+  { id: 'sec', label: 'SEC filings' },
+  { id: 'quality-checks', label: 'Data-quality checks' },
   { id: 'data', label: 'Data and limitations' },
   { id: 'disclaimer', label: 'Disclaimer' },
+];
+
+const REGIME_INPUTS = [
+  'VIX level (market volatility)',
+  '10-year Treasury yield and its 3-month trend',
+  'SPY vs its 200-day moving average, and SPY 3-month return',
+  'Small-cap (IWM) and Nasdaq (QQQ) relative strength vs SPY',
+  'Sector ETF 3-month relative strength vs SPY',
 ];
 
 const RISK_INPUTS = [
@@ -208,16 +222,95 @@ export default function MethodologyPage() {
             </dl>
           </Section>
 
+          <Section id="regime" title="Market regime fit">
+            <P>
+              Market Regime Fit is scored as of model {MODEL_VERSION}. A daily job builds a market snapshot from public
+              index and ETF prices, labels the backdrop risk-on, neutral or risk-off, and then scores how well each
+              stock&apos;s profile fits that backdrop. The per-stock result is stored with the stock and feeds the
+              dimension like any other input.
+            </P>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-neutral-900">Inputs</p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+                {REGIME_INPUTS.map((i) => (
+                  <li key={i}>{i}</li>
+                ))}
+              </ul>
+            </div>
+            <P>
+              Only prices on or before the snapshot date are used, so there is no look-ahead. If the daily snapshot is
+              missing or has too little history, the dimension is left unscored and its weight is re-normalized.
+            </P>
+          </Section>
+
+          <Section id="backtesting" title="Backtesting">
+            <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-700">
+              <li>
+                <span className="font-medium text-neutral-900">Stored history only:</span> backtests use score snapshots
+                we actually recorded at the time, never scores recomputed after the fact.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Next-session entry:</span> returns are measured from the
+                close of the next trading session after a score was captured, over fixed forward horizons, alongside SPY
+                for comparison.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Same model version:</span> results only combine snapshots
+                produced by the same model version, so a methodology change never mixes into the numbers.
+              </li>
+              <li>
+                <span className="font-medium text-neutral-900">Sample size:</span> score history is short and the universe
+                is small. Results below the minimum observation thresholds are flagged as insufficient, and even
+                sufficient samples can be noise. Past results do not predict future returns.
+              </li>
+            </ul>
+          </Section>
+
+          <Section id="alerts" title="Alerts">
+            <P>
+              Alerts are delivered in-app only; there are no email, SMS or push notifications. Rules are edge-triggered:
+              a price or score threshold fires once when it is crossed and re-arms only after the condition is no longer
+              true. Score-change alerts compare consecutive snapshots from the same model version, and catalyst alerts fire
+              once per event. Alerts are informational and are not signals to trade.
+            </P>
+          </Section>
+
+          <Section id="portfolios" title="Simulated portfolios">
+            <P>
+              Simulated portfolios are hypothetical. No money is invested, no orders are placed and no brokerage account is
+              connected. Positions are valued from the same delayed prices shown elsewhere and do not account for fees, taxes,
+              slippage or dividends. Positions without a current price are shown at cost and flagged.
+            </P>
+          </Section>
+
+          <Section id="sec" title="SEC filings">
+            <P>
+              Recent filings and insider transactions come from SEC EDGAR, including Form 4 insider reports. They are
+              shown for information and context only. Filings data does not change the 3x Opportunity Score, can lag the
+              original filing, and may be incomplete or misclassified.
+            </P>
+          </Section>
+
+          <Section id="quality-checks" title="Data-quality checks">
+            <P>
+              Automated checks run over the stock universe and the data pipeline, including stale prices, invalid or
+              out-of-range values, missing score inputs, daily price coverage, and freshness of the market regime snapshot,
+              score history and filings, plus recent job failures. Each check reports ok, warning or failure so problems are
+              visible instead of silently affecting scores.
+            </P>
+          </Section>
+
           <Section id="data" title="Data and limitations">
             <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-700">
               <li>
                 <span className="font-medium text-neutral-900">Source:</span> Yahoo Finance unofficial endpoints, fetched
-                server-side by a Supabase Edge Function. These endpoints are undocumented and can change or fail without
-                notice.
+                server-side by Supabase Edge Functions, plus SEC EDGAR for filings. The Yahoo endpoints are undocumented and
+                can change or fail without notice.
               </li>
               <li>
-                <span className="font-medium text-neutral-900">Refresh cadence:</span> on demand. Data is only as fresh as
-                the last refresh and may be delayed.
+                <span className="font-medium text-neutral-900">Refresh cadence:</span> stock data and the market regime
+                snapshot refresh after the close on trading days, and filings refresh daily. Data is only as fresh as the
+                last refresh and may be delayed.
               </li>
               <li>
                 <span className="font-medium text-neutral-900">Seed data:</span> rows not yet refreshed from Yahoo Finance
@@ -228,8 +321,7 @@ export default function MethodologyPage() {
                 badge and should not be relied on.
               </li>
               <li>
-                <span className="font-medium text-neutral-900">Known gaps:</span> market regime is not yet scored; the
-                catalyst dimension is a proxy from pipeline count and R&amp;D intensity because there is no dated catalyst
+                <span className="font-medium text-neutral-900">Known gaps:</span> the catalyst dimension is a proxy from pipeline count and R&amp;D intensity because there is no dated catalyst
                 calendar yet; valuation inputs may be missing for unprofitable or thinly covered companies; the stock
                 universe is limited.
               </li>

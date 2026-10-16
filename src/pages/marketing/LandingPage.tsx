@@ -3,11 +3,15 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowRight,
   BarChart3,
+  Bell,
   Bookmark,
+  Briefcase,
   CalendarClock,
   Calculator,
   Database,
+  FileSearch,
   FileText,
+  FlaskConical,
   GitCommitHorizontal,
   Grid3x3,
   History,
@@ -27,7 +31,7 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: BarChart3,
     title: `${DIMENSIONS.length}-dimension scoring`,
-    body: 'Growth, valuation, momentum, quality, catalysts, market position, volatility and regime fit, weighted into one 0-100 score.',
+    body: 'Growth, valuation, momentum, quality, catalysts, market position, volatility and daily market regime fit, weighted into one 0-100 score.',
   },
   {
     icon: ShieldAlert,
@@ -63,6 +67,26 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
     icon: LineChart,
     title: 'Price charts',
     body: 'Interactive price history with 52-week context on every stock detail page.',
+  },
+  {
+    icon: Bell,
+    title: 'In-app alerts',
+    body: 'Get notified in the app when a price, score or catalyst threshold is crossed. Free during beta.',
+  },
+  {
+    icon: FlaskConical,
+    title: 'Score backtesting',
+    body: 'See how past stored scores lined up with forward returns, with sample-size caveats up front. Free during beta.',
+  },
+  {
+    icon: Briefcase,
+    title: 'Simulated portfolios',
+    body: 'Track hypothetical positions with score, risk and sector exposure. No real money involved. Free during beta.',
+  },
+  {
+    icon: FileSearch,
+    title: 'SEC filings and insiders',
+    body: 'Recent EDGAR filings and Form 4 insider activity on each stock, for context. Free during beta.',
   },
 ];
 
