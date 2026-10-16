@@ -15,6 +15,26 @@ const MIN_MOMENTUM_CLOSES = 20;
 const MIN_VOLATILITY_CLOSES = 10;
 const CATALYST_CHUNK = 100;
 const DAY_MS = 86_400_000;
+// Scores are always computed from this many trailing closes so a longer backfill
+// range never shifts momentum/volatility.
+const SCORE_WINDOW = 63;
+const BAR_CHUNK = 1000;
+const ALLOWED_RANGES = ["3mo", "1y", "2y"] as const;
+type Range = typeof ALLOWED_RANGES[number];
+const JOB = "edge:refresh-stocks";
+
+interface Bar {
+  ticker: string;
+  d: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  adj_close: number | null;
+  volume: number | null;
+  source: "yahoo";
+  updated_at: string;
+}
 
 const LEGACY_COLUMNS = [
   "current_price",
@@ -167,9 +187,46 @@ function calcVolatility(closes: number[]): number | undefined {
   return Math.round(Math.sqrt(variance) * Math.sqrt(252) * 100);
 }
 
-async function fetchChart(ticker: string): Promise<{ closes: number[]; price?: number } | null> {
+const finiteOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+// Converts a v8 chart result into price_daily rows. Null/non-positive closes are skipped;
+// duplicate dates (Yahoo sometimes repeats the live bar) keep the last value.
+// deno-lint-ignore no-explicit-any
+function extractBars(ticker: string, result: any): Bar[] {
+  const ts: unknown[] = Array.isArray(result?.timestamp) ? result.timestamp : [];
+  const q = result?.indicators?.quote?.[0] || {};
+  const adj: unknown[] = result?.indicators?.adjclose?.[0]?.adjclose || [];
+  const now = new Date().toISOString();
+  const byDay = new Map<string, Bar>();
+  for (let i = 0; i < ts.length; i++) {
+    const t = ts[i];
+    const close = finiteOrNull(q.close?.[i]);
+    if (typeof t !== "number" || !Number.isFinite(t) || close === null || close <= 0) continue;
+    const vol = finiteOrNull(q.volume?.[i]);
+    const d = isoDay(t * 1000);
+    byDay.set(d, {
+      ticker,
+      d,
+      open: finiteOrNull(q.open?.[i]),
+      high: finiteOrNull(q.high?.[i]),
+      low: finiteOrNull(q.low?.[i]),
+      close,
+      adj_close: finiteOrNull(adj[i]),
+      volume: vol === null ? null : Math.round(vol),
+      source: "yahoo",
+      updated_at: now,
+    });
+  }
+  return [...byDay.values()];
+}
+
+async function fetchChart(
+  ticker: string,
+  range: Range,
+): Promise<{ closes: number[]; price?: number; bars: Bar[] } | null> {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=3mo&interval=1d`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`;
     const resp = await fetchWithTimeout(url);
     if (!resp.ok) {
       await resp.body?.cancel();
@@ -181,7 +238,13 @@ async function fetchChart(ticker: string): Promise<{ closes: number[]; price?: n
     const raw: (number | null)[] = result.indicators?.quote?.[0]?.close || [];
     const closes = raw.filter((c): c is number => typeof c === "number" && c > 0);
     const price = num(result.meta, "regularMarketPrice") ?? closes[closes.length - 1];
-    return { closes, price };
+    let bars: Bar[] = [];
+    try {
+      bars = extractBars(ticker, result);
+    } catch {
+      bars = [];
+    }
+    return { closes, price, bars };
   } catch {
     return null;
   }
@@ -232,15 +295,20 @@ async function fetchQuoteV7(ticker: string): Promise<any | null> {
 }
 
 // ---------- Build update row (only fields Yahoo actually returned) ----------
-async function buildUpdate(ticker: string): Promise<{ row: Row | null; earnings: EarningsEvent | null }> {
-  const [chart, summary] = await Promise.all([fetchChart(ticker), fetchQuoteSummary(ticker)]);
+async function buildUpdate(
+  ticker: string,
+  range: Range,
+): Promise<{ row: Row | null; earnings: EarningsEvent | null; bars: Bar[] }> {
+  const [chart, summary] = await Promise.all([fetchChart(ticker, range), fetchQuoteSummary(ticker)]);
   const row: Row = {};
   const earnings = summary ? extractEarnings(ticker, summary) : null;
+  const bars = chart?.bars ?? [];
 
   if (chart) {
-    const momentum = calcMomentum(chart.closes);
+    const window = chart.closes.slice(-SCORE_WINDOW);
+    const momentum = calcMomentum(window);
     if (momentum !== undefined) row.momentum_score = momentum;
-    const volatility = calcVolatility(chart.closes);
+    const volatility = calcVolatility(window);
     if (volatility !== undefined) row.volatility = volatility;
   }
   if (chart?.price && chart.price > 0) row.current_price = chart.price;
@@ -305,12 +373,12 @@ async function buildUpdate(ticker: string): Promise<{ row: Row | null; earnings:
     }
   }
 
-  if (Object.keys(row).length === 0) return { row: null, earnings };
+  if (Object.keys(row).length === 0) return { row: null, earnings, bars };
   const now = new Date().toISOString();
   row.data_source = "yahoo";
   row.last_refreshed_at = now;
   row.updated_at = now;
-  return { row, earnings };
+  return { row, earnings, bars };
 }
 
 function isMissingColumnError(err: { code?: string; message?: string } | null): boolean {
@@ -393,17 +461,71 @@ async function syncEarningsCatalysts(
   return upserted;
 }
 
+// Upserts bars in chunks of <= BAR_CHUNK. Never throws; failed chunks are logged.
+// deno-lint-ignore no-explicit-any
+async function upsertBars(supabase: any, bars: Bar[]): Promise<number> {
+  let ok = 0;
+  for (let i = 0; i < bars.length; i += BAR_CHUNK) {
+    const chunk = bars.slice(i, i + BAR_CHUNK);
+    try {
+      const { error } = await supabase.from("price_daily").upsert(chunk, { onConflict: "ticker,d" });
+      if (error) {
+        console.error(`price_daily upsert failed: ${error.code} ${error.message}`);
+        continue;
+      }
+      ok += chunk.length;
+    } catch (e) {
+      console.error(`price_daily upsert threw: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return ok;
+}
+
+async function readRange(req: Request): Promise<Range> {
+  let raw: unknown = new URL(req.url).searchParams.get("range");
+  if (!raw && req.method === "POST") {
+    try {
+      const body = await req.clone().json();
+      raw = body?.range;
+    } catch {
+      // empty or non-JSON body -> default
+    }
+  }
+  return (ALLOWED_RANGES as readonly string[]).includes(raw as string) ? (raw as Range) : "3mo";
+}
+
+// deno-lint-ignore no-explicit-any
+async function logRun(supabase: any, startedAt: string, status: string, stats: Record<string, unknown>) {
+  try {
+    const { error } = await supabase.from("refresh_runs").insert({
+      job: JOB,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      status,
+      stats,
+    });
+    if (error) console.error(`refresh_runs insert failed: ${error.message}`);
+  } catch (e) {
+    console.error(`refresh_runs insert threw: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  const startedAt = new Date().toISOString();
+  let range: Range = "3mo";
+  // deno-lint-ignore no-explicit-any
+  let supabase: any = null;
   try {
     const deadline = Date.now() + RUN_BUDGET_MS;
     crumbPromise = null; // fresh crumb per invocation
+    range = await readRange(req);
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    supabase = createClient(supabaseUrl, serviceKey);
 
     let { data: stocks, error: dbError } = await supabase
       .from("stocks")
@@ -420,13 +542,24 @@ Deno.serve(async (req: Request) => {
 
     const list = (stocks || []) as { id: string; ticker: string }[];
     if (list.length === 0) {
-      return json({ updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0 });
+      await logRun(supabase, startedAt, "ok", { updated: 0, total: 0, failed_count: 0, bars_upserted: 0, range });
+      return json({ updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0, bars_upserted: 0 });
     }
 
     let degraded = false;
     let updated = 0;
     const failed: string[] = [];
     const earningsRows: EarningsEvent[] = [];
+    let barBuffer: Bar[] = [];
+    let bars_upserted = 0;
+    const flushBars = async (force: boolean) => {
+      if (barBuffer.length === 0 || (!force && barBuffer.length < BAR_CHUNK)) return;
+      const toWrite = barBuffer;
+      barBuffer = [];
+      // Await first: `x += await f()` reads x before the await and loses concurrent increments.
+      const n = await upsertBars(supabase, toWrite);
+      bars_upserted += n;
+    };
 
     const legacyOnly = (row: Row): Row => {
       const out: Row = {};
@@ -436,8 +569,12 @@ Deno.serve(async (req: Request) => {
 
     const skipped = await runPool(list, CONCURRENCY, deadline, async (stock) => {
       try {
-        const built = await buildUpdate(stock.ticker);
+        const built = await buildUpdate(stock.ticker, range);
         if (built.earnings) earningsRows.push(built.earnings);
+        if (built.bars.length) {
+          barBuffer.push(...built.bars);
+          await flushBars(false);
+        }
         const full = built.row;
         if (!full) {
           failed.push(stock.ticker);
@@ -460,14 +597,29 @@ Deno.serve(async (req: Request) => {
       }
     });
     for (const s of skipped) failed.push(s.ticker);
+    await flushBars(true);
 
     const catalysts_upserted = await syncEarningsCatalysts(supabase, earningsRows);
 
-    return json({ updated, total: list.length, failed, degraded, catalysts_upserted });
+    const status = updated === 0 ? "failed" : failed.length > 0 ? "partial" : "ok";
+    await logRun(supabase, startedAt, status, {
+      updated,
+      total: list.length,
+      failed_count: failed.length,
+      bars_upserted,
+      range,
+    });
+
+    return json({ updated, total: list.length, failed, degraded, catalysts_upserted, bars_upserted });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (supabase) {
+      await logRun(supabase, startedAt, "failed", {
+        updated: 0, total: 0, failed_count: 0, bars_upserted: 0, range, error: message.slice(0, 500),
+      });
+    }
     return json(
-      { error: message, updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0 },
+      { error: message, updated: 0, total: 0, failed: [], degraded: false, catalysts_upserted: 0, bars_upserted: 0 },
       500,
     );
   }
