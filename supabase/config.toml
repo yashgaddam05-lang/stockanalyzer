@@ -1,2 +1,8 @@
 [functions.refresh-stocks]
 verify_jwt = false
+
+[functions.refresh-market]
+verify_jwt = false
+
+[functions.refresh-filings]
+verify_jwt = false
