@@ -12,3 +12,5 @@ export { buildCases } from './cases.js';
 export type { CaseKey, CaseSummary } from './cases.js';
 export { PRESET_SCREENS, getPresetScreen, applyPresetScreen } from './presets.js';
 export type { ScoredStock, PresetScreen } from './presets.js';
+export { REGIME_SYMBOLS, computeRegimeSnapshot, sectorEtfFor, regimeFitForStock } from './regime.js';
+export type { RegimeSnapshotInput, RegimeSeries, Bar } from './regime.js';

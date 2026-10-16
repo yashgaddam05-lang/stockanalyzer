@@ -9,7 +9,10 @@
  */
 import type { Stock } from '../supabase.js';
 
-export const MODEL_VERSION = 'v2.0';
+export const MODEL_VERSION = 'v2.1';
+
+/** Stock plus per-stock regime fit written by the refresh pipeline (see regime.ts). */
+type RegimeStock = Stock & { regime_fit_score?: number | null; regime_fit_drivers?: string[] | null };
 
 export type DimensionKey =
   | 'growth'
@@ -36,7 +39,7 @@ export const DIMENSIONS: ReadonlyArray<DimensionDef> = [
   { key: 'catalyst', label: 'Catalyst Strength', weight: 12, inputs: ['pipeline_count', 'rd_ratio'] },
   { key: 'position', label: 'Market Position', weight: 10, inputs: ['market_cap', 'gross_margin', 'avg_volume'] },
   { key: 'risk', label: 'Risk & Volatility', weight: 8, inputs: ['volatility', 'beta'] },
-  { key: 'regime', label: 'Market Regime Fit', weight: 5, inputs: [] },
+  { key: 'regime', label: 'Market Regime Fit', weight: 5, inputs: ['regime_fit_score'] },
 ];
 
 export interface DimensionResult {
@@ -291,10 +294,17 @@ function asymmetry(s: Stock): DimPartial {
   return { score: parts.reduce((a, p) => a + p.v * p.w, 0) / wsum, drivers };
 }
 
-function regime(): DimPartial {
+function regime(s: RegimeStock): DimPartial {
+  const v = num(s.regime_fit_score);
+  if (v !== null) {
+    const drivers = Array.isArray(s.regime_fit_drivers) && s.regime_fit_drivers.length
+      ? s.regime_fit_drivers
+      : [`Regime fit ${Math.round(clamp(v))}/100 from the daily market refresh`];
+    return { score: clamp(v), drivers };
+  }
   return {
     score: null,
-    drivers: ['Not scored: requires macro data (rates, sector rotation, growth vs value) from roadmap item 21; weight re-normalized'],
+    drivers: ['Not scored yet: waiting for market regime data from the daily refresh'],
   };
 }
 
@@ -309,7 +319,7 @@ const SCORERS: Record<DimensionKey, (s: Stock) => DimPartial> = {
   regime,
 };
 
-export function scoreStock(stock: Stock): ScoreResult {
+export function scoreStock(stock: RegimeStock): ScoreResult {
   const dimensions: DimensionResult[] = DIMENSIONS.map((d) => {
     const { score, drivers } = SCORERS[d.key](stock);
     const sc = score === null ? null : Math.round(clamp(score));
