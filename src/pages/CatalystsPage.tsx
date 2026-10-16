@@ -135,7 +135,7 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
     const stock = getStock(row.ticker);
     return (
       <Link
-        to={`/stock/${encodeURIComponent(row.ticker)}`}
+        to={`/app/stock/${encodeURIComponent(row.ticker)}`}
         className="inline-flex items-center gap-2 rounded-md text-sm font-semibold text-neutral-900 hover:underline underline-offset-2"
       >
         {row.ticker}

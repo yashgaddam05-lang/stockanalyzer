@@ -7,10 +7,11 @@ import { useStocks } from '@/components/data/StocksProvider';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/explore', label: 'Explore', end: false },
-  { to: '/watchlists', label: 'Watchlists', end: false },
-  { to: '/catalysts', label: 'Catalysts', end: false },
+  { to: '/app', label: 'Dashboard', end: true },
+  { to: '/app/explore', label: 'Explore', end: false },
+  { to: '/app/watchlists', label: 'Watchlists', end: false },
+  { to: '/app/catalysts', label: 'Catalysts', end: false },
+  // Public page, outside the app shell.
   { to: '/methodology', label: 'Methodology', end: false },
 ];
 
@@ -57,7 +58,7 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-        <Link to="/" className="flex items-center gap-2" aria-label="3x Hunter home">
+        <Link to="/app" className="flex items-center gap-2" aria-label="3x Hunter dashboard">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900">
             <TrendingUp className="h-4 w-4 text-white" strokeWidth={2.5} />
           </div>

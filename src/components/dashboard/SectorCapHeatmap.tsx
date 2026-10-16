@@ -155,7 +155,7 @@ export function SectorCapHeatmap({ stocks, analyses }: SectorCapHeatmapProps) {
                           </div>
                         ) : (
                           <Link
-                            to={`/explore?sector=${encodeURIComponent(sector)}&cap=${bucket}`}
+                            to={`/app/explore?sector=${encodeURIComponent(sector)}&cap=${bucket}`}
                             aria-label={describe(c)}
                             title={c.tickers.join(', ')}
                             className={cn(

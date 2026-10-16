@@ -82,7 +82,7 @@ export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
               </button>
             ))}
           </div>
-          <Link to="/explore" className="hidden items-center gap-1 text-[13px] text-neutral-600 hover:text-neutral-900 sm:flex">
+          <Link to="/app/explore" className="hidden items-center gap-1 text-[13px] text-neutral-600 hover:text-neutral-900 sm:flex">
             Explore all <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -95,7 +95,7 @@ export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
               <span className="w-6 text-[12px] tabular-nums text-muted-foreground">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <Link
-                  to={`/stock/${encodeURIComponent(stock.ticker)}`}
+                  to={`/app/stock/${encodeURIComponent(stock.ticker)}`}
                   className="text-sm font-semibold text-neutral-900 hover:underline"
                 >
                   {stock.ticker}

@@ -21,7 +21,7 @@ export function PresetShortcuts({ stocks }: { stocks: StockListItem[] }) {
         {PRESET_SCREENS.map((p) => (
           <Link
             key={p.id}
-            to={`/explore?preset=${encodeURIComponent(p.id)}`}
+            to={`/app/explore?preset=${encodeURIComponent(p.id)}`}
             className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2"
           >
             <Card className="flex h-full flex-col p-4 transition-colors group-hover:border-neutral-400">
