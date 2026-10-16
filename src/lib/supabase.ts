@@ -301,6 +301,8 @@ export interface InsiderTransaction {
   id: string;
   ticker: string;
   accession_no: string;
+  /** 0-based line within the Form 4. Legacy rows with -1 were "processed" sentinels
+   *  (now in sec_form4_processed); readers should still filter line_no >= 0. */
   line_no: number;
   owner_name: string;
   owner_relationship: string | null;
@@ -312,6 +314,17 @@ export interface InsiderTransaction {
   value: number | null;
   shares_owned_after: number | null;
   filing_url: string | null;
+}
+
+/** Form 4 accession processed with no non-derivative lines (refresh-filings bookkeeping). */
+export interface SecForm4Processed {
+  accession_no: string;
+  ticker: string;
+  /** no_lines | no_owner | not_found | parse_error | legacy_sentinel */
+  reason: string;
+  owner_name: string | null;
+  filing_url: string | null;
+  processed_at: string;
 }
 
 export interface InsiderSummary {

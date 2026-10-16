@@ -90,7 +90,7 @@ These standards must be followed in every build session to maintain consistency.
 
 | Area | Status | Notes |
 |---|---|---|
-| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 23, 25, 27, 28 backend + partial 18/19/22) built on `swarm/wave-2`, route wiring pending (`app-wiring`, wave 3) |
+| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 22, 23, 25, 27, 28 + partial 18/19) merged on `swarm/integration` with routes wired (`app-wiring`) |
 | Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
 | Scoring dimensions | 8 of 8 | Aligned to document weights; all 8 scored as of v2.1 (Market Regime Fit added) |
 | Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
@@ -153,8 +153,8 @@ Features from scope document sections 8.1–8.7.
 - [x] Price chart (Recharts, `/api/price-history`)
 - [ ] Earnings, news, and score-change markers on the price chart
 - [ ] Analyst estimates and revisions
-- [~] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); Form 4 migrations on unmerged `swarm/edge-sec-filings`) — short interest still missing
-- [~] SEC filings (`SecActivityPanel` filings tab, EDGAR links; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); `refresh-filings` source on unmerged `swarm/edge-sec-filings`) — news still missing
+- [~] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; `SecActivityPanel` mounted on stock detail; Form 4 marker migration `20261016173437_sec_form4_processed.sql`) — short interest still missing
+- [~] SEC filings (`SecActivityPanel` filings tab, EDGAR links; `SecActivityPanel` mounted on stock detail; `refresh-filings` source in `supabase/functions/refresh-filings`) — news still missing
 - [x] 3x scenario calculator
 - [ ] Thesis invalidation signals
 - [x] Historical score trend
@@ -169,22 +169,22 @@ Features from scope document sections 8.1–8.7.
 - [x] Named watchlists (multiple lists)
 - [x] Notes and tags per stock
 - [x] Score change tracking per watchlist
-- [x] Aggregate risk and sector exposure view (portfolio exposure in `src/lib/portfolio`, Portfolios page built; route wiring pending (`app-wiring`))
+- [x] Aggregate risk and sector exposure view (portfolio exposure in `src/lib/portfolio`, Portfolios page routed at `/app/portfolios`)
 - [ ] Sort watchlist by score, risk, catalyst date, price change, valuation
-- [x] Simulated portfolios (positions, cost basis, unrealized gains; `portfolios`/`positions` tables, `/api/portfolios`, `/api/positions`, Portfolios page built; route wiring pending (`app-wiring`))
+- [x] Simulated portfolios (positions, cost basis, unrealized gains; `portfolios`/`positions` tables, `/api/portfolios`, `/api/positions`, Portfolios page routed at `/app/portfolios`)
 - [x] Portfolio exposure analysis (sector, risk-level and concentration exposure)
 - [ ] Thesis-health alerts
 
 ### 8.5 Alerts
 - [x] Per-user alert rules (`alerts` table, `/api/alerts` CRUD) with throttled evaluation when `/api/alert-events` is read
-- [x] Alert events inbox (`alert_events`, `/api/alert-events`), Alerts page and notification bell built; route wiring pending (`app-wiring`)
+- [x] Alert events inbox (`alert_events`, `/api/alert-events`), Alerts page (`/app/alerts`) and notification bell wired
 - [ ] Email / push delivery (in-app only)
 
 ### 8.6 Backtesting and model validation
 - [x] Score forward-return backtest: SQL function `score_forward_returns` over `score_history` + `price_daily`, pure aggregation engine (`src/lib/backtest`), `GET /api/backtest`
-- [~] Backtest page with sample size, score-bucket chart/table, stats and caveats: built on `swarm/backtest-ui`, not merged
+- [x] Backtest page with sample size, score-bucket chart/table, stats and caveats: routed at `/app/backtest`
 - [ ] Meaningful sample: forward returns need weeks of stored daily history before results carry weight
-- [x] Data quality: `refresh_runs` log + on-demand checks (`src/lib/data-quality`, `/api/data-health`, Data health page built; route wiring pending (`app-wiring`))
+- [x] Data quality: `refresh_runs` log + on-demand checks (`src/lib/data-quality`, `/api/data-health`, Data health page routed at `/app/data-health`)
 
 ### 8.7 AI research assistant
 - [ ] Not started
@@ -307,23 +307,23 @@ Need some new data or infrastructure, but achievable without paid services.
 
 Require significant new data, infrastructure, or complexity.
 
-Caveat (Stage C): on `swarm/wave-2`, `src/App.tsx` routes only explore, stock/:ticker, watchlists, catalysts and account. The Market regime, Alerts, Portfolios, Data health and Backtest pages, `RegimeSummaryCard`, `NotificationBell` and `SecActivityPanel` are not reachable by users until `app-wiring` (wave 3) lands; `backtest-ui` and `edge-sec-filings` are not yet merged.
+Stage C status: `app-wiring` is merged on `swarm/integration`. `src/App.tsx` routes the Market regime, Alerts, Portfolios, Data health and Backtest pages; `RegimeSummaryCard` is on the dashboard, `NotificationBell` in the app header and `SecActivityPanel` on stock detail. `backtest-ui` landed through `app-wiring`; the `refresh-filings` source and Form 4 marker migration from `edge-sec-filings` are on `swarm/integration`.
 
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
 | 16 | Full fundamental data ingestion | - [ ] | Hard | Paid data vendor needed (Alpha Vantage, Polygon, FMP) |
 | 17 | Analyst estimates and revisions | - [ ] | Hard | Paid data feed required |
-| 18 | News, SEC filings, transcripts | - [~] Partial | Hard | SEC filings built: `refresh-filings` (free SEC EDGAR, needs `SEC_USER_AGENT`; source on unmerged `swarm/edge-sec-filings`, function deployed), `sec_filings`, `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). News and transcripts still missing |
-| 19 | Insider activity, institutional ownership, short interest | - [~] Partial | Hard | Insider activity built: Form 4 parsing into `insider_transactions` (migrations on unmerged `swarm/edge-sec-filings`); `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). Institutional ownership and short interest still missing |
+| 18 | News, SEC filings, transcripts | - [~] Partial | Hard | SEC filings built: `refresh-filings` (free SEC EDGAR, needs `SEC_USER_AGENT`; source in `supabase/functions/refresh-filings`, deployed v3), `sec_filings`, `/api/filings`; `SecActivityPanel` mounted on stock detail. News and transcripts still missing |
+| 19 | Insider activity, institutional ownership, short interest | - [~] Partial | Hard | Insider activity built: Form 4 parsing into `insider_transactions` (processed markers in `sec_form4_processed`); `SecActivityPanel` mounted on stock detail. Institutional ownership and short interest still missing |
 | 20 | Options data | - [ ] | Hard | Specialized, often expensive data source |
-| 21 | Macro and market regime data | - [x] | Hard | Backend shipped: `refresh-market` + `market_regime_snapshots`, regime model v2.1, Market Regime Fit scored. Market regime page + dashboard card built; route wiring pending (`app-wiring`). FRED series not yet ingested |
-| 22 | Backtesting engine | - [~] Partial | Hard | Backend shipped: `score_forward_returns` SQL function, `src/lib/backtest` engine, `/api/backtest`. Backtest page built on `swarm/backtest-ui`, not merged. Results thin until daily history accumulates |
-| 23 | Alert system | - [x] | Hard | Backend shipped: `alerts`/`alert_events`, throttled evaluation on inbox read, `/api/alerts`, `/api/alert-events`. Alerts page + bell built; route wiring pending (`app-wiring`). In-app delivery only |
+| 21 | Macro and market regime data | - [x] | Hard | Backend shipped: `refresh-market` + `market_regime_snapshots`, regime model v2.1, Market Regime Fit scored. Market regime page (`/app/market`) and dashboard card wired. FRED series not yet ingested |
+| 22 | Backtesting engine | - [x] | Hard | Shipped: `score_forward_returns` SQL function, `src/lib/backtest` engine, `/api/backtest`, Backtest page routed at `/app/backtest`. Results thin until daily history accumulates |
+| 23 | Alert system | - [x] | Hard | Backend shipped: `alerts`/`alert_events`, throttled evaluation on inbox read, `/api/alerts`, `/api/alert-events`. Alerts page (`/app/alerts`) and bell wired. In-app delivery only |
 | 24 | AI research assistant | - [ ] | Hard | Needs underlying data first, plus retrieval system and guardrails |
-| 25 | Simulated portfolios | - [x] | Hard | Backend shipped: `portfolios`/`positions`, `/api/portfolios`, `/api/positions`. Portfolios page with P&L and exposure built; route wiring pending (`app-wiring`) (prices from latest refresh, not real-time) |
+| 25 | Simulated portfolios | - [x] | Hard | Backend shipped: `portfolios`/`positions`, `/api/portfolios`, `/api/positions`. Portfolios page with P&L and exposure routed at `/app/portfolios` (prices from latest refresh, not real-time) |
 | 26 | Mobile app (React Native / Flutter) | - [ ] | Hard | Entirely separate codebase |
 | 27 | Time-series storage architecture | - [x] | Hard | Shipped: `price_daily` written by `refresh-stocks` v6 and `refresh-market`, refreshed by Vercel daily crons |
-| 28 | Data-quality checks and monitoring | - [x] | Hard | Backend shipped: `refresh_runs` log, on-demand checks (`src/lib/data-quality`, `/api/data-health`). Data health page built; route wiring pending (`app-wiring`). No paging/alerting on failures |
+| 28 | Data-quality checks and monitoring | - [x] | Hard | Backend shipped: `refresh_runs` log, on-demand checks (`src/lib/data-quality`, `/api/data-health`). Data health page routed at `/app/data-health`. No paging/alerting on failures |
 
 ---
 
@@ -364,7 +364,7 @@ Roadmap items 21, 22, 23, 25, 27, 28 (plus partial 18 and 19) built by the engin
 - Wave 1: `db-stage-c-schema` (four Stage C migrations), `stage-c-contracts` (shared types + API client), `regime-scoring-v2-1` (regime snapshot + per-stock fit), `backtest-engine` (pure aggregation), `portfolio-alerts-dq-libs` (pure portfolio, alerts, data-quality libs)
 - Wave 2: `edge-prices-market` (`refresh-stocks` v6 + `refresh-market`), `edge-sec-filings` (`refresh-filings`), `api-refresh-regime-cron` (refresh core, `/api/cron`, `/api/market-regime`), `api-alerts`, `api-portfolios`, `api-backtest`, `api-filings-data-health`, `vercel-cron`, `alerts-ui`, `portfolios-ui`, `market-regime-ui`, `data-health-ui`, `filings-ui`, `backtest-ui`
 - Wave 3: `app-wiring`, `marketing-methodology-beta-copy`, `progress-doc-stage-c`
-- Note: at time of writing, `edge-sec-filings` and `backtest-ui` are not yet merged into `swarm/wave-2` (the `refresh-filings` function is already deployed, version 3)
+- Note: `backtest-ui` landed through `app-wiring`; the `edge-sec-filings` function source and marker migration were reconciled onto `swarm/integration` (`refresh-filings` deployed, version 3)
 
 ---
 
@@ -403,9 +403,11 @@ Stage C (session 5) migrations, applied to production Supabase; local filenames 
 - [x] `supabase/migrations/20261016164112_stage_c_sec_edgar.sql` — `sec_sync_state`, `sec_filings`, `insider_transactions` (live version 20261016164112)
 - [x] `supabase/migrations/20261016164150_stage_c_alerts_portfolios.sql` — `alerts`, `alert_events`, `portfolios`, `positions` (live version 20261016164150)
 - [x] `supabase/migrations/20261016164221_stage_c_backtest_fn.sql` — `score_forward_returns` SQL function (live version 20261016164221)
-- [ ] Follow-up migrations on unmerged `swarm/edge-sec-filings`: `20261016180000_sec_form4_processed.sql` is live as version **20261016173437** (filename/version mismatch to reconcile before merge); `20261016180100_drop_insider_sentinels.sql` is not applied
+- [x] `supabase/migrations/20261016173437_sec_form4_processed.sql` — `sec_form4_processed` + sentinel backfill (live version 20261016173437; renamed from `20261016180000` on `swarm/edge-sec-filings`)
+- [ ] `20261016180100_drop_insider_sentinels.sql` (DELETE of legacy `line_no < 0` rows) stays on `swarm/edge-sec-filings`, not applied and not on `swarm/integration`; needs review before it ships. Readers filter `line_no >= 0` meanwhile
 - [x] Edge functions deployed: `refresh-stocks` (version 7), `refresh-market` (version 1), `refresh-filings` (version 3)
-- [ ] Merge `edge-sec-filings` and `backtest-ui` into the wave branch; wire Stage C routes and `SecActivityPanel` (`app-wiring`)
+- [x] `backtest-ui` merged and Stage C routes plus `SecActivityPanel` wired (`app-wiring`); `refresh-filings` source on `swarm/integration`
+- [ ] **Owner action:** turn on leaked-password protection (Supabase Dashboard > Authentication > Password security / Attack protection); it is the only `get_advisors` security WARN (`auth_leaked_password_protection`) and is a project Auth setting, not a schema issue
 - [ ] **Owner action:** set the `SEC_USER_AGENT` Edge Function secret (Supabase Dashboard > Edge Functions > Secrets) if not already set, e.g. `3x Hunter contact@yourdomain`
 - [ ] **Owner action:** set `CRON_SECRET` in Vercel Production env if not set, then confirm the three cron jobs run in the Vercel dashboard (Settings > Cron Jobs) and that `refresh_runs` gets rows
 - [ ] Post-deploy smoke test: `/api/market-regime`, `/api/alerts`, `/api/alert-events`, `/api/portfolios`, `/api/positions`, `/api/backtest`, `/api/filings`, `/api/data-health` return 200 + sane JSON
