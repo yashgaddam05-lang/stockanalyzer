@@ -72,6 +72,7 @@ function rememberEvaluation(userId: string, at: number): void {
  * skipped when the last evaluation was < 60s ago, unless a rule changed since then.
  * Duplicate protection across concurrent instances: a triggered rule's update is
  * conditioned on its previous last_triggered_at, and only winners insert events.
+ * If the event insert fails, winners' previous state is restored so they fire again.
  */
 async function evaluateUserRules(scope: UserScope): Promise<EvalOutcome> {
   const startedAt = Date.now();
@@ -92,6 +93,16 @@ async function evaluateUserRules(scope: UserScope): Promise<EvalOutcome> {
     return 'ok';
   }
 
+  // Record the attempt even on failure so a persistently failing evaluation is still
+  // throttled to once per 60s instead of retried on every poll.
+  try {
+    return await runEvaluation(scope, rows, startedAt);
+  } finally {
+    rememberEvaluation(scope.userId, startedAt);
+  }
+}
+
+async function runEvaluation(scope: UserScope, rows: RuleRow[], startedAt: number): Promise<EvalOutcome> {
   const tickers = [...new Set(rows.map((r) => r.ticker))];
   const needSnapshots = rows.some((r) => r.kind === 'score_change');
   const needCatalysts = rows.some((r) => r.kind === 'catalyst_within');
@@ -153,15 +164,36 @@ async function evaluateUserRules(scope: UserScope): Promise<EvalOutcome> {
   const result = evaluateAlerts({ rules, stocks, snapshots, catalysts, now: nowIso });
 
   const byId = new Map(rows.map((r) => [r.id, r]));
+  let failed = false;
+
+  // 1) Non-triggered state changes (arming, snapshot cursor moves): one UPDATE per distinct
+  //    state value, not per rule. Only last_state is written, so a concurrent PATCH/DELETE
+  //    can't be reverted or resurrected (which a full-row upsert would risk). For price/score
+  //    rules this is at most 2 requests ({armed:true} / {armed:false}) regardless of rule count.
+  const quiet = new Map<string, { state: RuleState; ids: string[] }>();
+  for (const u of result.updates) {
+    if (u.triggered || !byId.has(u.id)) continue;
+    const key = JSON.stringify(u.last_state);
+    const group = quiet.get(key);
+    if (group) group.ids.push(u.id);
+    else quiet.set(key, { state: u.last_state, ids: [u.id] });
+  }
+
+  // 2) Triggered rules: race-guarded conditional update (dedupe across concurrent instances).
+  //    A failure here leaves the rule untouched, so it simply fires on the next evaluation.
+  const triggered = result.updates.filter((u) => u.triggered && byId.has(u.id));
   const winners = new Set<string>();
-  const outcomes = await Promise.all(
-    result.updates.map(async (u) => {
-      const prev = byId.get(u.id);
-      if (!prev) return true;
-      if (!u.triggered) {
-        const { error: updErr } = await scope.db.from('alerts').update({ last_state: u.last_state }).eq('id', u.id);
-        return !updErr;
+
+  await Promise.all([
+    ...[...quiet.values()].map(async (g) => {
+      const { error: updErr } = await scope.db.from('alerts').update({ last_state: g.state }).in('id', g.ids);
+      if (updErr) {
+        failed = true;
+        console.error('[alert-events] state update failed', updErr.message);
       }
+    }),
+    ...triggered.map(async (u) => {
+      const prev = byId.get(u.id) as RuleRow;
       let query = scope.db
         .from('alerts')
         .update({ last_state: u.last_state, last_triggered_at: nowIso })
@@ -170,13 +202,16 @@ async function evaluateUserRules(scope: UserScope): Promise<EvalOutcome> {
         ? query.is('last_triggered_at', null)
         : query.eq('last_triggered_at', prev.last_triggered_at);
       const { data: updated, error: updErr } = await query.select('id');
-      if (updErr) return false;
+      if (updErr) {
+        failed = true;
+        console.error('[alert-events] trigger update failed', updErr.message);
+        return;
+      }
       if (updated && updated.length > 0) winners.add(u.id);
-      return true;
     }),
-  );
-  if (outcomes.some((ok) => !ok)) return 'error';
+  ]);
 
+  // 3) Events for every winner, independent of unrelated update failures.
   const events = result.events
     .filter((e) => winners.has(e.alert_id))
     .map((e) => ({
@@ -190,11 +225,26 @@ async function evaluateUserRules(scope: UserScope): Promise<EvalOutcome> {
     }));
   if (events.length > 0) {
     const { error: insErr } = await scope.db.from('alert_events').insert(events);
-    if (insErr) return isMissingRelation(insErr) ? 'missing' : 'error';
+    if (insErr) {
+      console.error('[alert-events] event insert failed', insErr.message);
+      // 4) Undo the winners' claim so they fire again next evaluation instead of being lost.
+      //    Guarded on our own last_triggered_at so we never clobber a newer claim.
+      await Promise.all(
+        [...winners].map(async (id) => {
+          const prev = byId.get(id) as RuleRow;
+          const { error: rbErr } = await scope.db
+            .from('alerts')
+            .update({ last_state: prev.last_state ?? {}, last_triggered_at: prev.last_triggered_at })
+            .eq('id', id)
+            .eq('last_triggered_at', nowIso);
+          if (rbErr) console.error('[alert-events] rollback failed', id, rbErr.message);
+        }),
+      );
+      return isMissingRelation(insErr) ? 'missing' : 'error';
+    }
   }
 
-  rememberEvaluation(scope.userId, Date.now());
-  return 'ok';
+  return failed ? 'error' : 'ok';
 }
 
 function parseLimit(raw: string | null): number | null {
@@ -213,15 +263,19 @@ async function handleGet(request: ApiRequest, response: ApiResponse, scope: User
   const unreadRaw = getQueryValue(request, 'unread');
   const unreadOnly = unreadRaw === '1' || unreadRaw === 'true';
 
-  const outcome = await evaluateUserRules(scope);
+  // Evaluation is best-effort: a failure is logged but must not hide existing events.
+  let outcome: EvalOutcome;
+  try {
+    outcome = await evaluateUserRules(scope);
+  } catch (evalErr) {
+    console.error('[alert-events] evaluation threw', evalErr instanceof Error ? evalErr.message : evalErr);
+    outcome = 'error';
+  }
   if (outcome === 'missing') {
     response.status(200).json({ available: false, events: [], unread_count: 0 });
     return;
   }
-  if (outcome === 'error') {
-    sendServerError(response);
-    return;
-  }
+  if (outcome === 'error') console.error('[alert-events] evaluation incomplete; serving stored events');
 
   let eventsQuery = scope.db
     .from('alert_events')

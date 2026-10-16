@@ -89,6 +89,7 @@ async function handlePost(request: ApiRequest, response: ApiResponse, scope: Use
     sendBadRequest(response, `Unknown ticker ${ticker}.`);
     return;
   }
+  // Soft cap: count-then-insert can overshoot by a few under concurrent POSTs. Enforce in the DB if it matters.
   if ((countResult.count ?? 0) >= MAX_RULES_PER_USER) {
     response.status(409).json({ error: `You can have at most ${MAX_RULES_PER_USER} alert rules.` });
     return;
