@@ -28,6 +28,10 @@ const StockDetailPage = lazy(() => import('@/pages/StockDetailPage'));
 const WatchlistsPage = lazy(() => import('@/pages/WatchlistsPage'));
 const CatalystsPage = lazy(() => import('@/pages/CatalystsPage'));
 const AccountPage = lazy(() => import('@/pages/AccountPage'));
+const AlertsPage = lazy(() => import('@/pages/AlertsPage'));
+const PortfoliosPage = lazy(() => import('@/pages/PortfoliosPage'));
+const MarketRegimePage = lazy(() => import('@/pages/MarketRegimePage'));
+const DataHealthPage = lazy(() => import('@/pages/DataHealthPage'));
 
 /** Suspense boundary per lazy public page, so the marketing layout stays on screen while it loads. */
 function Lazy({ children }: { children: ReactNode }) {
@@ -116,6 +120,10 @@ export default function App() {
             <Route path="watchlists" element={<WatchlistsPage />} />
             <Route path="catalysts" element={<CatalystsRoute />} />
             <Route path="account" element={<AccountPage />} />
+            <Route path="alerts" element={<AlertsPage />} />
+            <Route path="portfolios" element={<PortfoliosPage />} />
+            <Route path="market" element={<MarketRegimePage />} />
+            <Route path="data-health" element={<DataHealthPage />} />
             <Route path="*" element={<NotFoundPage homeHref="/app" homeLabel="Back to dashboard" />} />
           </Route>
         </Route>

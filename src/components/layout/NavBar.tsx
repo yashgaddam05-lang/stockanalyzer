@@ -1,19 +1,115 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { AlertCircle, Check, Menu, RefreshCw, TrendingUp, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Menu, RefreshCw, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AccountMenu } from '@/components/auth/AccountMenu';
+import { NotificationBell } from '@/components/alerts/NotificationBell';
 import { useStocks } from '@/components/data/StocksProvider';
 import { cn } from '@/lib/utils';
 
-const NAV_ITEMS = [
+type NavItem = { to: string; label: string; end: boolean };
+
+// Shown inline on desktop.
+const PRIMARY_ITEMS: NavItem[] = [
   { to: '/app', label: 'Dashboard', end: true },
   { to: '/app/explore', label: 'Explore', end: false },
   { to: '/app/watchlists', label: 'Watchlists', end: false },
+  { to: '/app/portfolios', label: 'Portfolios', end: false },
+  { to: '/app/alerts', label: 'Alerts', end: false },
   { to: '/app/catalysts', label: 'Catalysts', end: false },
+];
+
+// Grouped under "More" on desktop to avoid overflow.
+const MORE_ITEMS: NavItem[] = [
+  { to: '/app/market', label: 'Market', end: false },
+  { to: '/app/data-health', label: 'Data health', end: false },
   // Public page, outside the app shell.
   { to: '/methodology', label: 'Methodology', end: false },
 ];
+
+const NAV_ITEMS: NavItem[] = [...PRIMARY_ITEMS, ...MORE_ITEMS];
+
+function MoreMenu() {
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const location = useLocation();
+  const active = MORE_ITEMS.some((item) => location.pathname.startsWith(item.to));
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent | TouchEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('touchstart', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('touchstart', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls={menuId}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+          active ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+        )}
+      >
+        More
+        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} aria-hidden="true" />
+      </button>
+      {open && (
+        <ul
+          id={menuId}
+          className="absolute right-0 top-full z-40 mt-1 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
+        >
+          {MORE_ITEMS.map((item) => (
+            <li key={item.to}>
+              <NavLink
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    'block rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+                    isActive ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                  )
+                }
+              >
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 type RefreshMsg = { type: 'success' | 'error'; text: string };
 
@@ -68,17 +164,18 @@ export function NavBar() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          {NAV_ITEMS.map((item) => (
+        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
+          {PRIMARY_ITEMS.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
               {item.label}
             </NavLink>
           ))}
+          <MoreMenu />
         </nav>
 
         <div className="flex items-center gap-2">
           {lastRefreshed && (
-            <span className="hidden whitespace-nowrap text-[11px] text-muted-foreground lg:inline">
+            <span className="hidden whitespace-nowrap text-[11px] text-muted-foreground xl:inline">
               Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
@@ -94,11 +191,12 @@ export function NavBar() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
+          <NotificationBell />
           <AccountMenu />
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 md:hidden"
+            className="h-8 w-8 p-0 lg:hidden"
             onClick={() => setMenuOpen((v) => !v)}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
@@ -110,7 +208,7 @@ export function NavBar() {
       </div>
 
       {menuOpen && (
-        <nav id="mobile-nav" className="border-t border-border px-4 py-2 md:hidden" aria-label="Mobile">
+        <nav id="mobile-nav" className="border-t border-border px-4 py-2 lg:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
