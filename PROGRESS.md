@@ -1,7 +1,7 @@
 # 3x Hunter — Project Progress Tracker
 
-**Last updated:** 2026-10-15
-**Current phase:** Phase 1 MVP (subset) — Stage A (roadmap items 1–10) and Stage B (items 11–15) built; ~70% complete
+**Last updated:** 2026-10-16
+**Current phase:** Phase 1 MVP (subset) — Stage A (items 1–10), Stage B (items 11–15) and Stage C (items 21, 23, 25, 27, 28; partial 18, 19, 22) built on `swarm/wave-2` (pages not yet routed); Stage C app wiring and QA in progress
 **Scope reference:** `3x_hunter_app_scope.md` (attached)
 
 ---
@@ -90,21 +90,21 @@ These standards must be followed in every build session to maintain consistency.
 
 | Area | Status | Notes |
 |---|---|---|
-| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built |
+| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 23, 25, 27, 28 backend + partial 18/19/22) built on `swarm/wave-2`, route wiring pending (`app-wiring`, wave 3) |
 | Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
-| Scoring dimensions | 8 of 8 | Aligned to document weights; Innovation & Pipeline removed (model v2) |
+| Scoring dimensions | 8 of 8 | Aligned to document weights; all 8 scored as of v2.1 (Market Regime Fit added) |
 | Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
 | UX | Multi-page routing | react-router: Dashboard, Explore, Stock Detail, Watchlists, Methodology; SPA rewrite excludes `/api/` |
 | User accounts | Supabase Auth (email/password) | Per-user watchlists via `watchlists.owner_id` + RLS; anonymous shared lists (owner_id NULL) preserved |
-| Database tables | 6 of ~30+ | stocks, watchlist, watchlists, watchlist_items, score_history, catalysts |
-| Data pipeline | 1 edge function + Vercel `/api/*` routes | Yahoo Finance free endpoints; `refresh-stocks` v5 (bounded-concurrency refresh, rescoring, earnings-date ingest into catalysts); `/api/price-history` proxies Yahoo v8 chart |
+| Database tables | 17 of ~30+ (live) | Stage A/B: stocks, watchlist, watchlists, watchlist_items, score_history, catalysts. Stage C: price_daily, market_regime_snapshots, refresh_runs, sec_sync_state, sec_filings, insider_transactions, sec_form4_processed, alerts, alert_events, portfolios, positions. Plus SQL function `score_forward_returns` |
+| Data pipeline | 3 edge functions + Vercel `/api/*` routes + Vercel daily crons | `refresh-stocks` v6 (v5 behaviour + writes daily bars to `price_daily`; Supabase deploy version 7); `refresh-market` (daily closes for 23 regime symbols: ^VIX, ^TNX, SPY, QQQ, IWM, sector/theme ETFs into `price_daily`); `refresh-filings` (SEC EDGAR filings + Form 4 insider transactions; deploy version 3); `/api/cron` runs market (22:00 UTC Mon–Fri), stocks (23:00 UTC Mon–Fri), filings (10:00 UTC daily), each logged to `refresh_runs`; `/api/price-history` proxies Yahoo v8 chart |
 | Charts | Recharts | Price chart on stock detail; sector x market-cap heat map on dashboard |
 
 ---
 
 ## 5. Scoring Dimensions Status
 
-The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/model.ts`, 2026-10-15) defines all 8 at the document weights and scores 7 of them from available free data. Market Regime Fit returns null until macro data exists, and its weight is re-normalized across the other dimensions. The "What's needed" column lists only the data depth still missing.
+The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/model.ts`, 2026-10-15) defines all 8 at the document weights. Model v2.1 (2026-10-16, `src/lib/scoring/regime.ts`) adds Market Regime Fit, so all 8 are scored; when a stock has no `regime_fit_score` yet, that weight is re-normalized across the other dimensions. The "What's needed" column lists only the data depth still missing.
 
 | # | Document dimension | Weight | Status | Current implementation (v2 inputs) | What's needed |
 |---|---|---:|---|---|---|
@@ -115,7 +115,7 @@ The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/mo
 | 5 | Catalyst Strength | 12% | - [x] Implemented (v2, proxy) | Proxy from pipeline count (60%) + R&D intensity (40%); no dated events | Catalyst calendar table: earnings dates, product launches, regulatory events |
 | 6 | Market Position | 10% | - [x] Implemented (v2) | Market-cap tier, gross margin as pricing-power indicator, average volume (liquidity) | Market share, moat indicators, customer concentration |
 | 7 | Risk & Volatility | 8% | - [x] Implemented (v2) | Opportunity-side asymmetry from volatility + beta. Separate independent 0-100 risk score with label, drivers and invalidation signals in `src/lib/scoring/risk.ts` (volatility, beta, leverage, runway, market cap, profitability) | Drawdown history, liquidity/float risk inputs |
-| 8 | Market Regime Fit | 5% | - [ ] Defined, not scored | Weight defined; scorer returns null and the weight is re-normalized | Macro indicators, rate trends, sector rotation, growth vs value (roadmap item 21) |
+| 8 | Market Regime Fit | 5% | - [x] Implemented (v2.1) | Daily `market_regime_snapshots` from `refresh-market` closes: VIX, 10y yield (^TNX) and its 63-day change, SPY vs 200-day MA, SPY 63-day return, risk-appetite 0–100 and label (risk_on / neutral / risk_off), sector/theme ETF 63-day strength vs SPY. Per-stock `regime_fit_score` + drivers from sector-ETF relative strength and style fit (beta, revenue/earnings growth, profitability, volatility) vs the regime label | FRED macro series (CPI, GDP, liquidity), credit spreads, regime backtest validation |
 
 **Non-standard dimension removed (model v2):** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
 
@@ -140,7 +140,7 @@ Features from scope document sections 8.1–8.7.
 ### 8.2 Stock detail page
 - [x] 3x Opportunity Score and risk badge
 - [x] One-sentence investment thesis
-- [x] Dimension score breakdown (all 8 dimensions shown; Market Regime Fit shows "not scored")
+- [x] Dimension score breakdown (all 8 dimensions scored as of v2.1; Market Regime Fit shows "not scored yet" until the daily refresh writes a fit)
 - [x] Key catalysts list
 - [x] Key risks list
 - [x] Basic metrics table
@@ -153,8 +153,8 @@ Features from scope document sections 8.1–8.7.
 - [x] Price chart (Recharts, `/api/price-history`)
 - [ ] Earnings, news, and score-change markers on the price chart
 - [ ] Analyst estimates and revisions
-- [ ] Short interest and insider activity
-- [ ] News and SEC filings
+- [~] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); Form 4 migrations on unmerged `swarm/edge-sec-filings`) — short interest still missing
+- [~] SEC filings (`SecActivityPanel` filings tab, EDGAR links; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); `refresh-filings` source on unmerged `swarm/edge-sec-filings`) — news still missing
 - [x] 3x scenario calculator
 - [ ] Thesis invalidation signals
 - [x] Historical score trend
@@ -169,17 +169,22 @@ Features from scope document sections 8.1–8.7.
 - [x] Named watchlists (multiple lists)
 - [x] Notes and tags per stock
 - [x] Score change tracking per watchlist
-- [ ] Aggregate risk and sector exposure view
+- [x] Aggregate risk and sector exposure view (portfolio exposure in `src/lib/portfolio`, Portfolios page built; route wiring pending (`app-wiring`))
 - [ ] Sort watchlist by score, risk, catalyst date, price change, valuation
-- [ ] Simulated portfolios (positions, cost basis, unrealized gains)
-- [ ] Portfolio exposure analysis
+- [x] Simulated portfolios (positions, cost basis, unrealized gains; `portfolios`/`positions` tables, `/api/portfolios`, `/api/positions`, Portfolios page built; route wiring pending (`app-wiring`))
+- [x] Portfolio exposure analysis (sector, risk-level and concentration exposure)
 - [ ] Thesis-health alerts
 
 ### 8.5 Alerts
-- [ ] Not started
+- [x] Per-user alert rules (`alerts` table, `/api/alerts` CRUD) with throttled evaluation when `/api/alert-events` is read
+- [x] Alert events inbox (`alert_events`, `/api/alert-events`), Alerts page and notification bell built; route wiring pending (`app-wiring`)
+- [ ] Email / push delivery (in-app only)
 
 ### 8.6 Backtesting and model validation
-- [ ] Not started
+- [x] Score forward-return backtest: SQL function `score_forward_returns` over `score_history` + `price_daily`, pure aggregation engine (`src/lib/backtest`), `GET /api/backtest`
+- [~] Backtest page with sample size, score-bucket chart/table, stats and caveats: built on `swarm/backtest-ui`, not merged
+- [ ] Meaningful sample: forward returns need weeks of stored daily history before results carry weight
+- [x] Data quality: `refresh_runs` log + on-demand checks (`src/lib/data-quality`, `/api/data-health`, Data health page built; route wiring pending (`app-wiring`))
 
 ### 8.7 AI research assistant
 - [ ] Not started
@@ -193,17 +198,17 @@ Data categories from scope document section 6.
 | Category | Status | What we have | What's needed |
 |---|---|---|---|
 | Security master | - [ ] Partial | ticker, company name, sector, market cap, price | exchange, currency, country, asset type, industry, sub-industry, float, shares outstanding, CIK/FIGI/ISIN |
-| Price and volume | - [ ] Partial | Current price + 3-month daily closes fetched on-demand (not stored) | Daily OHLCV stored in DB, adjusted prices, corporate actions, 52-week range, intraday data, real-time quotes |
+| Price and volume | - [x] Stored daily | Daily OHLCV bars stored in `price_daily` for the universe (`refresh-stocks` v6) and regime symbols (`refresh-market`), refreshed by Vercel cron | Adjusted prices, corporate actions, intraday data, real-time quotes |
 | Fundamentals | - [ ] Partial | revenue growth, earnings growth, debt-to-equity, cash runway | Income statement, balance sheet, cash flow, margins, ROIC, dilution, SBC |
 | Estimates and analyst | - [ ] Missing | Nothing | Forward EPS/revenue, revisions, price targets, ratings, earnings calendar |
-| Alternative data | - [ ] Missing | Nothing | News, filings, transcripts, insider activity, institutional ownership, short interest, options data |
-| Macro data | - [ ] Missing | Nothing | Interest rates, CPI, GDP, liquidity, sector indices, risk appetite |
+| Alternative data | - [ ] Partial | SEC EDGAR filings (`sec_filings`) and Form 4 insider transactions (`insider_transactions`) via `refresh-filings` | News, transcripts, institutional ownership, short interest, options data |
+| Macro data | - [ ] Partial | VIX, 10y yield, SPY trend, sector/theme ETF strength, derived risk appetite (`market_regime_snapshots`) | CPI, GDP, liquidity, credit spreads (FRED) |
 
 ---
 
 ## 8. Database Tables Status
 
-Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for migration status).
+Scope document section 13 recommends ~30+ tables. We have 17 live (see section 14 for migration status).
 
 ### Current tables
 - [x] `stocks` — stock metrics and scores
@@ -212,11 +217,18 @@ Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for 
 - [x] `watchlists` — named watchlists (migration 20261015191530)
 - [x] `watchlist_items` — per-list items with notes and tags (migration 20261015191530)
 - [x] `catalysts` — dated events per stock: Yahoo earnings ingest + manual entries (migration 20261015220504)
+- [x] `price_daily` — stored daily OHLCV (migration 20261016164051)
+- [x] `market_regime_snapshots` — daily regime snapshot (migration 20261016164051)
+- [x] `refresh_runs` — refresh/cron run log used by data-health (migration 20261016164051)
+- [x] `sec_sync_state`, `sec_filings`, `insider_transactions` — SEC EDGAR data (migration 20261016164112)
+- [x] `sec_form4_processed` — processed Form 4 markers (live version 20261016173437)
+- [x] `alerts`, `alert_events` — per-user alert rules and fired events (migration 20261016164150)
+- [x] `portfolios`, `positions` — simulated portfolios (migration 20261016164150)
 
 ### Phase 1 target tables
 - [x] `score_history` — historical score snapshots for tracking changes
 - [x] `catalysts` — upcoming events per stock
-- [ ] `price_daily` — stored daily OHLCV (instead of on-demand fetch)
+- [x] `price_daily` — stored daily OHLCV (instead of on-demand fetch)
 
 ### Full document table list (Phase 2+)
 - [ ] `users`
@@ -224,10 +236,10 @@ Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for 
 - [ ] `user_preferences`
 - [x] `watchlists` (named; per-user ownership via `owner_id` + RLS, migration 20261015220517)
 - [x] `watchlist_items`
-- [ ] `alerts`
-- [ ] `alert_events`
-- [ ] `portfolios`
-- [ ] `positions`
+- [x] `alerts`
+- [x] `alert_events`
+- [x] `portfolios`
+- [x] `positions`
 - [ ] `research_notes`
 - [ ] `tags`
 - [ ] `audit_logs`
@@ -236,7 +248,7 @@ Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for 
 - [ ] `corporate_actions`
 - [ ] `market_snapshots`
 - [ ] `technical_indicators`
-- [ ] `macro_indicators`
+- [ ] `macro_indicators` (partial substitute: `market_regime_snapshots`)
 - [ ] `fundamentals_quarterly`
 - [ ] `fundamentals_annual`
 - [ ] `analyst_estimates`
@@ -245,8 +257,8 @@ Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for 
 - [ ] `earnings_events`
 - [ ] `earnings_transcripts`
 - [ ] `news_items`
-- [ ] `filings`
-- [ ] `insider_transactions`
+- [x] `filings` (implemented as `sec_filings`)
+- [x] `insider_transactions`
 - [ ] `institutional_holdings`
 - [ ] `short_interest`
 - [ ] `options_metrics`
@@ -255,10 +267,10 @@ Scope document section 13 recommends ~30+ tables. We have 6 (see section 14 for 
 - [ ] `risk_assessments`
 - [ ] `model_versions`
 - [ ] `model_weights`
-- [ ] `backtests`
+- [x] `backtests` (computed on demand by SQL function `score_forward_returns`; no stored table)
 - [ ] `backtest_results`
 - [ ] `scenario_calculations`
-- [ ] `data_quality_checks`
+- [x] `data_quality_checks` (implemented as `refresh_runs` log + on-demand checks in `/api/data-health`; no dedicated table)
 
 ---
 
@@ -295,21 +307,23 @@ Need some new data or infrastructure, but achievable without paid services.
 
 Require significant new data, infrastructure, or complexity.
 
+Caveat (Stage C): on `swarm/wave-2`, `src/App.tsx` routes only explore, stock/:ticker, watchlists, catalysts and account. The Market regime, Alerts, Portfolios, Data health and Backtest pages, `RegimeSummaryCard`, `NotificationBell` and `SecActivityPanel` are not reachable by users until `app-wiring` (wave 3) lands; `backtest-ui` and `edge-sec-filings` are not yet merged.
+
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
 | 16 | Full fundamental data ingestion | - [ ] | Hard | Paid data vendor needed (Alpha Vantage, Polygon, FMP) |
 | 17 | Analyst estimates and revisions | - [ ] | Hard | Paid data feed required |
-| 18 | News, SEC filings, transcripts | - [ ] | Hard | Expensive data subscriptions or fragile scrapers + search infra |
-| 19 | Insider activity, institutional ownership, short interest | - [ ] | Hard | Separate data feeds, each with own schema |
+| 18 | News, SEC filings, transcripts | - [~] Partial | Hard | SEC filings built: `refresh-filings` (free SEC EDGAR, needs `SEC_USER_AGENT`; source on unmerged `swarm/edge-sec-filings`, function deployed), `sec_filings`, `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). News and transcripts still missing |
+| 19 | Insider activity, institutional ownership, short interest | - [~] Partial | Hard | Insider activity built: Form 4 parsing into `insider_transactions` (migrations on unmerged `swarm/edge-sec-filings`); `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). Institutional ownership and short interest still missing |
 | 20 | Options data | - [ ] | Hard | Specialized, often expensive data source |
-| 21 | Macro and market regime data | - [ ] | Hard | Some free (FRED API), but regime model is a quant research problem |
-| 22 | Backtesting engine | - [ ] | Hard | Historical price storage, score run snapshots, simulation engine |
-| 23 | Alert system | - [ ] | Hard | Backend monitoring, per-user configs, notification delivery |
+| 21 | Macro and market regime data | - [x] | Hard | Backend shipped: `refresh-market` + `market_regime_snapshots`, regime model v2.1, Market Regime Fit scored. Market regime page + dashboard card built; route wiring pending (`app-wiring`). FRED series not yet ingested |
+| 22 | Backtesting engine | - [~] Partial | Hard | Backend shipped: `score_forward_returns` SQL function, `src/lib/backtest` engine, `/api/backtest`. Backtest page built on `swarm/backtest-ui`, not merged. Results thin until daily history accumulates |
+| 23 | Alert system | - [x] | Hard | Backend shipped: `alerts`/`alert_events`, throttled evaluation on inbox read, `/api/alerts`, `/api/alert-events`. Alerts page + bell built; route wiring pending (`app-wiring`). In-app delivery only |
 | 24 | AI research assistant | - [ ] | Hard | Needs underlying data first, plus retrieval system and guardrails |
-| 25 | Simulated portfolios | - [ ] | Hard | Real-time prices, portfolio schema, calculation logic |
+| 25 | Simulated portfolios | - [x] | Hard | Backend shipped: `portfolios`/`positions`, `/api/portfolios`, `/api/positions`. Portfolios page with P&L and exposure built; route wiring pending (`app-wiring`) (prices from latest refresh, not real-time) |
 | 26 | Mobile app (React Native / Flutter) | - [ ] | Hard | Entirely separate codebase |
-| 27 | Time-series storage architecture | - [ ] | Hard | Architectural shift from on-demand to stored time-series |
-| 28 | Data-quality checks and monitoring | - [ ] | Hard | Operational infrastructure |
+| 27 | Time-series storage architecture | - [x] | Hard | Shipped: `price_daily` written by `refresh-stocks` v6 and `refresh-market`, refreshed by Vercel daily crons |
+| 28 | Data-quality checks and monitoring | - [x] | Hard | Backend shipped: `refresh_runs` log, on-demand checks (`src/lib/data-quality`, `/api/data-health`). Data health page built; route wiring pending (`app-wiring`). No paging/alerting on failures |
 
 ---
 
@@ -345,13 +359,22 @@ Roadmap items 11–15 built by the engineering swarm (`roadmap-swarm` workflow),
 - Wave 2: `api-price-history` (Yahoo v8 chart proxy), `api-catalysts` (GET list, POST manual, DELETE own), `api-watchlists-per-user` (watchlists scoped via resolveAuth), `edge-refresh-catalysts` (refresh-stocks v5 earnings ingest), `price-chart-ui`, `catalysts-ui` (calendar page, stock panel, add dialog), `scenario-calculator-ui`, `auth-ui` (supabase-js auth only, AuthProvider, AccountMenu, LoginPage)
 - Wave 3: `progress-doc-stage-b`
 
+### Session 5 — 2026-10-16 (Stage C swarm build)
+Roadmap items 21, 22, 23, 25, 27, 28 (plus partial 18 and 19) built by the engineering swarm (`roadmap-swarm` workflow), one worktree per package on `swarm/<id>`, merged via `swarm/wave-1` and `swarm/wave-2`.
+- Wave 1: `db-stage-c-schema` (four Stage C migrations), `stage-c-contracts` (shared types + API client), `regime-scoring-v2-1` (regime snapshot + per-stock fit), `backtest-engine` (pure aggregation), `portfolio-alerts-dq-libs` (pure portfolio, alerts, data-quality libs)
+- Wave 2: `edge-prices-market` (`refresh-stocks` v6 + `refresh-market`), `edge-sec-filings` (`refresh-filings`), `api-refresh-regime-cron` (refresh core, `/api/cron`, `/api/market-regime`), `api-alerts`, `api-portfolios`, `api-backtest`, `api-filings-data-health`, `vercel-cron`, `alerts-ui`, `portfolios-ui`, `market-regime-ui`, `data-health-ui`, `filings-ui`, `backtest-ui`
+- Wave 3: `app-wiring`, `marketing-methodology-beta-copy`, `progress-doc-stage-c`
+- Note: at time of writing, `edge-sec-filings` and `backtest-ui` are not yet merged into `swarm/wave-2` (the `refresh-filings` function is already deployed, version 3)
+
 ---
 
 ## 13. Environment
 
 - **Supabase URL:** configured in `.env` (project: irbwaucilrznbqynhtmr)
 - **Supabase Anon Key:** configured in `.env`
-- **Edge function deployed:** `refresh-stocks` v5 (Yahoo Finance integration + earnings-date ingest into catalysts)
+- **Edge functions deployed:** `refresh-stocks` v6 code (Supabase version 7: Yahoo refresh, earnings ingest, `price_daily` bars), `refresh-market` (version 1), `refresh-filings` (version 3)
+- **Edge Function secrets:** `SEC_USER_AGENT` (required by `refresh-filings`; SEC EDGAR rejects requests without a contact user agent), optional `REFRESH_FILINGS_SECRET` (gates forced re-sync)
+- **Vercel cron:** `CRON_SECRET` env var authenticates `/api/cron`. Schedule (UTC, `vercel.json`): `job=market` 22:00 Mon–Fri, `job=stocks` 23:00 Mon–Fri, `job=filings` 10:00 daily. `api/cron.ts` and `api/refresh.ts` have `maxDuration` 120
 - **Git:** repository on GitHub; commits must be authored as `yashgaddam05@gmail.com` or Vercel skips the build
 - **Vercel:** project `stockanalyzer` in team scope `bolot1`; pushing to `main` deploys to production. Env vars (`DATABASE_URL`, `DATABASE_ANON_KEY`, and the new public `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are Production-only, so preview deploys 500 until they are added to Preview
 - **Browser Supabase access:** `supabase-js` in the browser is used for Auth only (`src/lib/auth-client.ts`); all data goes through `/api/*`
@@ -374,3 +397,15 @@ Stage B (session 4) migrations, applied to production Supabase; local filenames 
 - [ ] Wire Stage B UI on `swarm/wave-2`: `/catalysts` and `/login` routes are not yet registered in `src/App.tsx`; `PriceChart`, `CatalystPanel`, `ScenarioCalculator` are not yet mounted in `StockDetailPage`; `AccountMenu` is not yet in `NavBar`
 - [ ] **Owner action:** set Supabase Auth Site URL and redirect URLs to the production domain (Dashboard > Authentication > URL Configuration) so email confirmation / login links resolve
 - [ ] Post-deploy smoke test: `/`, `/api/stocks`, `/api/watchlist`, `/api/watchlists`, `/api/score-history`, `/api/price-history`, `/api/catalysts`, `/catalysts`, `/login` return 200 + sane JSON / page
+
+Stage C (session 5) migrations, applied to production Supabase; local filenames match live versions:
+- [x] `supabase/migrations/20261016164051_stage_c_market_data.sql` — `price_daily`, `market_regime_snapshots`, `refresh_runs`, `stocks.regime_fit_score` / `regime_fit_drivers` (live version 20261016164051)
+- [x] `supabase/migrations/20261016164112_stage_c_sec_edgar.sql` — `sec_sync_state`, `sec_filings`, `insider_transactions` (live version 20261016164112)
+- [x] `supabase/migrations/20261016164150_stage_c_alerts_portfolios.sql` — `alerts`, `alert_events`, `portfolios`, `positions` (live version 20261016164150)
+- [x] `supabase/migrations/20261016164221_stage_c_backtest_fn.sql` — `score_forward_returns` SQL function (live version 20261016164221)
+- [ ] Follow-up migrations on unmerged `swarm/edge-sec-filings`: `20261016180000_sec_form4_processed.sql` is live as version **20261016173437** (filename/version mismatch to reconcile before merge); `20261016180100_drop_insider_sentinels.sql` is not applied
+- [x] Edge functions deployed: `refresh-stocks` (version 7), `refresh-market` (version 1), `refresh-filings` (version 3)
+- [ ] Merge `edge-sec-filings` and `backtest-ui` into the wave branch; wire Stage C routes and `SecActivityPanel` (`app-wiring`)
+- [ ] **Owner action:** set the `SEC_USER_AGENT` Edge Function secret (Supabase Dashboard > Edge Functions > Secrets) if not already set, e.g. `3x Hunter contact@yourdomain`
+- [ ] **Owner action:** set `CRON_SECRET` in Vercel Production env if not set, then confirm the three cron jobs run in the Vercel dashboard (Settings > Cron Jobs) and that `refresh_runs` gets rows
+- [ ] Post-deploy smoke test: `/api/market-regime`, `/api/alerts`, `/api/alert-events`, `/api/portfolios`, `/api/positions`, `/api/backtest`, `/api/filings`, `/api/data-health` return 200 + sane JSON
