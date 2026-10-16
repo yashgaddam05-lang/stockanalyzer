@@ -22,6 +22,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 // Grouped under "More" on desktop to avoid overflow.
 const MORE_ITEMS: NavItem[] = [
   { to: '/app/market', label: 'Market', end: false },
+  { to: '/app/backtest', label: 'Backtest', end: false },
   { to: '/app/data-health', label: 'Data health', end: false },
   // Public page, outside the app shell.
   { to: '/methodology', label: 'Methodology', end: false },
