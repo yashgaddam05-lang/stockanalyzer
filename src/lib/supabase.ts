@@ -39,6 +39,8 @@ export interface Stock {
   data_source?: 'seed' | 'yahoo';
   last_refreshed_at?: string | null;
   is_active?: boolean;
+  regime_fit_score?: number | null;
+  regime_fit_drivers?: string[] | null;
 }
 
 export interface WatchlistEntry {
@@ -147,4 +149,269 @@ export interface PriceHistoryResponse {
   interval: '1d' | '1wk';
   currency: string | null;
   points: PricePoint[];
+}
+
+export interface PriceDailyRow {
+  ticker: string;
+  /** YYYY-MM-DD */
+  d: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  adj_close: number | null;
+  volume: number | null;
+  source: string;
+}
+
+export type RegimeLabel = 'risk_on' | 'neutral' | 'risk_off' | 'insufficient_data';
+
+export interface SectorStrength {
+  etf: string;
+  return_63d: number | null;
+  relative_63d: number | null;
+}
+
+export interface MarketRegimeSnapshot {
+  as_of: string;
+  vix: number | null;
+  tnx: number | null;
+  tnx_change_63d: number | null;
+  spy_close: number | null;
+  spy_above_200dma: boolean | null;
+  spy_return_63d: number | null;
+  risk_appetite: number | null;
+  regime_label: RegimeLabel;
+  sector_strength: Record<string, SectorStrength>;
+  drivers: string[];
+  model_version: string;
+  created_at?: string;
+}
+
+export interface MarketRegimeResponse {
+  available: boolean;
+  latest: MarketRegimeSnapshot | null;
+  history: MarketRegimeSnapshot[];
+}
+
+export type AlertKind = 'score_above' | 'score_below' | 'score_change' | 'price_above' | 'price_below' | 'catalyst_within';
+
+export interface AlertRule {
+  id: string;
+  ticker: string;
+  kind: AlertKind;
+  threshold: number;
+  is_active: boolean;
+  last_triggered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertRuleInput {
+  ticker: string;
+  kind: AlertKind;
+  threshold: number;
+  is_active?: boolean;
+}
+
+export interface AlertRulePatch {
+  threshold?: number;
+  is_active?: boolean;
+}
+
+export interface AlertEvent {
+  id: string;
+  alert_id: string | null;
+  ticker: string;
+  kind: AlertKind;
+  message: string;
+  payload: Record<string, unknown>;
+  triggered_at: string;
+  read_at: string | null;
+}
+
+export interface AlertsResponse {
+  available: boolean;
+  rules: AlertRule[];
+}
+
+export interface AlertEventsResponse {
+  available: boolean;
+  events: AlertEvent[];
+  unread_count: number;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Position {
+  id: string;
+  portfolio_id: string;
+  ticker: string;
+  shares: number;
+  cost_basis: number;
+  opened_at: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortfolioWithPositions extends Portfolio {
+  positions: Position[];
+}
+
+export interface PortfoliosResponse {
+  available: boolean;
+  portfolios: PortfolioWithPositions[];
+}
+
+export interface PositionInput {
+  portfolio_id: string;
+  ticker: string;
+  shares: number;
+  cost_basis: number;
+  opened_at?: string;
+  notes?: string;
+}
+
+export interface PositionPatch {
+  shares?: number;
+  cost_basis?: number;
+  opened_at?: string;
+  notes?: string;
+}
+
+export interface SecFiling {
+  id: string;
+  ticker: string;
+  cik: string;
+  accession_no: string;
+  form: string;
+  filed_at: string;
+  report_date: string | null;
+  primary_doc_url: string | null;
+  description: string | null;
+}
+
+export interface InsiderTransaction {
+  id: string;
+  ticker: string;
+  accession_no: string;
+  /** 0-based line within the Form 4. Legacy rows with -1 were "processed" sentinels
+   *  (now in sec_form4_processed); readers should still filter line_no >= 0. */
+  line_no: number;
+  owner_name: string;
+  owner_relationship: string | null;
+  transaction_date: string | null;
+  transaction_code: string | null;
+  acquired_disposed: 'A' | 'D' | null;
+  shares: number | null;
+  price: number | null;
+  value: number | null;
+  shares_owned_after: number | null;
+  filing_url: string | null;
+}
+
+/** Form 4 accession processed with no non-derivative lines (refresh-filings bookkeeping). */
+export interface SecForm4Processed {
+  accession_no: string;
+  ticker: string;
+  /** no_lines | no_owner | not_found | parse_error | legacy_sentinel */
+  reason: string;
+  owner_name: string | null;
+  filing_url: string | null;
+  processed_at: string;
+}
+
+export interface InsiderSummary {
+  window_days: number;
+  buys: number;
+  sells: number;
+  net_shares: number;
+  net_value: number;
+}
+
+export interface FilingsResponse {
+  ticker: string;
+  available: boolean;
+  filings: SecFiling[];
+  insider: InsiderTransaction[];
+  insider_summary: InsiderSummary | null;
+  last_synced_at: string | null;
+}
+
+export type BacktestHorizon = 5 | 21 | 63;
+
+/** Returns are decimals (0.05 = 5%). */
+export interface BacktestBucket {
+  label: string;
+  min_score: number;
+  max_score: number;
+  n: number;
+  mean_return: number | null;
+  median_return: number | null;
+  hit_rate: number | null;
+  mean_excess_vs_spy: number | null;
+}
+
+/** Returns are decimals (0.05 = 5%). */
+export interface BacktestResponse {
+  available: boolean;
+  model_version: string;
+  versions: string[];
+  horizon_days: BacktestHorizon;
+  generated_at: string;
+  sample: {
+    snapshots: number;
+    observations: number;
+    tickers: number;
+    first_date: string | null;
+    last_date: string | null;
+  };
+  buckets: BacktestBucket[];
+  top_vs_bottom: { spread: number; n_top: number; n_bottom: number } | null;
+  information_coefficient: number | null;
+  sufficient: boolean;
+  min_observations: number;
+  caveats: string[];
+}
+
+export type CheckStatus = 'ok' | 'warn' | 'fail';
+
+export interface DataQualityCheck {
+  id: string;
+  label: string;
+  status: CheckStatus;
+  value: string;
+  detail: string;
+  affected?: string[];
+}
+
+export interface RefreshRun {
+  id: string;
+  job: string;
+  started_at: string;
+  finished_at: string | null;
+  status: 'ok' | 'partial' | 'failed';
+  stats: Record<string, unknown>;
+}
+
+export interface DataHealthResponse {
+  generated_at: string;
+  overall: CheckStatus;
+  checks: DataQualityCheck[];
+  coverage: {
+    stocks_total: number;
+    stocks_refreshed_24h: number;
+    price_daily_tickers: number;
+    latest_bar_date: string | null;
+    regime_as_of: string | null;
+    filings_last_synced_at: string | null;
+    last_snapshot_at: string | null;
+  };
+  runs: RefreshRun[];
 }

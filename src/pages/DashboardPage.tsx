@@ -4,6 +4,7 @@ import { TopOpportunities } from '@/components/dashboard/TopOpportunities';
 import { ScoreMovers } from '@/components/dashboard/ScoreMovers';
 import { SectorCapHeatmap } from '@/components/dashboard/SectorCapHeatmap';
 import { PresetShortcuts } from '@/components/dashboard/PresetShortcuts';
+import { RegimeSummaryCard } from '@/components/regime/RegimeSummaryCard';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +22,8 @@ export default function DashboardPage() {
           investment advice.
         </p>
       </div>
+
+      <RegimeSummaryCard />
 
       {loading ? (
         <div className="space-y-4">

@@ -1,4 +1,20 @@
 import type {
+  AlertEventsResponse,
+  AlertRule,
+  AlertRuleInput,
+  AlertRulePatch,
+  AlertsResponse,
+  BacktestHorizon,
+  BacktestResponse,
+  DataHealthResponse,
+  FilingsResponse,
+  MarketRegimeResponse,
+  Portfolio,
+  PortfoliosResponse,
+  Position,
+  PositionInput,
+  PositionPatch,
+  RegimeLabel,
   Catalyst,
   CatalystInput,
   CatalystsResponse,
@@ -98,6 +114,8 @@ export function removeFromWatchlist(ticker: string): Promise<void> {
 export type RefreshResponse = {
   updated?: number;
   total?: number;
+  regime?: { as_of: string; regime_label: RegimeLabel } | null;
+  modelVersion?: string;
 };
 
 export function refreshStocks(): Promise<RefreshResponse> {
@@ -186,4 +204,103 @@ export function createCatalyst(input: CatalystInput): Promise<Catalyst> {
 
 export function deleteCatalyst(id: string): Promise<void> {
   return request<void>(`/api/catalysts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function getMarketRegime(days?: number): Promise<MarketRegimeResponse> {
+  const params = new URLSearchParams();
+  if (days !== undefined) params.set('days', String(days));
+  const query = params.toString();
+  return request<MarketRegimeResponse>(query ? `/api/market-regime?${query}` : '/api/market-regime');
+}
+
+export function getAlerts(): Promise<AlertsResponse> {
+  return request<AlertsResponse>('/api/alerts');
+}
+
+export function createAlert(input: AlertRuleInput): Promise<AlertRule> {
+  return request<AlertRule>('/api/alerts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAlert(id: string, patch: AlertRulePatch): Promise<AlertRule> {
+  return request<AlertRule>(`/api/alerts?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deleteAlert(id: string): Promise<void> {
+  return request<void>(`/api/alerts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function getAlertEvents(opts?: { unreadOnly?: boolean; limit?: number }): Promise<AlertEventsResponse> {
+  const params = new URLSearchParams();
+  if (opts?.unreadOnly) params.set('unread', '1');
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  const query = params.toString();
+  return request<AlertEventsResponse>(query ? `/api/alert-events?${query}` : '/api/alert-events');
+}
+
+export function markAlertEventsRead(target: string[] | 'all'): Promise<{ updated: number }> {
+  return request<{ updated: number }>('/api/alert-events', {
+    method: 'PATCH',
+    body: JSON.stringify(target === 'all' ? { all: true } : { ids: target }),
+  });
+}
+
+export function getPortfolios(): Promise<PortfoliosResponse> {
+  return request<PortfoliosResponse>('/api/portfolios');
+}
+
+export function createPortfolio(name: string): Promise<Portfolio> {
+  return request<Portfolio>('/api/portfolios', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function renamePortfolio(id: string, name: string): Promise<Portfolio> {
+  return request<Portfolio>(`/api/portfolios?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function deletePortfolio(id: string): Promise<void> {
+  return request<void>(`/api/portfolios?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function addPosition(input: PositionInput): Promise<Position> {
+  return request<Position>('/api/positions', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePosition(id: string, patch: PositionPatch): Promise<Position> {
+  return request<Position>(`/api/positions?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export function deletePosition(id: string): Promise<void> {
+  return request<void>(`/api/positions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export function getFilings(ticker: string): Promise<FilingsResponse> {
+  const params = new URLSearchParams({ ticker });
+  return request<FilingsResponse>(`/api/filings?${params.toString()}`);
+}
+
+export function getBacktest(params: { horizon: BacktestHorizon; modelVersion?: string }): Promise<BacktestResponse> {
+  const search = new URLSearchParams({ horizon: String(params.horizon) });
+  if (params.modelVersion !== undefined) search.set('model_version', params.modelVersion);
+  return request<BacktestResponse>(`/api/backtest?${search.toString()}`);
+}
+
+export function getDataHealth(): Promise<DataHealthResponse> {
+  return request<DataHealthResponse>('/api/data-health');
 }
