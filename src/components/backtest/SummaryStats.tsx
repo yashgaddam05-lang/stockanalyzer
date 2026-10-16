@@ -3,22 +3,28 @@ import { Card } from '@/components/ui/card';
 import { formatNumber, formatPct, returnTone } from '@/components/backtest/format';
 import { cn } from '@/lib/utils';
 
-function weightedMean(buckets: BacktestResponse['buckets'], key: 'hit_rate' | 'mean_excess_vs_spy'): number | null {
+/** Recombines per-band means into an overall mean, weighting each band by the count its mean was taken over. */
+function weightedMean(
+  buckets: BacktestResponse['buckets'],
+  key: 'hit_rate' | 'mean_excess_vs_spy',
+  weight: (b: BacktestResponse['buckets'][number]) => number,
+): number | null {
   let sum = 0;
   let n = 0;
   for (const b of buckets) {
     const v = b[key];
-    if (v === null || !Number.isFinite(v) || b.n <= 0) continue;
-    sum += v * b.n;
-    n += b.n;
+    const w = weight(b);
+    if (v === null || !Number.isFinite(v) || !(w > 0)) continue;
+    sum += v * w;
+    n += w;
   }
   return n > 0 ? sum / n : null;
 }
 
 export function SummaryStats({ data }: { data: BacktestResponse }) {
   const h = data.horizon_days;
-  const hit = weightedMean(data.buckets, 'hit_rate');
-  const excess = weightedMean(data.buckets, 'mean_excess_vs_spy');
+  const hit = weightedMean(data.buckets, 'hit_rate', (b) => b.n);
+  const excess = weightedMean(data.buckets, 'mean_excess_vs_spy', (b) => b.n_excess);
   const tvb = data.top_vs_bottom;
   const ic = data.information_coefficient;
 
@@ -33,7 +39,7 @@ export function SummaryStats({ data }: { data: BacktestResponse }) {
       label: 'Mean excess vs SPY',
       value: formatPct(excess),
       tone: returnTone(excess),
-      explain: `Average ${h}-day return minus SPY's return over the same window. Positive means scored stocks beat the index on average.`,
+      explain: `Average ${h}-day return minus SPY's return over the same window, across observations with SPY data. Positive means scored stocks beat the index on average.`,
     },
     {
       label: 'Top vs bottom spread',

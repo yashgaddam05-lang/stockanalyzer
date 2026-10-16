@@ -82,6 +82,22 @@ export function runSelfCheck(): SelfCheckReport {
   check((monotonic.top_vs_bottom?.spread ?? 0) > 0, 'monotonic: spread > 0');
   check(monotonic.sufficient === true, 'monotonic: sufficient');
   check(monotonic.sample.observations === 72, 'monotonic: 72 observations');
+  check(monotonic.sample.dates === 6, 'monotonic: 6 dates');
+
+  // Several captured_at timestamps per day (chunked inserts) must not inflate the date count.
+  const chunked = mono.slice(0, 24).map((o, i) => ({ ...o, captured_at: `${o.captured_at.slice(0, 10)}T21:00:0${i % 3}Z` }));
+  const chunkedRes = aggregateBacktest(chunked, OPTS);
+  check(chunkedRes.sample.dates === 2, 'chunked: 2 dates');
+  check(chunkedRes.sample.snapshots === 6, 'chunked: 6 snapshots');
+  check(chunkedRes.sufficient === false, 'chunked: insufficient on 2 dates');
+
+  // Missing SPY closes: n_excess counts only rows with SPY data.
+  const partialSpy = mono.map((o, i) => (i % 2 ? { ...o, spy_entry_close: null } : o));
+  const partialRes = aggregateBacktest(partialSpy, OPTS);
+  check(
+    partialRes.buckets.reduce((a, b) => a + b.n_excess, 0) === 36,
+    'partial spy: n_excess sums to rows with SPY closes',
+  );
 
   const bad: ForwardObservation[] = [
     ...mono,

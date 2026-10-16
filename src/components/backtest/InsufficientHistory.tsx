@@ -4,9 +4,9 @@ import { Card } from '@/components/ui/card';
 import { MIN_CAPTURE_DATES, formatCount } from '@/components/backtest/format';
 
 export function InsufficientHistory({ data }: { data: BacktestResponse }) {
-  const { observations, snapshots } = data.sample;
+  const { observations, dates } = data.sample;
   const needObs = Math.max(0, data.min_observations - observations);
-  const needDates = Math.max(0, MIN_CAPTURE_DATES - snapshots);
+  const needDates = Math.max(0, MIN_CAPTURE_DATES - dates);
   return (
     <Card className="border-amber-200 bg-amber-50/60 p-6" role="status">
       <div className="flex items-start gap-3">
@@ -14,7 +14,7 @@ export function InsufficientHistory({ data }: { data: BacktestResponse }) {
         <div className="space-y-2">
           <h2 className="text-base font-semibold text-neutral-900">Not enough history yet</h2>
           <p className="text-[13px] leading-relaxed text-neutral-700">
-            There are {formatCount(observations)} observations across {formatCount(snapshots)} score dates for the{' '}
+            There are {formatCount(observations)} observations across {formatCount(dates)} score dates for the{' '}
             {data.horizon_days}-day horizon. Results become meaningful once there are at least{' '}
             {formatCount(data.min_observations)} observations and at least {MIN_CAPTURE_DATES} distinct score capture
             dates, each with a completed {data.horizon_days}-trading-day forward window.
