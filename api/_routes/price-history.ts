@@ -5,7 +5,7 @@ import {
   sendMethodNotAllowed,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 // Mirrors PriceRange / PricePoint / PriceHistoryResponse in src/lib/supabase.ts.
 type PriceRange = '1mo' | '3mo' | '6mo' | '1y' | '5y';

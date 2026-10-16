@@ -18,7 +18,7 @@ import {
   WATCHLIST_ITEM_COLUMNS,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const ALLOWED = ['POST', 'PATCH', 'DELETE'];

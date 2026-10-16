@@ -16,7 +16,7 @@ import {
   supabase,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 const ALLOWED = ['GET', 'POST', 'DELETE'];
 

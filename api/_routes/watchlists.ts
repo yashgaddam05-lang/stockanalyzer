@@ -17,7 +17,7 @@ import {
   type ApiRequest,
   type ApiResponse,
   type WatchlistRow,
-} from './_supabase.js';
+} from '../_supabase.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ItemRow = {

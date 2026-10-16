@@ -5,7 +5,7 @@ import {
   supabase,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 type StockRow = { ticker: string; [key: string]: unknown };
 type SnapshotRow = { ticker: string; three_x_score: number; model_version: string; captured_at: string };

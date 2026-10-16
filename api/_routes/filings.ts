@@ -8,7 +8,7 @@ import {
   supabase,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 const FILINGS_LIMIT = 25;
 const INSIDER_LIMIT = 50;

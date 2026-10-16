@@ -7,14 +7,14 @@ import {
   sendUnauthorized,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 import {
   runDataQualityChecks,
   type DqCoverageInput,
   type DqRunInput,
   type DqStockInput,
-} from '../src/lib/data-quality/index.js';
-import { REGIME_SYMBOLS } from '../src/lib/scoring/regime.js';
+} from '../../src/lib/data-quality/index.js';
+import { REGIME_SYMBOLS } from '../../src/lib/scoring/regime.js';
 
 const RUNS_LIMIT = 20;
 const DAY_MS = 86_400_000;

@@ -8,7 +8,7 @@ import {
   supabase,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 const DEFAULT_LIMIT = 90;
 const MAX_LIMIT = 365;

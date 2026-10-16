@@ -12,7 +12,7 @@ import {
   sendUnauthorized,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 // Simulated, educational portfolios only. No brokerage or payment integration.
 

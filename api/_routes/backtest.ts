@@ -8,8 +8,8 @@ import {
   type ApiRequest,
   type ApiResponse,
   type DbError,
-} from './_supabase.js';
-import { MODEL_VERSION } from '../src/lib/scoring/index.js';
+} from '../_supabase.js';
+import { MODEL_VERSION } from '../../src/lib/scoring/index.js';
 import {
   aggregateBacktest,
   BASE_CAVEATS,
@@ -17,7 +17,7 @@ import {
   type BacktestResult,
   type ForwardObservation,
   type HorizonDays,
-} from '../src/lib/backtest/index.js';
+} from '../../src/lib/backtest/index.js';
 
 const HORIZONS: readonly HorizonDays[] = [5, 21, 63];
 const DEFAULT_HORIZON: HorizonDays = 21;

@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/:route(alert-events|alerts|backtest|catalysts|data-health|filings|market-regime|portfolios|positions|price-history|score-history|stocks|watchlist-items|watchlist|watchlists)",
+      "destination": "/api/router?__route=:route"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

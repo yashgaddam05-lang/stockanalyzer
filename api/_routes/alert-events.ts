@@ -8,14 +8,14 @@ import {
   sendServerError,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 import {
   ALERT_EVENT_COLUMNS,
   requireUser,
   sendAlertsUnavailable,
   type AlertKind,
   type UserScope,
-} from './_alerts.js';
+} from '../_alerts.js';
 import {
   evaluateAlerts,
   type AlertCatalystInput,
@@ -23,7 +23,7 @@ import {
   type AlertSnapshotInput,
   type AlertStockInput,
   type RuleState,
-} from '../src/lib/alerts/index.js';
+} from '../../src/lib/alerts/index.js';
 
 const ALLOWED = ['GET', 'PATCH'];
 const DEFAULT_LIMIT = 50;

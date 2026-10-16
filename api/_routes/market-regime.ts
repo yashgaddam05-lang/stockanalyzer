@@ -1,4 +1,4 @@
-import type { MarketRegimeResponse, MarketRegimeSnapshot } from '../src/lib/supabase.js';
+import type { MarketRegimeResponse, MarketRegimeSnapshot } from '../../src/lib/supabase.js';
 import {
   getQueryValue,
   isMissingRelation,
@@ -8,7 +8,7 @@ import {
   supabase,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 const DEFAULT_DAYS = 90;
 const MAX_DAYS = 365;

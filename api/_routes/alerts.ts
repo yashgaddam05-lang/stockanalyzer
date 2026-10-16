@@ -9,7 +9,7 @@ import {
   sendServerError,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 import {
   ALERT_COLUMNS,
   MAX_RULES_PER_USER,
@@ -21,7 +21,7 @@ import {
   type AlertKind,
   type AlertRuleRow,
   type UserScope,
-} from './_alerts.js';
+} from '../_alerts.js';
 
 const ALLOWED = ['GET', 'POST', 'PATCH', 'DELETE'];
 

@@ -13,7 +13,7 @@ import {
   sendUnauthorized,
   type ApiRequest,
   type ApiResponse,
-} from './_supabase.js';
+} from '../_supabase.js';
 
 // Simulated, educational positions only. No brokerage or payment integration.
 
