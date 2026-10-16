@@ -1,11 +1,11 @@
 import type { BacktestResponse } from '@/lib/supabase';
 import { Card } from '@/components/ui/card';
-import { formatCount, formatDate } from '@/components/backtest/format';
+import { formatCount, formatDate, sampleDates } from '@/components/backtest/format';
 
 export function SampleSizePanel({ sample, horizon }: { sample: BacktestResponse['sample']; horizon: number }) {
   const items = [
     { label: 'Observations', value: formatCount(sample.observations), hint: `Score + ${horizon}-day forward return pairs` },
-    { label: 'Score dates', value: formatCount(sample.dates), hint: 'Distinct days scores were stored' },
+    { label: 'Score dates', value: formatCount(sampleDates(sample)), hint: 'Distinct days scores were stored' },
     { label: 'Tickers', value: formatCount(sample.tickers), hint: 'Unique stocks in the sample' },
     {
       label: 'Date range',

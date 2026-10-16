@@ -1,6 +1,6 @@
 import type { BacktestResponse } from '@/lib/supabase';
 import { Card } from '@/components/ui/card';
-import { formatNumber, formatPct, returnTone } from '@/components/backtest/format';
+import { bucketExcessWeight, formatNumber, formatPct, returnTone } from '@/components/backtest/format';
 import { cn } from '@/lib/utils';
 
 /** Recombines per-band means into an overall mean, weighting each band by the count its mean was taken over. */
@@ -24,7 +24,7 @@ function weightedMean(
 export function SummaryStats({ data }: { data: BacktestResponse }) {
   const h = data.horizon_days;
   const hit = weightedMean(data.buckets, 'hit_rate', (b) => b.n);
-  const excess = weightedMean(data.buckets, 'mean_excess_vs_spy', (b) => b.n_excess);
+  const excess = weightedMean(data.buckets, 'mean_excess_vs_spy', bucketExcessWeight);
   const tvb = data.top_vs_bottom;
   const ic = data.information_coefficient;
 

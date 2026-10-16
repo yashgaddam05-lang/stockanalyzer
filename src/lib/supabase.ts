@@ -342,10 +342,7 @@ export interface BacktestBucket {
   mean_return: number | null;
   median_return: number | null;
   hit_rate: number | null;
-  /** Mean over the n_excess rows that have SPY closes, not over all n. */
   mean_excess_vs_spy: number | null;
-  /** Rows in this band with SPY closes (the base of mean_excess_vs_spy). */
-  n_excess: number;
 }
 
 /** Returns are decimals (0.05 = 5%). */
@@ -356,10 +353,7 @@ export interface BacktestResponse {
   horizon_days: BacktestHorizon;
   generated_at: string;
   sample: {
-    /** Distinct captured_at timestamps (can be several per day). */
     snapshots: number;
-    /** Distinct UTC score dates; the sufficiency rule counts these. */
-    dates: number;
     observations: number;
     tickers: number;
     first_date: string | null;

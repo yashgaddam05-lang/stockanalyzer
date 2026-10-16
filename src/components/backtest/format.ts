@@ -1,3 +1,7 @@
+import type { BacktestResponse } from '@/lib/supabase';
+
+export { MIN_CAPTURE_DATES } from '@/lib/backtest/engine';
+
 /** Decimal return (0.05) -> "+5.0%". Null/non-finite -> em dash. */
 export function formatPct(value: number | null | undefined, opts: { signed?: boolean; digits?: number } = {}): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '—';
@@ -11,8 +15,8 @@ export function formatNumber(value: number | null | undefined, digits = 2): stri
   return value.toFixed(digits);
 }
 
-export function formatCount(value: number): string {
-  return Number.isFinite(value) ? value.toLocaleString() : '—';
+export function formatCount(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '—';
 }
 
 export function formatDate(iso: string | null): string {
@@ -27,5 +31,17 @@ export function returnTone(value: number | null | undefined): string {
   return value > 0 ? 'text-emerald-700' : 'text-red-700';
 }
 
-/** Mirrors MIN_CAPTURE_DATES in src/lib/backtest/engine.ts. */
-export const MIN_CAPTURE_DATES = 5;
+/**
+ * Distinct UTC score dates, if the backend sends them. Not part of the shared contract yet
+ * (proposed to the contract owners); unknown -> null so callers never guess from snapshots.
+ */
+export function sampleDates(sample: BacktestResponse['sample']): number | null {
+  const v = (sample as { dates?: unknown }).dates;
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/** Rows with SPY closes in a band (base of mean_excess_vs_spy) if sent, else the band's n. */
+export function bucketExcessWeight(bucket: BacktestResponse['buckets'][number]): number {
+  const v = (bucket as { n_excess?: unknown }).n_excess;
+  return typeof v === 'number' && Number.isFinite(v) ? v : bucket.n;
+}

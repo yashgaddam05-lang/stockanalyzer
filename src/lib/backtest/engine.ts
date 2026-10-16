@@ -42,17 +42,11 @@ export type BacktestBucket = {
   mean_return: number | null;
   median_return: number | null;
   hit_rate: number | null;
-  /** Mean over the n_excess rows that have SPY closes, not over all n. */
   mean_excess_vs_spy: number | null;
-  /** Rows in this band with SPY entry and exit closes (the base of mean_excess_vs_spy). */
-  n_excess: number;
 };
 
 export type BacktestSample = {
-  /** Distinct captured_at timestamps (several per day: chunked inserts, repeat refreshes). */
   snapshots: number;
-  /** Distinct UTC score dates (captured_at day); the sufficiency rule counts these. */
-  dates: number;
   observations: number;
   tickers: number;
   first_date: string | null;
@@ -183,7 +177,6 @@ function buildBuckets(rows: CleanObs[]): BacktestBucket[] {
       median_return: roundOrNull(median(rets)),
       hit_rate: g.length ? round(rets.filter((x) => x > 0).length / g.length) : null,
       mean_excess_vs_spy: roundOrNull(mean(excess)),
-      n_excess: excess.length,
     };
   });
 }
@@ -285,7 +278,6 @@ export function aggregateBacktest(obs: ForwardObservation[], opts: BacktestOptio
     generated_at: opts.now ?? new Date().toISOString(),
     sample: {
       snapshots,
-      dates: dates.length,
       observations: rows.length,
       tickers,
       first_date: dates.length ? dates[0] : null,
