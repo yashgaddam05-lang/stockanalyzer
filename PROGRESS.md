@@ -1,7 +1,7 @@
 # 3x Hunter — Project Progress Tracker
 
 **Last updated:** 2026-10-16
-**Current phase:** Phase 1 MVP (subset) — Stage A (items 1–10), Stage B (items 11–15) and Stage C (items 21, 22, 23, 25, 27, 28; partial 18, 19) built; Stage C app wiring and QA in progress
+**Current phase:** Phase 1 MVP (subset) — Stage A (items 1–10), Stage B (items 11–15) and Stage C (items 21, 23, 25, 27, 28; partial 18, 19, 22) built on `swarm/wave-2` (pages not yet routed); Stage C app wiring and QA in progress
 **Scope reference:** `3x_hunter_app_scope.md` (attached)
 
 ---
@@ -90,7 +90,7 @@ These standards must be followed in every build session to maintain consistency.
 
 | Area | Status | Notes |
 |---|---|---|
-| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 22, 23, 25, 27, 28 + partial 18/19) built on `swarm/wave-2`, route wiring pending (`app-wiring`, wave 3) |
+| Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 23, 25, 27, 28 backend + partial 18/19/22) built on `swarm/wave-2`, route wiring pending (`app-wiring`, wave 3) |
 | Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
 | Scoring dimensions | 8 of 8 | Aligned to document weights; all 8 scored as of v2.1 (Market Regime Fit added) |
 | Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
@@ -153,8 +153,8 @@ Features from scope document sections 8.1–8.7.
 - [x] Price chart (Recharts, `/api/price-history`)
 - [ ] Earnings, news, and score-change markers on the price chart
 - [ ] Analyst estimates and revisions
-- [x] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; mounting on stock detail is part of wave 3 `app-wiring`) — short interest still missing
-- [x] SEC filings (`SecActivityPanel` filings tab, EDGAR links) — news still missing
+- [~] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); Form 4 migrations on unmerged `swarm/edge-sec-filings`) — short interest still missing
+- [~] SEC filings (`SecActivityPanel` filings tab, EDGAR links; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`); `refresh-filings` source on unmerged `swarm/edge-sec-filings`) — news still missing
 - [x] 3x scenario calculator
 - [ ] Thesis invalidation signals
 - [x] Historical score trend
@@ -169,22 +169,22 @@ Features from scope document sections 8.1–8.7.
 - [x] Named watchlists (multiple lists)
 - [x] Notes and tags per stock
 - [x] Score change tracking per watchlist
-- [x] Aggregate risk and sector exposure view (portfolio exposure in `src/lib/portfolio`, shown on Portfolios page)
+- [x] Aggregate risk and sector exposure view (portfolio exposure in `src/lib/portfolio`, Portfolios page built; route wiring pending (`app-wiring`))
 - [ ] Sort watchlist by score, risk, catalyst date, price change, valuation
-- [x] Simulated portfolios (positions, cost basis, unrealized gains; `portfolios`/`positions` tables, `/api/portfolios`, `/api/positions`, Portfolios page)
+- [x] Simulated portfolios (positions, cost basis, unrealized gains; `portfolios`/`positions` tables, `/api/portfolios`, `/api/positions`, Portfolios page built; route wiring pending (`app-wiring`))
 - [x] Portfolio exposure analysis (sector, risk-level and concentration exposure)
 - [ ] Thesis-health alerts
 
 ### 8.5 Alerts
 - [x] Per-user alert rules (`alerts` table, `/api/alerts` CRUD) with throttled evaluation when `/api/alert-events` is read
-- [x] Alert events inbox (`alert_events`, `/api/alert-events`), Alerts page and notification bell
+- [x] Alert events inbox (`alert_events`, `/api/alert-events`), Alerts page and notification bell built; route wiring pending (`app-wiring`)
 - [ ] Email / push delivery (in-app only)
 
 ### 8.6 Backtesting and model validation
 - [x] Score forward-return backtest: SQL function `score_forward_returns` over `score_history` + `price_daily`, pure aggregation engine (`src/lib/backtest`), `GET /api/backtest`
-- [x] Backtest page with sample size, score-bucket chart/table, stats and caveats (`backtest-ui`)
+- [~] Backtest page with sample size, score-bucket chart/table, stats and caveats: built on `swarm/backtest-ui`, not merged
 - [ ] Meaningful sample: forward returns need weeks of stored daily history before results carry weight
-- [x] Data quality: `refresh_runs` log + on-demand checks (`src/lib/data-quality`, `/api/data-health`, Data health page)
+- [x] Data quality: `refresh_runs` log + on-demand checks (`src/lib/data-quality`, `/api/data-health`, Data health page built; route wiring pending (`app-wiring`))
 
 ### 8.7 AI research assistant
 - [ ] Not started
@@ -307,21 +307,23 @@ Need some new data or infrastructure, but achievable without paid services.
 
 Require significant new data, infrastructure, or complexity.
 
+Caveat (Stage C): on `swarm/wave-2`, `src/App.tsx` routes only explore, stock/:ticker, watchlists, catalysts and account. The Market regime, Alerts, Portfolios, Data health and Backtest pages, `RegimeSummaryCard`, `NotificationBell` and `SecActivityPanel` are not reachable by users until `app-wiring` (wave 3) lands; `backtest-ui` and `edge-sec-filings` are not yet merged.
+
 | # | Item | Status | Effort | Notes |
 |---|---|---|---|---|
 | 16 | Full fundamental data ingestion | - [ ] | Hard | Paid data vendor needed (Alpha Vantage, Polygon, FMP) |
 | 17 | Analyst estimates and revisions | - [ ] | Hard | Paid data feed required |
-| 18 | News, SEC filings, transcripts | - [~] Partial | Hard | SEC filings done: `refresh-filings` (free SEC EDGAR, needs `SEC_USER_AGENT`), `sec_filings`, `/api/filings`, filings tab on stock detail. News and transcripts still missing |
-| 19 | Insider activity, institutional ownership, short interest | - [~] Partial | Hard | Insider activity done: Form 4 parsing into `insider_transactions`, insider tab on stock detail. Institutional ownership and short interest still missing |
+| 18 | News, SEC filings, transcripts | - [~] Partial | Hard | SEC filings built: `refresh-filings` (free SEC EDGAR, needs `SEC_USER_AGENT`; source on unmerged `swarm/edge-sec-filings`, function deployed), `sec_filings`, `/api/filings`; `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). News and transcripts still missing |
+| 19 | Insider activity, institutional ownership, short interest | - [~] Partial | Hard | Insider activity built: Form 4 parsing into `insider_transactions` (migrations on unmerged `swarm/edge-sec-filings`); `SecActivityPanel` built; stock-detail mount pending (`app-wiring`). Institutional ownership and short interest still missing |
 | 20 | Options data | - [ ] | Hard | Specialized, often expensive data source |
-| 21 | Macro and market regime data | - [x] | Hard | Shipped: `refresh-market` + `market_regime_snapshots`, regime model v2.1, Market Regime Fit scored, Market regime page + dashboard card. FRED series not yet ingested |
-| 22 | Backtesting engine | - [x] | Hard | Shipped: `score_forward_returns` SQL function, `src/lib/backtest` engine, `/api/backtest`, Backtest page. Results thin until daily history accumulates |
-| 23 | Alert system | - [x] | Hard | Shipped: `alerts`/`alert_events`, throttled evaluation on inbox read, `/api/alerts`, `/api/alert-events`, Alerts page + bell. In-app delivery only |
+| 21 | Macro and market regime data | - [x] | Hard | Backend shipped: `refresh-market` + `market_regime_snapshots`, regime model v2.1, Market Regime Fit scored. Market regime page + dashboard card built; route wiring pending (`app-wiring`). FRED series not yet ingested |
+| 22 | Backtesting engine | - [~] Partial | Hard | Backend shipped: `score_forward_returns` SQL function, `src/lib/backtest` engine, `/api/backtest`. Backtest page built on `swarm/backtest-ui`, not merged. Results thin until daily history accumulates |
+| 23 | Alert system | - [x] | Hard | Backend shipped: `alerts`/`alert_events`, throttled evaluation on inbox read, `/api/alerts`, `/api/alert-events`. Alerts page + bell built; route wiring pending (`app-wiring`). In-app delivery only |
 | 24 | AI research assistant | - [ ] | Hard | Needs underlying data first, plus retrieval system and guardrails |
-| 25 | Simulated portfolios | - [x] | Hard | Shipped: `portfolios`/`positions`, `/api/portfolios`, `/api/positions`, Portfolios page with P&L and exposure (prices from latest refresh, not real-time) |
+| 25 | Simulated portfolios | - [x] | Hard | Backend shipped: `portfolios`/`positions`, `/api/portfolios`, `/api/positions`. Portfolios page with P&L and exposure built; route wiring pending (`app-wiring`) (prices from latest refresh, not real-time) |
 | 26 | Mobile app (React Native / Flutter) | - [ ] | Hard | Entirely separate codebase |
 | 27 | Time-series storage architecture | - [x] | Hard | Shipped: `price_daily` written by `refresh-stocks` v6 and `refresh-market`, refreshed by Vercel daily crons |
-| 28 | Data-quality checks and monitoring | - [x] | Hard | Shipped: `refresh_runs` log, on-demand checks (`src/lib/data-quality`, `/api/data-health`), Data health page. No paging/alerting on failures |
+| 28 | Data-quality checks and monitoring | - [x] | Hard | Backend shipped: `refresh_runs` log, on-demand checks (`src/lib/data-quality`, `/api/data-health`). Data health page built; route wiring pending (`app-wiring`). No paging/alerting on failures |
 
 ---
 
