@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-do
 import { AppShell, PageFallback } from '@/components/layout/AppShell';
 import { AuthLayout } from '@/components/auth/AuthLayout';
 import { RequireAuth } from '@/components/auth/RequireAuth';
+import { StocksProvider } from '@/components/data/StocksProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import LandingPage from '@/pages/marketing/LandingPage';
@@ -101,7 +102,14 @@ export default function App() {
 
         {/* Signed-in app */}
         <Route element={<RequireAuth />}>
-          <Route path="app" element={<AppShell />}>
+          <Route
+            path="app"
+            element={
+              <StocksProvider>
+                <AppShell />
+              </StocksProvider>
+            }
+          >
             <Route index element={<DashboardPage />} />
             <Route path="explore" element={<ExplorePage />} />
             <Route path="stock/:ticker" element={<StockDetailPage />} />

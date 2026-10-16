@@ -3,9 +3,17 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "functions": {
-    "api/refresh.ts": { "maxDuration": 120 }
-  }
+    "api/refresh.ts": {
+      "maxDuration": 120
+    }
+  },
+  "regions": [
+    "pdx1"
+  ]
 }
