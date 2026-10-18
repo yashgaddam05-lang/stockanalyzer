@@ -59,7 +59,7 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
         <Link to="/login">Sign in</Link>
       </Button>
       <Button asChild size="sm" className="h-9 text-[13px]">
-        <Link to="/signup">Get started</Link>
+        <Link to="/signup">Sign up</Link>
       </Button>
     </div>
   );

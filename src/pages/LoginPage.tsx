@@ -139,7 +139,7 @@ export default function LoginPage() {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New to 3x Hunter?{' '}
         <Link to={`/signup${nextQuery}`} className="font-medium text-neutral-900 underline underline-offset-2">
-          Create an account
+          Sign up free
         </Link>
       </p>
     </>

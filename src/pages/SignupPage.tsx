@@ -27,7 +27,7 @@ interface FieldErrors {
 }
 
 export default function SignupPage() {
-  useDocumentTitle('Create account');
+  useDocumentTitle('Sign up');
   const { enabled, loading, user, signUp } = useAuth();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -232,7 +232,7 @@ export default function SignupPage() {
 
           <Button type="submit" className="w-full" disabled={submitting}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-            {submitting ? 'Creating account' : 'Create account'}
+            {submitting ? 'Signing up' : 'Sign up'}
           </Button>
         </form>
       </Card>

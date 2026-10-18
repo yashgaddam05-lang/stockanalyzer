@@ -1,6 +1,6 @@
 import { Suspense, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Loader2, TrendingUp } from 'lucide-react';
 
 function AuthFallback() {
@@ -47,10 +47,40 @@ export function AuthLayoutFrame({ children }: { children: ReactNode }) {
   );
 }
 
+/** Sign in | Sign up switch shown above the login and signup forms. Keeps ?next= across the switch. */
+function AuthModeSwitch() {
+  const { pathname, search } = useLocation();
+  if (pathname !== '/login' && pathname !== '/signup') return null;
+  const modes = [
+    { to: '/login', label: 'Sign in' },
+    { to: '/signup', label: 'Sign up' },
+  ];
+  return (
+    <nav className="mb-6 grid grid-cols-2 rounded-lg border border-border bg-white p-1" aria-label="Sign in or sign up">
+      {modes.map((mode) => {
+        const active = pathname === mode.to;
+        return (
+          <Link
+            key={mode.to}
+            to={`${mode.to}${search}`}
+            aria-current={active ? 'page' : undefined}
+            className={`rounded-md px-3 py-2 text-center text-sm font-medium transition-colors ${
+              active ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+            }`}
+          >
+            {mode.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 /** Layout route for /login, /signup, /forgot-password, /reset-password. */
 export function AuthLayout() {
   return (
     <AuthLayoutFrame>
+      <AuthModeSwitch />
       <Suspense fallback={<AuthFallback />}>
         <Outlet />
       </Suspense>
