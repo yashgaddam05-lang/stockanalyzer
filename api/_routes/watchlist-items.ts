@@ -228,6 +228,11 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       sendUnauthorized(response, 'Your session expired. Sign in again.');
       return;
     }
+    // Watchlists are per-user only; the pre-auth anonymous shared list is retired.
+    if (auth.kind !== 'user') {
+      sendUnauthorized(response);
+      return;
+    }
     const scope: Scope = { db: auth.db, ownerId: auth.userId };
 
     if (method === 'POST') {

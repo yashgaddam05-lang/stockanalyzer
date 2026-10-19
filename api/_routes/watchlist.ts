@@ -40,7 +40,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     sendUnauthorized(response, 'Your session expired. Sign in again.');
     return;
   }
-  // Anonymous => shared anon client + shared default list; user => user-JWT client + their own default.
+  // Watchlists are per-user only; the pre-auth anonymous shared list is retired.
+  if (auth.kind !== 'user') {
+    sendUnauthorized(response);
+    return;
+  }
+  // User-JWT client + the user's own default list.
   const db = auth.db;
 
   let ticker: string | null = null;
