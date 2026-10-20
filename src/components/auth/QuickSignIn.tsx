@@ -86,7 +86,7 @@ export function QuickSignIn({ next }: { next: string }) {
   const verify = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!/^\d{6,8}$/.test(code)) {
+    if (!/^\d{6}$/.test(code)) {
       setError('Enter the 6-digit code from your email.');
       return;
     }
@@ -106,13 +106,13 @@ export function QuickSignIn({ next }: { next: string }) {
         <div className="flex items-start gap-3 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
           <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
           <p>
-            We emailed <span className="font-medium text-neutral-900">{email}</span>. Click the sign-in link in that email,
-            or enter the 6-digit code if it has one. It may take a minute; check spam if you don't see it.
+            We sent a 6-digit code to <span className="font-medium text-neutral-900">{email}</span>. It may take a minute;
+            check spam if you don't see it.
           </p>
         </div>
         <div className="space-y-2">
           <label htmlFor="otp-code" className="text-sm font-medium text-neutral-900">
-            Sign-in code (if your email has one)
+            6-digit code
           </label>
           <Input
             id="otp-code"
@@ -120,12 +120,12 @@ export function QuickSignIn({ next }: { next: string }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="[0-9]*"
-            maxLength={8}
+            maxLength={6}
             autoFocus
             placeholder="123456"
             className="text-center text-lg tracking-[0.4em]"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
             disabled={busy !== null}
           />
         </div>
