@@ -22,3 +22,22 @@ export const authClient: SupabaseClient | null =
     : null;
 
 export const authEnabled: boolean = authClient !== null;
+
+export interface AuthProviders {
+  google: boolean;
+}
+
+let providersPromise: Promise<AuthProviders> | null = null;
+
+/**
+ * Which sign-in providers are switched on in Supabase (public /auth/v1/settings endpoint).
+ * Lets the UI show the Google button only once it is configured, with no redeploy.
+ */
+export function fetchAuthProviders(): Promise<AuthProviders> {
+  if (!url || !anonKey) return Promise.resolve({ google: false });
+  providersPromise ??= fetch(`${url}/auth/v1/settings`, { headers: { apikey: anonKey } })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((settings: { external?: Record<string, boolean> } | null) => ({ google: Boolean(settings?.external?.google) }))
+    .catch(() => ({ google: false }));
+  return providersPromise;
+}

@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useDocumentTitle } from '@/components/auth/AuthLayout';
+import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { safeNext } from '@/components/auth/safe-next';
 import { initialLinkError } from '@/components/auth/auth-redirect';
 import {
@@ -35,6 +36,8 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Right after a password reset, show the password form the user just set up.
+  const [usePassword, setUsePassword] = useState(reset);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(() => initialLinkError('/login'));
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
@@ -72,69 +75,82 @@ export default function LoginPage() {
         {confirmed && <FormNotice>Your email is confirmed. Sign in to continue.</FormNotice>}
         {reset && <FormNotice>Your password was updated. Sign in with your new password.</FormNotice>}
 
-        <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate aria-busy={submitting}>
-          <div className="space-y-2">
-            <label htmlFor="login-email" className="text-sm font-medium text-neutral-900">
-              Email
-            </label>
-            <Input
-              id="login-email"
-              name="email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
-              required
-              aria-invalid={Boolean(fieldErrors.email)}
-              aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
-            />
-            {fieldErrors.email && (
-              <p id="login-email-error" className="text-xs text-red-700">
-                {fieldErrors.email}
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="login-password" className="text-sm font-medium text-neutral-900">
-                Password
+        {usePassword ? (
+          <>
+          <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate aria-busy={submitting}>
+            <div className="space-y-2">
+              <label htmlFor="login-email" className="text-sm font-medium text-neutral-900">
+                Email
               </label>
-              <Link
-                to="/forgot-password"
-                className="text-xs text-muted-foreground underline-offset-2 hover:text-neutral-900 hover:underline"
-              >
-                Forgot password?
-              </Link>
+              <Input
+                id="login-email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                required
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
+              />
+              {fieldErrors.email && (
+                <p id="login-email-error" className="text-xs text-red-700">
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
-            <Input
-              id="login-password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              required
-              aria-invalid={Boolean(fieldErrors.password)}
-              aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
-            />
-            {fieldErrors.password && (
-              <p id="login-password-error" className="text-xs text-red-700">
-                {fieldErrors.password}
-              </p>
-            )}
-          </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label htmlFor="login-password" className="text-sm font-medium text-neutral-900">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-neutral-900 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+                required
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
+              />
+              {fieldErrors.password && (
+                <p id="login-password-error" className="text-xs text-red-700">
+                  {fieldErrors.password}
+                </p>
+              )}
+            </div>
 
-          {error && <FormError>{error}</FormError>}
+            {error && <FormError>{error}</FormError>}
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-            {submitting ? 'Signing in' : 'Sign in'}
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {submitting ? 'Signing in' : 'Sign in'}
+            </Button>
+          </form>
+          </>
+        ) : (
+          <QuickSignIn next={next} />
+        )}
+        <button
+          type="button"
+          className="block w-full text-center text-xs text-muted-foreground underline-offset-2 hover:text-neutral-900 hover:underline"
+          onClick={() => setUsePassword((v) => !v)}
+        >
+          {usePassword ? 'Use an email code instead' : 'Use a password instead'}
+        </button>
       </Card>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New to 3x Hunter?{' '}

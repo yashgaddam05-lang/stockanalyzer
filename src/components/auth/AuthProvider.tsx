@@ -31,6 +31,12 @@ export interface AuthContextValue {
   verifyPassword: (password: string) => Promise<void>;
   /** True while a password-recovery session from an email link is active. */
   recovery: boolean;
+  /** Emails a one-time sign-in code. Creates the account if the email is new. */
+  sendEmailCode: (email: string) => Promise<void>;
+  /** Verifies the emailed code and signs the user in. */
+  verifyEmailCode: (email: string, code: string) => Promise<void>;
+  /** Redirects to Google; the user returns to `redirectTo` signed in. */
+  signInWithGoogle: (redirectTo: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -69,6 +75,15 @@ function friendlyError(error: AuthError | Error): Error {
   }
   if (code === 'over_email_send_rate_limit' || raw.includes('rate limit')) {
     return new Error('Too many attempts. Please wait a minute and try again.');
+  }
+  if (code === 'otp_expired' || raw.includes('token has expired') || raw.includes('otp has expired')) {
+    return new Error('That code is wrong or has expired. Check the latest email or request a new code.');
+  }
+  if (code === 'otp_disabled' || raw.includes('signups not allowed for otp')) {
+    return new Error('Email codes are not enabled yet. Use your password for now.');
+  }
+  if (code === 'provider_disabled' || raw.includes('provider is not enabled')) {
+    return new Error('Google sign-in is not enabled yet. Use an email code instead.');
   }
   if (raw.includes('invalid email') || code === 'email_address_invalid') {
     return new Error('Please enter a valid email address.');
@@ -178,6 +193,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user?.email]
   );
 
+  const sendEmailCode = useCallback(async (email: string) => {
+    if (!authClient) throw new Error(DISABLED_MESSAGE);
+    const { error } = await authClient.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/login?confirmed=1` },
+    });
+    if (error) throw friendlyError(error);
+  }, []);
+
+  const verifyEmailCode = useCallback(async (email: string, code: string) => {
+    if (!authClient) throw new Error(DISABLED_MESSAGE);
+    const { error } = await authClient.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+    if (error) throw friendlyError(error);
+  }, []);
+
+  const signInWithGoogle = useCallback(async (redirectTo: string) => {
+    if (!authClient) throw new Error(DISABLED_MESSAGE);
+    const { error } = await authClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    if (error) throw friendlyError(error);
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       enabled: authClient !== null,
@@ -190,8 +226,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       verifyPassword,
       recovery,
+      sendEmailCode,
+      verifyEmailCode,
+      signInWithGoogle,
     }),
-    [loading, user, signIn, signUp, signOut, sendPasswordReset, updatePassword, verifyPassword, recovery]
+    [loading, user, signIn, signUp, signOut, sendPasswordReset, updatePassword, verifyPassword, recovery, sendEmailCode, verifyEmailCode, signInWithGoogle]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

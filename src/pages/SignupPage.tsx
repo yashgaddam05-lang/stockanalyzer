@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Info, Loader2, MailCheck } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useDocumentTitle } from '@/components/auth/AuthLayout';
+import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { safeNext } from '@/components/auth/safe-next';
 import {
   AuthChecking,
@@ -37,6 +38,7 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [usePassword, setUsePassword] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -121,120 +123,133 @@ export default function SignupPage() {
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate aria-busy={submitting}>
-          <div className="space-y-2">
-            <label htmlFor="signup-email" className="text-sm font-medium text-neutral-900">
-              Email
-            </label>
-            <Input
-              id="signup-email"
-              name="email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={submitting}
-              required
-              aria-invalid={Boolean(fieldErrors.email)}
-              aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
-            />
-            {fieldErrors.email && (
-              <FieldHint id="signup-email-error" error>
-                {fieldErrors.email}
-              </FieldHint>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="signup-password" className="text-sm font-medium text-neutral-900">
-              Password
-            </label>
-            <Input
-              id="signup-password"
-              name="new-password"
-              type="password"
-              autoComplete="new-password"
-              minLength={MIN_PASSWORD}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={submitting}
-              required
-              aria-invalid={Boolean(fieldErrors.password)}
-              aria-describedby={passwordHintId}
-            />
-            <FieldHint id={passwordHintId} error={Boolean(fieldErrors.password)}>
-              {fieldErrors.password ?? `At least ${MIN_PASSWORD} characters.`}
-            </FieldHint>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="signup-confirm" className="text-sm font-medium text-neutral-900">
-              Confirm password
-            </label>
-            <Input
-              id="signup-confirm"
-              name="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              disabled={submitting}
-              required
-              aria-invalid={Boolean(fieldErrors.confirm)}
-              aria-describedby={fieldErrors.confirm ? 'signup-confirm-error' : undefined}
-            />
-            {fieldErrors.confirm && (
-              <FieldHint id="signup-confirm-error" error>
-                {fieldErrors.confirm}
-              </FieldHint>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-start gap-2">
-              <input
-                id="signup-terms"
-                type="checkbox"
-                checked={accepted}
-                onChange={(e) => setAccepted(e.target.checked)}
-                disabled={submitting}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 accent-neutral-900"
-                aria-invalid={Boolean(fieldErrors.terms)}
-                aria-describedby={fieldErrors.terms ? 'signup-terms-error' : undefined}
-              />
-              <label htmlFor="signup-terms" className="text-sm text-neutral-700">
-                I agree to the{' '}
-                <Link to="/legal/terms" target="_blank" rel="noopener" className="font-medium text-neutral-900 underline underline-offset-2">
-                  Terms of Service
-                </Link>{' '}
-                and understand the{' '}
-                <Link
-                  to="/legal/disclaimer"
-                  target="_blank"
-                  rel="noopener"
-                  className="font-medium text-neutral-900 underline underline-offset-2"
-                >
-                  Disclaimer
-                </Link>
-                : 3x Hunter is an educational research tool, not investment advice.
+        {usePassword ? (
+          <>
+          <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)} noValidate aria-busy={submitting}>
+            <div className="space-y-2">
+              <label htmlFor="signup-email" className="text-sm font-medium text-neutral-900">
+                Email
               </label>
+              <Input
+                id="signup-email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting}
+                required
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
+              />
+              {fieldErrors.email && (
+                <FieldHint id="signup-email-error" error>
+                  {fieldErrors.email}
+                </FieldHint>
+              )}
             </div>
-            {fieldErrors.terms && (
-              <FieldHint id="signup-terms-error" error>
-                {fieldErrors.terms}
+
+            <div className="space-y-2">
+              <label htmlFor="signup-password" className="text-sm font-medium text-neutral-900">
+                Password
+              </label>
+              <Input
+                id="signup-password"
+                name="new-password"
+                type="password"
+                autoComplete="new-password"
+                minLength={MIN_PASSWORD}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+                required
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={passwordHintId}
+              />
+              <FieldHint id={passwordHintId} error={Boolean(fieldErrors.password)}>
+                {fieldErrors.password ?? `At least ${MIN_PASSWORD} characters.`}
               </FieldHint>
-            )}
-          </div>
+            </div>
 
-          {error && <FormError>{error}</FormError>}
+            <div className="space-y-2">
+              <label htmlFor="signup-confirm" className="text-sm font-medium text-neutral-900">
+                Confirm password
+              </label>
+              <Input
+                id="signup-confirm"
+                name="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                disabled={submitting}
+                required
+                aria-invalid={Boolean(fieldErrors.confirm)}
+                aria-describedby={fieldErrors.confirm ? 'signup-confirm-error' : undefined}
+              />
+              {fieldErrors.confirm && (
+                <FieldHint id="signup-confirm-error" error>
+                  {fieldErrors.confirm}
+                </FieldHint>
+              )}
+            </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-            {submitting ? 'Signing up' : 'Sign up'}
-          </Button>
-        </form>
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <input
+                  id="signup-terms"
+                  type="checkbox"
+                  checked={accepted}
+                  onChange={(e) => setAccepted(e.target.checked)}
+                  disabled={submitting}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 accent-neutral-900"
+                  aria-invalid={Boolean(fieldErrors.terms)}
+                  aria-describedby={fieldErrors.terms ? 'signup-terms-error' : undefined}
+                />
+                <label htmlFor="signup-terms" className="text-sm text-neutral-700">
+                  I agree to the{' '}
+                  <Link to="/legal/terms" target="_blank" rel="noopener" className="font-medium text-neutral-900 underline underline-offset-2">
+                    Terms of Service
+                  </Link>{' '}
+                  and understand the{' '}
+                  <Link
+                    to="/legal/disclaimer"
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium text-neutral-900 underline underline-offset-2"
+                  >
+                    Disclaimer
+                  </Link>
+                  : 3x Hunter is an educational research tool, not investment advice.
+                </label>
+              </div>
+              {fieldErrors.terms && (
+                <FieldHint id="signup-terms-error" error>
+                  {fieldErrors.terms}
+                </FieldHint>
+              )}
+            </div>
+
+            {error && <FormError>{error}</FormError>}
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {submitting ? 'Signing up' : 'Sign up'}
+            </Button>
+          </form>
+          </>
+        ) : (
+          <QuickSignIn next={next} />
+        )}
+        <button
+          type="button"
+          className="block w-full text-center text-xs text-muted-foreground underline-offset-2 hover:text-neutral-900 hover:underline"
+          onClick={() => setUsePassword((v) => !v)}
+        >
+          {usePassword ? 'Use an email code instead' : 'Sign up with a password instead'}
+        </button>
       </Card>
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
