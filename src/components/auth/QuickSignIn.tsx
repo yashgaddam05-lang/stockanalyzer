@@ -106,13 +106,13 @@ export function QuickSignIn({ next }: { next: string }) {
         <div className="flex items-start gap-3 rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">
           <MailCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
           <p>
-            We sent a code to <span className="font-medium text-neutral-900">{email}</span>. It may take a minute; check spam
-            if you don't see it.
+            We emailed <span className="font-medium text-neutral-900">{email}</span>. Click the sign-in link in that email,
+            or enter the 6-digit code if it has one. It may take a minute; check spam if you don't see it.
           </p>
         </div>
         <div className="space-y-2">
           <label htmlFor="otp-code" className="text-sm font-medium text-neutral-900">
-            Sign-in code
+            Sign-in code (if your email has one)
           </label>
           <Input
             id="otp-code"
