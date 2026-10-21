@@ -6,12 +6,13 @@ export type SecurityMatch = { ticker: string; name: string; exchange: string };
 
 /** SEC names are often ALL CAPS ("NVIDIA CORP"); make them readable. */
 export function prettyName(name: string): string {
-  if (name !== name.toUpperCase()) return name;
-  return name
+  // SEC appends a state of incorporation to some names ("Rivian Automotive, Inc. / DE").
+  const trimmed = name.replace(/\s*\/\s*[A-Z]{2}\/?\s*$/i, '').trim();
+  if (trimmed !== trimmed.toUpperCase()) return trimmed;
+  return trimmed
     .toLowerCase()
     .replace(/\b([a-z])/g, (c) => c.toUpperCase())
-    .replace(/\b(Inc|Corp|Co|Ltd|Plc|Llc|Lp|Nv|Sa|Ag)\b\.?/g, (m) => m.toUpperCase() === 'PLC' ? 'PLC' : m)
-    .replace(/\s+\/\s*[A-Z]{2}\/?$/i, '');
+    .replace(/\bPlc\b/g, 'PLC');
 }
 
 export async function searchSecurities(query: string, limit = 8): Promise<SecurityMatch[]> {
