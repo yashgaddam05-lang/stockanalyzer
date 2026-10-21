@@ -6,11 +6,11 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from '../_supabase.js';
-import { searchYahoo } from '../_yahoo-search.js';
+import { searchSecurities } from '../_securities.js';
 
 // GET /api/stock-search?q=apple
-// Tracked stocks first (instant, already scored), then other US listings from Yahoo
-// that a signed-in user can add with POST /api/stock-add.
+// Tracked stocks first (instant, already scored), then other US-listed companies from the
+// SEC listed-company master that a signed-in user can add with POST /api/stock-add.
 
 type Result = {
   ticker: string;
@@ -57,12 +57,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   const seen = new Set(tracked.map((r) => r.ticker));
   const external: Result[] = tracked.length >= 8
     ? []
-    : (await searchYahoo(q, 8))
+    : (await searchSecurities(q, 8))
       .filter((m) => !seen.has(m.ticker))
       .map((m) => ({
         ticker: m.ticker,
         name: m.name,
-        sector: m.sector,
+        sector: null,
         tracked: false,
         in_sp500: false,
         three_x_score: null,

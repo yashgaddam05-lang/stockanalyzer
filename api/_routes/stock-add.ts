@@ -10,10 +10,10 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from '../_supabase.js';
-import { lookupYahooSymbol } from '../_yahoo-search.js';
+import { lookupSecurity } from '../_securities.js';
 import { refreshAndScoreTickers } from '../_refresh-core.js';
 
-// POST /api/stock-add { ticker } — signed-in users can start tracking any US stock or ETF.
+// POST /api/stock-add { ticker } — signed-in users can start tracking any US-listed stock.
 // Added stocks join the shared universe (refreshed and scored for everyone); what each
 // user sees on their dashboard still comes from their own watchlists and preferences.
 
@@ -53,9 +53,9 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
 
-    const match = await lookupYahooSymbol(ticker);
+    const match = await lookupSecurity(ticker);
     if (!match) {
-      response.status(404).json({ error: `${ticker} isn't a US-listed stock or ETF we can track.` });
+      response.status(404).json({ error: `${ticker} isn't a Nasdaq, NYSE or Cboe-listed stock we can track.` });
       return;
     }
 
@@ -65,7 +65,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       : await supabase.from('stocks').insert({
         ticker,
         company_name: match.name,
-        sector: match.sector ?? (match.type === 'ETF' ? 'ETF' : 'Other'),
+        sector: 'Other',
         market_cap: 0,
         current_price: 0,
         data_source: 'seed',
