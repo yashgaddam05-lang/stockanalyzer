@@ -5,6 +5,7 @@ import { AppShell, PageFallback } from '@/components/layout/AppShell';
 import { AuthLayout } from '@/components/auth/AuthLayout';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { StocksProvider } from '@/components/data/StocksProvider';
+import { PreferencesProvider } from '@/components/data/PreferencesProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import LandingPage from '@/pages/marketing/LandingPage';
@@ -111,7 +112,9 @@ export default function App() {
             path="app"
             element={
               <StocksProvider>
-                <AppShell />
+                <PreferencesProvider>
+                  <AppShell />
+                </PreferencesProvider>
               </StocksProvider>
             }
           >

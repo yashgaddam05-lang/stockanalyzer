@@ -38,6 +38,11 @@ export interface Stock {
   risk_score?: number | null;
   data_source?: 'seed' | 'yahoo';
   last_refreshed_at?: string | null;
+  /** True for S&P 500 constituents. */
+  in_sp500?: boolean;
+  /** Set when a user added this stock to the tracked universe. */
+  added_by?: string | null;
+  added_at?: string | null;
   is_active?: boolean;
   regime_fit_score?: number | null;
   regime_fit_drivers?: string[] | null;
@@ -414,4 +419,24 @@ export interface DataHealthResponse {
     last_snapshot_at: string | null;
   };
   runs: RefreshRun[];
+}
+
+export type DashboardScope = 'mine' | 'sp500' | 'all';
+
+export interface UserPreferences {
+  dashboard_scope: DashboardScope;
+  sectors: string[];
+  /** Null until the user finishes first-login onboarding. */
+  onboarded_at: string | null;
+  updated_at: string | null;
+}
+
+export interface StockSearchResult {
+  ticker: string;
+  name: string;
+  sector: string | null;
+  /** True when the stock is already tracked (scored and refreshed). */
+  tracked: boolean;
+  in_sp500: boolean;
+  three_x_score: number | null;
 }

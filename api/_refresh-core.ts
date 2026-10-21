@@ -305,6 +305,36 @@ export async function logRefreshRun(
   }
 }
 
+// ---------- targeted refresh (user-added stocks) ----------
+
+/**
+ * Fetches live data for specific tickers via the edge function, then scores just those
+ * rows. Used when a user adds a stock, so it is usable immediately instead of waiting
+ * for the next scheduled batch.
+ */
+export async function refreshAndScoreTickers(tickers: string[]): Promise<{ ok: boolean; scored: number }> {
+  if (!supabaseUrl || tickers.length === 0) return { ok: false, scored: 0 };
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/refresh-stocks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers }),
+    });
+    if (!res.ok) return { ok: false, scored: 0 };
+    const [rows, snap] = await Promise.all([
+      supabase.from('stocks').select('*').in('ticker', tickers),
+      buildRegime(),
+    ]);
+    const stocks = (rows.data as ScoringInput[] | null) ?? [];
+    const rescored = stocks.map((stock) => rescore(stock, snap));
+    const persisted = await persistScores(rescored);
+    await writeSnapshots(rescored);
+    return { ok: true, scored: persisted.rescored };
+  } catch {
+    return { ok: false, scored: 0 };
+  }
+}
+
 // ---------- pipeline ----------
 
 export async function runStockRefresh(trigger: RefreshTrigger): Promise<RefreshResult> {

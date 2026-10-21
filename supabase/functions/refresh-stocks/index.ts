@@ -494,6 +494,27 @@ async function readRange(req: Request): Promise<Range> {
   return (ALLOWED_RANGES as readonly string[]).includes(raw as string) ? (raw as Range) : "3mo";
 }
 
+const DEFAULT_BATCH = 120;
+const MAX_BATCH = 200;
+
+async function readBatchOptions(req: Request): Promise<{ tickers: string[]; limit: number }> {
+  let body: { tickers?: unknown; limit?: unknown } = {};
+  if (req.method === "POST") {
+    try {
+      body = await req.clone().json();
+    } catch {
+      // empty or non-JSON body -> defaults
+    }
+  }
+  const tickers = Array.isArray(body.tickers)
+    ? body.tickers
+      .filter((t): t is string => typeof t === "string" && /^[A-Z][A-Z0-9.-]{0,9}$/.test(t))
+      .slice(0, 25)
+    : [];
+  const n = typeof body.limit === "number" && Number.isFinite(body.limit) ? Math.floor(body.limit) : DEFAULT_BATCH;
+  return { tickers, limit: Math.min(Math.max(n, 1), MAX_BATCH) };
+}
+
 // deno-lint-ignore no-explicit-any
 async function logRun(supabase: any, startedAt: string, status: string, stats: Record<string, unknown>) {
   try {
@@ -527,10 +548,14 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     supabase = createClient(supabaseUrl, serviceKey);
 
-    let { data: stocks, error: dbError } = await supabase
-      .from("stocks")
-      .select("id, ticker")
-      .eq("is_active", true);
+    // Batched refresh: explicit tickers (e.g. a stock a user just added), otherwise the
+    // stalest active stocks first, so repeated scheduled runs cover a large universe.
+    const opts = await readBatchOptions(req);
+    let query = supabase.from("stocks").select("id, ticker").eq("is_active", true);
+    query = opts.tickers.length
+      ? query.in("ticker", opts.tickers)
+      : query.order("last_refreshed_at", { ascending: true, nullsFirst: true }).limit(opts.limit);
+    let { data: stocks, error: dbError } = await query;
 
     if (dbError) {
       // is_active column may not exist yet; retry without the filter

@@ -11,8 +11,11 @@ import filings from './_routes/filings.js';
 import marketRegime from './_routes/market-regime.js';
 import portfolios from './_routes/portfolios.js';
 import positions from './_routes/positions.js';
+import preferences from './_routes/preferences.js';
 import priceHistory from './_routes/price-history.js';
 import scoreHistory from './_routes/score-history.js';
+import stockAdd from './_routes/stock-add.js';
+import stockSearch from './_routes/stock-search.js';
 import stocks from './_routes/stocks.js';
 import watchlistItems from './_routes/watchlist-items.js';
 import watchlist from './_routes/watchlist.js';
@@ -30,8 +33,11 @@ const ROUTES: Record<string, Handler> = {
   'market-regime': marketRegime,
   'portfolios': portfolios,
   'positions': positions,
+  'preferences': preferences,
   'price-history': priceHistory,
   'score-history': scoreHistory,
+  'stock-add': stockAdd,
+  'stock-search': stockSearch,
   'stocks': stocks,
   'watchlist-items': watchlistItems,
   'watchlist': watchlist,

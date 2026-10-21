@@ -27,6 +27,10 @@ import type {
   WatchlistEntry,
   WatchlistItem,
   WatchlistsResponse,
+  DashboardScope,
+  Stock,
+  StockSearchResult,
+  UserPreferences,
 } from '@/lib/supabase';
 
 export class ApiError extends Error {
@@ -303,4 +307,27 @@ export function getBacktest(params: { horizon: BacktestHorizon; modelVersion?: s
 
 export function getDataHealth(): Promise<DataHealthResponse> {
   return request<DataHealthResponse>('/api/data-health');
+}
+
+// ---------- personalization ----------
+
+export function getPreferences(): Promise<UserPreferences> {
+  return request<UserPreferences>('/api/preferences');
+}
+
+export function savePreferences(input: {
+  dashboard_scope?: DashboardScope;
+  sectors?: string[];
+  onboarded?: boolean;
+}): Promise<UserPreferences> {
+  return request<UserPreferences>('/api/preferences', { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function searchStocks(query: string): Promise<{ query: string; results: StockSearchResult[] }> {
+  return request(`/api/stock-search?q=${encodeURIComponent(query)}`);
+}
+
+/** Starts tracking any US stock/ETF (fetched and scored immediately). Requires sign-in. */
+export function addStock(ticker: string): Promise<{ added: boolean; stock: Stock }> {
+  return request('/api/stock-add', { method: 'POST', body: JSON.stringify({ ticker }) });
 }
