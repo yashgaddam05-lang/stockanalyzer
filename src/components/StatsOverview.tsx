@@ -21,6 +21,8 @@ export interface StatsOverviewProps {
   stocks: StockListItem[];
   analyses: Record<string, AnalysisResult>;
   watchlistCount?: number;
+  /** Label for the universe count, e.g. "in S&P 500". Defaults to "tracked". */
+  universeLabel?: string;
 }
 
 function Label({ icon, children }: { icon: ReactNode; children: ReactNode }) {
@@ -32,7 +34,7 @@ function Label({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-export function StatsOverview({ stocks, analyses, watchlistCount = 0 }: StatsOverviewProps) {
+export function StatsOverview({ stocks, analyses, watchlistCount = 0, universeLabel = 'tracked' }: StatsOverviewProps) {
   const stats = useMemo(() => {
     const rows = stocks.filter((s) => analyses[s.ticker]).map((stock) => ({ stock, a: analyses[stock.ticker] }));
     const n = rows.length;
@@ -90,7 +92,7 @@ export function StatsOverview({ stocks, analyses, watchlistCount = 0 }: StatsOve
             <span className="text-sm font-normal text-muted-foreground">/100</span>
           </p>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            {stats.n} tracked · {stats.strong} strong (75+)
+            {stats.n} {universeLabel} · {stats.strong} strong (75+)
           </p>
           <Progress value={stats.avgScore} className="mt-3 h-1" indicatorClassName="bg-neutral-900" />
         </Card>
@@ -132,7 +134,7 @@ export function StatsOverview({ stocks, analyses, watchlistCount = 0 }: StatsOve
             {stats.seed > 0 ? 'Seed rows use sample data until refreshed' : 'All rows from live market data'}
           </p>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            {watchlistCount > 0 ? `${watchlistCount} on watchlist` : 'Watchlist empty'}
+            {watchlistCount > 0 ? `You follow ${watchlistCount}` : 'Not following any stocks yet'}
           </p>
         </Card>
       </div>

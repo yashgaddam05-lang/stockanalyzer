@@ -9,10 +9,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildHeatmap, UNKNOWN_BUCKET } from '@/components/dashboard/heatmap';
 import type { HeatmapCell, HeatmapMetric } from '@/components/dashboard/heatmap';
 import { cn } from '@/lib/utils';
+import { withScope } from '@/components/dashboard/scope';
+import type { DashboardScope } from '@/lib/supabase';
 
 export interface SectorCapHeatmapProps {
   stocks: StockListItem[];
   analyses: Record<string, AnalysisResult>;
+  title?: string;
+  /** When set, cell links carry the scope so Explore shows the same universe. */
+  scope?: DashboardScope;
 }
 
 const METRICS: { value: HeatmapMetric; label: string; aria: string }[] = [
@@ -47,7 +52,12 @@ function formatValue(metric: HeatmapMetric, v: number): string {
   return String(Math.round(v));
 }
 
-export function SectorCapHeatmap({ stocks, analyses }: SectorCapHeatmapProps) {
+export function SectorCapHeatmap({
+  stocks,
+  analyses,
+  title = 'Sector and market-cap heat map',
+  scope,
+}: SectorCapHeatmapProps) {
   const [metric, setMetric] = useState<HeatmapMetric>('avgScore');
   const heatmap = useMemo(() => buildHeatmap(stocks, analyses, metric), [stocks, analyses, metric]);
 
@@ -85,7 +95,7 @@ export function SectorCapHeatmap({ stocks, analyses }: SectorCapHeatmapProps) {
           <div className="flex items-center gap-2">
             <Grid3x3 className="h-4 w-4 text-neutral-500" aria-hidden="true" />
             <h2 id="sector-cap-heatmap-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
-              Sector and market-cap heat map
+              {title}
             </h2>
           </div>
           <Tabs value={metric} onValueChange={(v) => setMetric(v as HeatmapMetric)}>
@@ -155,7 +165,7 @@ export function SectorCapHeatmap({ stocks, analyses }: SectorCapHeatmapProps) {
                           </div>
                         ) : (
                           <Link
-                            to={`/app/explore?sector=${encodeURIComponent(sector)}&cap=${bucket}`}
+                            to={withScope(`/app/explore?sector=${encodeURIComponent(sector)}&cap=${bucket}`, scope)}
                             aria-label={describe(c)}
                             title={c.tickers.join(', ')}
                             className={cn(
