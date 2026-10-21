@@ -5,8 +5,10 @@ import type { StockListItem } from '@/lib/supabase';
 import { PRESET_SCREENS, computeRiskScore, scoreStock } from '@/lib/scoring';
 import type { ScoredStock } from '@/lib/scoring';
 import { Card } from '@/components/ui/card';
+import { withScope } from '@/components/dashboard/scope';
+import type { DashboardScope } from '@/lib/supabase';
 
-export function PresetShortcuts({ stocks }: { stocks: StockListItem[] }) {
+export function PresetShortcuts({ stocks, scope }: { stocks: StockListItem[]; scope?: DashboardScope }) {
   const counts = useMemo(() => {
     const scored: ScoredStock[] = stocks.map((stock) => ({ stock, score: scoreStock(stock), risk: computeRiskScore(stock) }));
     return Object.fromEntries(PRESET_SCREENS.map((p) => [p.id, scored.filter(p.filter).length]));
@@ -21,7 +23,7 @@ export function PresetShortcuts({ stocks }: { stocks: StockListItem[] }) {
         {PRESET_SCREENS.map((p) => (
           <Link
             key={p.id}
-            to={`/app/explore?preset=${encodeURIComponent(p.id)}`}
+            to={withScope(`/app/explore?preset=${encodeURIComponent(p.id)}`, scope)}
             className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2"
           >
             <Card className="flex h-full flex-col p-4 transition-colors group-hover:border-neutral-400">

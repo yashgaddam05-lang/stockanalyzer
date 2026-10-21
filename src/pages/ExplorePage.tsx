@@ -2,6 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Activity } from 'lucide-react';
 import { useStocks } from '@/components/data/StocksProvider';
+import { usePreferences } from '@/components/data/PreferencesProvider';
+import { ScopeToggle } from '@/components/dashboard/ScopeToggle';
+import { useScopedStocks } from '@/components/dashboard/useScopedStocks';
+import { DEFAULT_SCOPE, isScope, scopePhrase } from '@/components/dashboard/scope';
+import type { DashboardScope } from '@/lib/supabase';
 import { StockCard, StockCardSkeleton } from '@/components/stock/StockCard';
 import { PresetScreenBar } from '@/components/explore/PresetScreenBar';
 import { FilterBar } from '@/components/explore/FilterBar';
@@ -26,8 +31,15 @@ import { Button } from '@/components/ui/button';
 const FILTER_PARAMS = ['q', 'sector', 'risk', 'cap', 'source', 'watch', 'sort'] as const;
 
 export default function ExplorePage() {
-  const { stocks, analyses, loading, error, watchlist, toggleWatch, reload } = useStocks();
+  const { error, watchlist, toggleWatch, reload } = useStocks();
+  const { prefs } = usePreferences();
   const [params, setParams] = useSearchParams();
+
+  // Scope is local to this page (URL-synced, never persisted); defaults to the saved preference.
+  const rawScope = params.get('scope');
+  const defaultScope: DashboardScope = prefs?.dashboard_scope ?? DEFAULT_SCOPE;
+  const scope: DashboardScope = isScope(rawScope) ? rawScope : defaultScope;
+  const { stocks, analyses, loading, counts } = useScopedStocks(scope);
 
   const rawPreset = params.get('preset');
   const presetId = rawPreset && getPresetScreen(rawPreset) ? rawPreset : null;
@@ -77,6 +89,8 @@ export default function ExplorePage() {
       if (patch.watchOnly !== undefined) set('watch', patch.watchOnly ? '1' : '0', '0');
     });
 
+  const setScope = (next: DashboardScope) => update((p) => (next === defaultScope ? p.delete('scope') : p.set('scope', next)));
+
   const setSort = (key: SortKey) => update((p) => (key === 'score' && !presetId ? p.delete('sort') : p.set('sort', key)));
 
   const clearFilters = () => update((p) => FILTER_PARAMS.forEach((k) => p.delete(k)));
@@ -96,9 +110,11 @@ export default function ExplorePage() {
       <div className="space-y-2 pt-2">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Explore</h1>
         <p className="text-sm text-muted-foreground">
-          Start from a preset screen, then search, filter, and sort every stock in the scanner.
+          Pick a universe, start from a preset screen, then search, filter, and sort.
         </p>
       </div>
+
+      <ScopeToggle value={scope} onChange={setScope} counts={loading ? undefined : counts} />
 
       <PresetScreenBar value={presetId} onChange={setPreset} />
 
@@ -127,7 +143,7 @@ export default function ExplorePage() {
       ) : (
         <>
           <p className="text-[13px] text-muted-foreground" aria-live="polite" data-testid="explore-count">
-            Showing {visible.length} of {rows.length}
+            Showing {visible.length} of {rows.length} in {scopePhrase(scope)}
             {presetId && ` · ${getPresetScreen(presetId)?.label} preset`}
           </p>
           {visible.length === 0 ? (
@@ -135,8 +151,17 @@ export default function ExplorePage() {
               <Activity className="mb-3 h-10 w-10 text-neutral-300" />
               <p className="text-sm font-medium text-neutral-900">No stocks match these filters</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {presetId ? 'Try another preset or loosen the filters.' : 'Try adjusting your search or filters.'}
+                {scope === 'mine' && rows.length === 0
+                  ? "You're not following any stocks yet. Switch to the S&P 500 or All tracked to browse."
+                  : presetId
+                    ? 'Try another preset or loosen the filters.'
+                    : 'Try adjusting your search or filters.'}
               </p>
+              {scope === 'mine' && rows.length === 0 && (
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setScope('sp500')}>
+                  Browse the S&P 500
+                </Button>
+              )}
               {(hasActiveFilters(filters) || presetId) && (
                 <Button
                   variant="outline"

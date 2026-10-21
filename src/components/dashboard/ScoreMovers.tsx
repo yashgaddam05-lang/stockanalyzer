@@ -12,9 +12,10 @@ const LIMIT = 5;
 export interface ScoreMoversProps {
   stocks: StockListItem[];
   analyses: Record<string, AnalysisResult>;
+  title?: string;
 }
 
-export function ScoreMovers({ stocks, analyses }: ScoreMoversProps) {
+export function ScoreMovers({ stocks, analyses, title = 'Score movers' }: ScoreMoversProps) {
   const { gainers, decliners } = useMemo(() => {
     const withChange = stocks.filter(
       (s): s is StockListItem & { score_change: number } =>
@@ -31,7 +32,7 @@ export function ScoreMovers({ stocks, analyses }: ScoreMoversProps) {
   return (
     <section className="space-y-4" aria-labelledby="score-movers-heading">
       <h2 id="score-movers-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
-        Score movers
+        {title}
       </h2>
       {empty ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">Score changes appear after two data refreshes</Card>

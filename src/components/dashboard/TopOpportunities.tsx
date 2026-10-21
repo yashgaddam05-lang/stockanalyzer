@@ -45,9 +45,20 @@ export function ChangeChip({ change }: { change: number | null }) {
 export interface TopOpportunitiesProps {
   stocks: StockListItem[];
   analyses: Record<string, AnalysisResult>;
+  title?: string;
+  /** Noun for the footer note, e.g. "S&P 500 stocks". */
+  noun?: string;
+  /** Explore link target (scope-aware). */
+  exploreHref?: string;
 }
 
-export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
+export function TopOpportunities({
+  stocks,
+  analyses,
+  title = 'Top opportunities by 3x score',
+  noun = 'tracked stocks',
+  exploreHref = '/app/explore',
+}: TopOpportunitiesProps) {
   const [size, setSize] = useState<Size>(10);
 
   const ranked = useMemo(
@@ -63,7 +74,7 @@ export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
     <section className="space-y-4" aria-labelledby="top-opportunities-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="top-opportunities-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
-          Top opportunities by 3x score
+          {title}
         </h2>
         <div className="flex items-center gap-3">
           <div role="group" aria-label="Number of stocks to show" className="inline-flex rounded-lg border border-border bg-neutral-50 p-0.5">
@@ -82,7 +93,7 @@ export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
               </button>
             ))}
           </div>
-          <Link to="/app/explore" className="hidden items-center gap-1 text-[13px] text-neutral-600 hover:text-neutral-900 sm:flex">
+          <Link to={exploreHref} className="hidden items-center gap-1 text-[13px] text-neutral-600 hover:text-neutral-900 sm:flex">
             Explore all <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -114,7 +125,7 @@ export function TopOpportunities({ stocks, analyses }: TopOpportunitiesProps) {
         })}
       </Card>
       {ranked.length < size && (
-        <p className="text-[12px] text-muted-foreground">Showing all {ranked.length} tracked stocks.</p>
+        <p className="text-[12px] text-muted-foreground">Showing all {ranked.length} {noun}.</p>
       )}
     </section>
   );
