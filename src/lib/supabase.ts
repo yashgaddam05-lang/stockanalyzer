@@ -423,9 +423,16 @@ export interface DataHealthResponse {
 
 export type DashboardScope = 'mine' | 'sp500' | 'all';
 
+export type InvestGoal = 'multibaggers' | 'track' | 'ideas' | 'learn';
+export type Experience = 'new' | 'some' | 'experienced';
+export type RiskAppetite = 'conservative' | 'balanced' | 'aggressive';
+
 export interface UserPreferences {
   dashboard_scope: DashboardScope;
   sectors: string[];
+  goal?: InvestGoal | null;
+  experience?: Experience | null;
+  risk?: RiskAppetite | null;
   /** Null until the user finishes first-login onboarding. */
   onboarded_at: string | null;
   updated_at: string | null;

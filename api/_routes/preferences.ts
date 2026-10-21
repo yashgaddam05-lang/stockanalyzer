@@ -14,8 +14,22 @@ import {
 
 const SCOPES = ['mine', 'sp500', 'all'] as const;
 type Scope = (typeof SCOPES)[number];
-const COLUMNS = 'dashboard_scope, sectors, onboarded_at, updated_at';
-const DEFAULTS = { dashboard_scope: 'sp500' as Scope, sectors: [] as string[], onboarded_at: null, updated_at: null };
+const COLUMNS = 'dashboard_scope, sectors, goal, experience, risk, onboarded_at, updated_at';
+const DEFAULTS = {
+  dashboard_scope: 'mine' as Scope,
+  sectors: [] as string[],
+  goal: null,
+  experience: null,
+  risk: null,
+  onboarded_at: null,
+  updated_at: null,
+};
+// Onboarding interview answers: field -> allowed values (null clears).
+const PROFILE: Record<string, readonly string[]> = {
+  goal: ['multibaggers', 'track', 'ideas', 'learn'],
+  experience: ['new', 'some', 'experienced'],
+  risk: ['conservative', 'balanced', 'aggressive'],
+};
 
 export default async function handler(request: ApiRequest, response: ApiResponse): Promise<void> {
   if (request.method !== 'GET' && request.method !== 'PUT') {
@@ -56,6 +70,15 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
     patch.sectors = sectors;
+  }
+  for (const [field, allowed] of Object.entries(PROFILE)) {
+    const value = body[field];
+    if (value === undefined) continue;
+    if (value !== null && !allowed.includes(value as string)) {
+      sendBadRequest(response, `${field} must be one of ${allowed.join(', ')}.`);
+      return;
+    }
+    patch[field] = value;
   }
   if (body.onboarded === true) patch.onboarded_at = new Date().toISOString();
 

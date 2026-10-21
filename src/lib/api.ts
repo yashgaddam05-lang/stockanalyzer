@@ -31,6 +31,9 @@ import type {
   Stock,
   StockSearchResult,
   UserPreferences,
+  InvestGoal,
+  Experience,
+  RiskAppetite,
 } from '@/lib/supabase';
 
 export class ApiError extends Error {
@@ -318,6 +321,9 @@ export function getPreferences(): Promise<UserPreferences> {
 export function savePreferences(input: {
   dashboard_scope?: DashboardScope;
   sectors?: string[];
+  goal?: InvestGoal | null;
+  experience?: Experience | null;
+  risk?: RiskAppetite | null;
   onboarded?: boolean;
 }): Promise<UserPreferences> {
   return request<UserPreferences>('/api/preferences', { method: 'PUT', body: JSON.stringify(input) });

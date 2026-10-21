@@ -15,6 +15,7 @@ import { PortfolioSnapshot } from '@/components/dashboard/PortfolioSnapshot';
 import { MyAlertsCard } from '@/components/dashboard/MyAlertsCard';
 import { UpcomingCatalystsCard } from '@/components/dashboard/UpcomingCatalystsCard';
 import { SectionBoundary } from '@/components/dashboard/SectionBoundary';
+import { GetStartedGuide } from '@/components/dashboard/GetStartedGuide';
 import { useScopedStocks } from '@/components/dashboard/useScopedStocks';
 import { DEFAULT_SCOPE, SCOPE_OPTIONS, scopePhrase, withScope } from '@/components/dashboard/scope';
 import { RegimeSummaryCard } from '@/components/regime/RegimeSummaryCard';
@@ -55,6 +56,20 @@ export default function DashboardPage() {
   const phrase = scopePhrase(scope);
   const scopeLabel = SCOPE_OPTIONS.find((o) => o.value === scope)?.label ?? '';
   const mineEmpty = scope === 'mine' && !loading && myStocks.length === 0;
+  // Follows nothing at all: guide them instead of showing market data they never asked for.
+  const brandNew = scope === 'mine' && !stocksLoading && !myTickersLoading && myTickers.size === 0;
+
+  if (brandNew) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-end sm:justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Your dashboard</h1>
+          <ScopeToggle value={scope} onChange={changeScope} counts={counts} />
+        </div>
+        <GetStartedGuide onFollowSp500={() => changeScope('sp500')} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10">

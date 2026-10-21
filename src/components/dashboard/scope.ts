@@ -6,7 +6,7 @@ export const SCOPE_OPTIONS: { value: DashboardScope; label: string }[] = [
   { value: 'all', label: 'All tracked' },
 ];
 
-export const DEFAULT_SCOPE: DashboardScope = 'sp500';
+export const DEFAULT_SCOPE: DashboardScope = 'mine';
 
 export function isScope(v: unknown): v is DashboardScope {
   return v === 'mine' || v === 'sp500' || v === 'all';
