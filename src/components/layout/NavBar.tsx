@@ -1,10 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { AlertCircle, Check, ChevronDown, Menu, RefreshCw, TrendingUp, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Menu, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AccountMenu } from '@/components/auth/AccountMenu';
 import { NotificationBell } from '@/components/alerts/NotificationBell';
 import { useStocks } from '@/components/data/StocksProvider';
+import { StockSearch } from '@/components/search/StockSearch';
+import type { StockSearchHandle } from '@/components/search/StockSearch';
 import { cn } from '@/lib/utils';
 
 type NavItem = { to: string; label: string; end: boolean };
@@ -117,12 +119,29 @@ type RefreshMsg = { type: 'success' | 'error'; text: string };
 export function NavBar() {
   const { refresh, refreshing, lastRefreshed } = useStocks();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [msg, setMsg] = useState<RefreshMsg | null>(null);
   const location = useLocation();
+  const desktopSearchRef = useRef<StockSearchHandle>(null);
 
   useEffect(() => {
     setMenuOpen(false);
+    setSearchOpen(false);
   }, [location.pathname]);
+
+  // "/" focuses the search box from anywhere (unless the user is typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+      e.preventDefault();
+      if (window.matchMedia('(min-width: 1280px)').matches) desktopSearchRef.current?.focus();
+      else setSearchOpen(true);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => {
     if (!msg) return;
@@ -175,11 +194,26 @@ export function NavBar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {lastRefreshed && (
-            <span className="hidden whitespace-nowrap text-[11px] text-muted-foreground xl:inline">
-              Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
+          <StockSearch
+            ref={desktopSearchRef}
+            compact
+            placeholder="Search stocks"
+            className="hidden w-48 xl:block"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 xl:hidden"
+            onClick={() => {
+              setSearchOpen((v) => !v);
+              setMenuOpen(false);
+            }}
+            aria-label={searchOpen ? 'Close search' : 'Search stocks'}
+            aria-expanded={searchOpen}
+            aria-controls="mobile-search"
+          >
+            {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -187,10 +221,10 @@ export function NavBar() {
             disabled={refreshing}
             className="h-8 gap-2 text-[13px]"
             aria-label="Refresh market data"
-            title="Pull live prices, momentum, and volatility from Yahoo Finance"
+            title={`Pull live prices, momentum, and volatility from Yahoo Finance${lastRefreshed ? ` (updated ${lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}`}
           >
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-            <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <span className="hidden sm:inline xl:hidden">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
           <NotificationBell />
           <AccountMenu />
@@ -198,7 +232,10 @@ export function NavBar() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0 lg:hidden"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => {
+              setMenuOpen((v) => !v);
+              setSearchOpen(false);
+            }}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
@@ -207,6 +244,14 @@ export function NavBar() {
           </Button>
         </div>
       </div>
+
+      {searchOpen && (
+        <div id="mobile-search" className="border-t border-border px-4 py-3 sm:px-8 xl:hidden">
+          <div className="mx-auto max-w-6xl">
+            <StockSearch autoFocus placeholder="Search any US stock or ETF" onDismiss={() => setSearchOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {menuOpen && (
         <nav id="mobile-nav" className="border-t border-border px-4 py-2 lg:hidden" aria-label="Mobile">

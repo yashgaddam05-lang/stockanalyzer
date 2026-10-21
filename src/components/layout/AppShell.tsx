@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 import { NavBar } from '@/components/layout/NavBar';
 import { Footer } from '@/components/layout/Footer';
 import { Skeleton } from '@/components/ui/skeleton';
+import { OnboardingGate } from '@/components/auth/OnboardingGate';
 
 export function PageFallback() {
   return (
@@ -15,13 +16,18 @@ export function PageFallback() {
   );
 }
 
-/** Signed-in app chrome. Used as a layout route (renders <Outlet/>) or with explicit children. */
+/**
+ * Signed-in app chrome. Used as a layout route (renders <Outlet/>) or with explicit children.
+ * Must render inside <PreferencesProvider> (the onboarding gate reads preferences).
+ */
 export function AppShell({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <NavBar />
       <main className="flex-1 w-full mx-auto max-w-6xl px-4 sm:px-8 py-8">
-        <Suspense fallback={<PageFallback />}>{children ?? <Outlet />}</Suspense>
+        <OnboardingGate fallback={<PageFallback />}>
+          <Suspense fallback={<PageFallback />}>{children ?? <Outlet />}</Suspense>
+        </OnboardingGate>
       </main>
       <Footer />
     </div>
