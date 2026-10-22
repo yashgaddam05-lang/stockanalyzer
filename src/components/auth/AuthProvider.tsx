@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthError, Session } from '@supabase/supabase-js';
-import { authClient } from '@/lib/auth-client';
-import { setAuthTokenProvider } from '@/lib/api';
+import { authClient, readStoredAccessToken, readStoredSession, withTimeout } from '@/lib/auth-client';
+import { setAuthRefresher, setAuthTokenProvider } from '@/lib/api';
 import { landedFromRecoveryLink } from '@/components/auth/auth-redirect';
 
 export interface AuthUser {
@@ -122,12 +122,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!client) return;
     let active = true;
 
-    setAuthTokenProvider(async () => (await client.auth.getSession()).data.session?.access_token ?? null);
+    // Never let a slow or stuck session lookup hold up API calls: fall back to the stored token.
+    setAuthTokenProvider(async () => {
+      const token = await withTimeout(
+        client.auth.getSession().then(({ data }) => data.session?.access_token ?? null),
+        2500,
+        null
+      ).catch(() => null);
+      return token ?? readStoredAccessToken();
+    });
+    // Called once when the API rejects a token: refresh it so the request can be retried.
+    setAuthRefresher(async () => {
+      const { data } = await withTimeout(client.auth.refreshSession(), 5000, { data: { session: null, user: null }, error: null });
+      return data.session?.access_token ?? null;
+    });
 
-    client.auth
-      .getSession()
-      .then(({ data }) => {
-        if (active) setUser(toUser(data.session));
+    // If the lookup stalls, trust the saved session for identity; token refresh continues in the background.
+    withTimeout(client.auth.getSession(), 4000, null)
+      .then((result) => {
+        if (active) setUser(toUser(result ? result.data.session : readStoredSession()));
       })
       .catch(() => {
         if (active) setUser(null);
@@ -152,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       active = false;
       sub.subscription.unsubscribe();
       setAuthTokenProvider(null);
+      setAuthRefresher(null);
     };
   }, []);
 

@@ -124,6 +124,11 @@ export function AssistantWidget() {
       }
       const controller = new AbortController();
       abortRef.current = controller;
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, 45_000);
       try {
         const result = await streamAssistant(
           { messages: history, context: screen.text() },
@@ -138,7 +143,7 @@ export function AssistantWidget() {
         );
         if (result.remaining !== null) setRemaining(result.remaining);
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted && !timedOut) return;
         if (err instanceof ApiError && err.status === 429) {
           setError(err.message);
           setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
@@ -150,6 +155,7 @@ export function AssistantWidget() {
           answerLocally();
         }
       } finally {
+        clearTimeout(timer);
         setBusy(false);
         abortRef.current = null;
       }

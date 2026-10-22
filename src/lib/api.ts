@@ -55,6 +55,14 @@ export function setAuthTokenProvider(fn: AuthTokenProvider | null): void {
   authTokenProvider = fn;
 }
 
+type AuthRefresher = () => Promise<string | null>;
+let authRefresher: AuthRefresher | null = null;
+
+/** Registers (or clears) how to get a fresh token after the API rejects one with 401. */
+export function setAuthRefresher(fn: AuthRefresher | null): void {
+  authRefresher = fn;
+}
+
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (!authTokenProvider) return {};
   try {
@@ -67,15 +75,21 @@ async function getAuthHeader(): Promise<Record<string, string>> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const authHeader = await getAuthHeader();
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...authHeader,
-      ...init?.headers,
-    },
-  });
+  const send = (authHeader: Record<string, string>) =>
+    fetch(path, {
+      ...init,
+      headers: {
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...authHeader,
+        ...init?.headers,
+      },
+    });
+  let response = await send(await getAuthHeader());
+  // Expired or missing token: refresh once and retry.
+  if (response.status === 401 && authRefresher) {
+    const fresh = await authRefresher().catch(() => null);
+    if (fresh) response = await send({ Authorization: `Bearer ${fresh}` });
+  }
 
   if (!response.ok) {
     let message = 'Request failed.';
