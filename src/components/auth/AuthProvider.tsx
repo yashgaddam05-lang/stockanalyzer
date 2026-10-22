@@ -94,9 +94,27 @@ function friendlyError(error: AuthError | Error): Error {
   return new Error(error.message || 'Something went wrong. Please try again.');
 }
 
+/**
+ * True when this browser may hold a session: a saved Supabase token, or auth params in the URL
+ * (email link / OAuth return). When false we know synchronously that the user is signed out,
+ * so sign-in pages render instantly instead of waiting on getSession().
+ */
+function mayHaveSession(): boolean {
+  try {
+    if (/[#&?](access_token|refresh_token|code|token_hash|error_description)=/.test(window.location.href)) return true;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key && /^sb-.+-auth-token$/.test(key)) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState<boolean>(authClient !== null);
+  const [loading, setLoading] = useState<boolean>(() => authClient !== null && mayHaveSession());
   const [recovery, setRecovery] = useState<boolean>(() => landedFromRecoveryLink('/reset-password'));
 
   useEffect(() => {

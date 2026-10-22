@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Info, Loader2 } from 'lucide-react';
@@ -56,6 +57,21 @@ export function FieldHint({ id, error, children }: { id: string; error?: boolean
       {children}
     </p>
   );
+}
+
+/**
+ * Sign-in pages wait on the session check at most this long, then show the form anyway;
+ * if a session resolves afterwards the page still redirects.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuthWaitExpired(loading: boolean, ms = 1200): boolean {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setExpired(true), ms);
+    return () => clearTimeout(t);
+  }, [loading, ms]);
+  return expired;
 }
 
 export function AuthChecking() {

@@ -9,6 +9,7 @@ import { safeNext } from '@/components/auth/safe-next';
 import { initialLinkError } from '@/components/auth/auth-redirect';
 import {
   AuthChecking,
+  useAuthWaitExpired,
   AuthHeading,
   AuthUnavailable,
   FormError,
@@ -42,8 +43,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(() => initialLinkError('/login'));
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
+  const waitExpired = useAuthWaitExpired(loading);
+
   if (!enabled) return <AuthUnavailable />;
-  if (loading) return <AuthChecking />;
+  if (loading && !waitExpired) return <AuthChecking />;
   // Already signed in (including right after an email-confirmation link signs the user in).
   if (user) return <Navigate to={next} replace />;
 

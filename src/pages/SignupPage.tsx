@@ -8,6 +8,7 @@ import { QuickSignIn } from '@/components/auth/QuickSignIn';
 import { safeNext } from '@/components/auth/safe-next';
 import {
   AuthChecking,
+  useAuthWaitExpired,
   AuthHeading,
   AuthUnavailable,
   FieldHint,
@@ -46,8 +47,10 @@ export default function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sentTo, setSentTo] = useState<string | null>(null);
 
+  const waitExpired = useAuthWaitExpired(loading);
+
   if (!enabled) return <AuthUnavailable />;
-  if (loading) return <AuthChecking />;
+  if (loading && !waitExpired) return <AuthChecking />;
   if (user) return <Navigate to={next} replace />;
 
   const nextQuery = rawNext ? `?next=${encodeURIComponent(next)}` : '';

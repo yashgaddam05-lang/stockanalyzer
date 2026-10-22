@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
 import { NavBar } from '@/components/layout/NavBar';
@@ -6,7 +6,9 @@ import { Footer } from '@/components/layout/Footer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OnboardingGate } from '@/components/auth/OnboardingGate';
 import { AssistantProvider } from '@/components/assistant/AssistantProvider';
-import { AssistantWidget } from '@/components/assistant/AssistantWidget';
+
+// Loaded after the page so chat code never delays first paint or sign-in.
+const AssistantWidget = lazy(() => import('@/components/assistant/AssistantWidget').then((m) => ({ default: m.AssistantWidget })));
 
 export function PageFallback() {
   return (
@@ -33,7 +35,9 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </OnboardingGate>
       </main>
       <Footer />
-      <AssistantWidget />
+      <Suspense fallback={null}>
+        <AssistantWidget />
+      </Suspense>
     </div>
     </AssistantProvider>
   );
