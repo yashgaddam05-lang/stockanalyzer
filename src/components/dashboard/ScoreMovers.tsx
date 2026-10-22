@@ -6,6 +6,7 @@ import type { StockListItem } from '@/lib/supabase';
 import type { AnalysisResult } from '@/lib/analysis';
 import { Card } from '@/components/ui/card';
 import { ChangeChip } from '@/components/dashboard/TopOpportunities';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const LIMIT = 5;
 
@@ -31,8 +32,9 @@ export function ScoreMovers({ stocks, analyses, title = 'Score movers' }: ScoreM
 
   return (
     <section className="space-y-4" aria-labelledby="score-movers-heading">
-      <h2 id="score-movers-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
+      <h2 id="score-movers-heading" className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-neutral-900">
         {title}
+        <InfoTip topic="movers" />
       </h2>
       {empty ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">Score changes appear after two data refreshes</Card>

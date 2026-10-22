@@ -7,6 +7,7 @@ import { getRiskLabel, getScoreColor } from '@/lib/analysis';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const SIZES = [10, 25, 100] as const;
 type Size = (typeof SIZES)[number];
@@ -73,8 +74,9 @@ export function TopOpportunities({
   return (
     <section className="space-y-4" aria-labelledby="top-opportunities-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="top-opportunities-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
+        <h2 id="top-opportunities-heading" className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-neutral-900">
           {title}
+          <InfoTip topic="topOpportunities" />
         </h2>
         <div className="flex items-center gap-3">
           <div role="group" aria-label="Number of stocks to show" className="inline-flex rounded-lg border border-border bg-neutral-50 p-0.5">

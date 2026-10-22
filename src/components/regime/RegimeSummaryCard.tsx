@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RegimeBadge } from '@/components/regime/RegimeBadge';
 import { REGIME_EMPTY_MESSAGE, fmtDate, fmtNum, fmtSigned, isFiniteNumber } from '@/components/regime/regime-format';
+import { InfoTip } from '@/components/ui/info-tip';
 
 type State =
   | { status: 'loading' }
@@ -37,7 +38,10 @@ export function RegimeSummaryCard() {
   return (
     <Card className="p-4 sm:p-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-neutral-900">Market regime</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+          Market regime
+          <InfoTip topic="regime" />
+        </h2>
         <Link
           to="/app/market"
           className="inline-flex items-center gap-1 text-[13px] text-neutral-600 hover:text-neutral-900"

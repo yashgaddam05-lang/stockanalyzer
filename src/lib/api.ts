@@ -337,3 +337,57 @@ export function searchStocks(query: string): Promise<{ query: string; results: S
 export function addStock(ticker: string): Promise<{ added: boolean; stock: Stock }> {
   return request('/api/stock-add', { method: 'POST', body: JSON.stringify({ ticker }) });
 }
+
+// ---------- help assistant ----------
+
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Streams an assistant reply; calls onText for each chunk. Resolves with the remaining daily message count. */
+export async function streamAssistant(
+  input: { messages: AssistantTurn[]; context?: string },
+  onText: (text: string) => void,
+  signal?: AbortSignal
+): Promise<{ remaining: number | null }> {
+  const response = await fetch('/api/assistant', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify(input),
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    let message = 'The assistant could not answer. Please try again.';
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload?.error) message = payload.error;
+    } catch {
+      // Non-JSON error body.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let remaining: number | null = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut: number;
+    while ((cut = buffer.indexOf('\n\n')) !== -1) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const event = /^event: (.+)$/m.exec(block)?.[1];
+      const data = /^data: (.+)$/m.exec(block)?.[1];
+      if (!event || !data) continue;
+      const payload = JSON.parse(data) as { text?: string; remaining?: number; error?: string };
+      if (event === 'delta' && payload.text) onText(payload.text);
+      else if (event === 'meta' && typeof payload.remaining === 'number') remaining = payload.remaining;
+      else if (event === 'error') throw new ApiError(payload.error ?? 'The assistant could not answer.', 502);
+    }
+  }
+  return { remaining };
+}

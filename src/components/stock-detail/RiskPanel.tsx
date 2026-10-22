@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { AnalysisResult } from '@/lib/analysis';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const LABEL_STYLE: Record<AnalysisResult['riskLabel'], { bar: string; badge: string }> = {
   low: { bar: 'bg-emerald-500', badge: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
@@ -18,7 +19,10 @@ export function RiskPanel({ analysis }: { analysis: AnalysisResult }) {
   return (
     <Card className="flex h-full flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-neutral-900">Risk score</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+          Risk score
+          <InfoTip topic="risk" />
+        </h2>
         <span className={cn('rounded-md border px-2 py-0.5 text-[11px] font-medium', style.badge)}>{label} risk</span>
       </div>
       <div>

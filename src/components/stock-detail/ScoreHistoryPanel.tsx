@@ -3,6 +3,7 @@ import { getScoreHistory } from '@/lib/api';
 import type { ScoreHistoryEntry } from '@/lib/supabase';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { InfoTip } from '@/components/ui/info-tip';
 
 type State =
   | { status: 'loading' }
@@ -68,7 +69,10 @@ export function ScoreHistoryPanel({ ticker }: { ticker: string }) {
 
   return (
     <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold text-neutral-900">Score history</h2>
+      <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+        Score history
+        <InfoTip topic="scoreHistory" />
+      </h2>
       {state.status === 'loading' && (
         <div className="space-y-2" aria-busy="true">
           <Skeleton className="h-12 w-full max-w-xs" />

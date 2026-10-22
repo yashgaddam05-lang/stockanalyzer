@@ -7,6 +7,7 @@ import type { ScoredStock } from '@/lib/scoring';
 import { Card } from '@/components/ui/card';
 import { withScope } from '@/components/dashboard/scope';
 import type { DashboardScope } from '@/lib/supabase';
+import { InfoTip } from '@/components/ui/info-tip';
 
 export function PresetShortcuts({ stocks, scope }: { stocks: StockListItem[]; scope?: DashboardScope }) {
   const counts = useMemo(() => {
@@ -16,8 +17,9 @@ export function PresetShortcuts({ stocks, scope }: { stocks: StockListItem[]; sc
 
   return (
     <section className="space-y-4" aria-labelledby="preset-shortcuts-heading">
-      <h2 id="preset-shortcuts-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
+      <h2 id="preset-shortcuts-heading" className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-neutral-900">
         Preset screens
+        <InfoTip topic="presets" />
       </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PRESET_SCREENS.map((p) => (

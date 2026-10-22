@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChangeChip } from '@/components/dashboard/TopOpportunities';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 type SortCol = 'ticker' | 'price' | 'score' | 'change' | 'risk' | 'sector';
 type Dir = 'asc' | 'desc';
@@ -105,6 +106,7 @@ export function MyStocksTable({ stocks, analyses, myTickers, loading, error, onR
           <h2 id="my-stocks-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
             Your stocks
           </h2>
+          <InfoTip topic="score" />
           {!loading && stocks.length > 0 && (
             <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-neutral-700">
               {stocks.length}

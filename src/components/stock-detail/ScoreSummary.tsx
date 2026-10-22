@@ -5,6 +5,7 @@ import type { StockListItem } from '@/lib/supabase';
 import { ScoreRing } from '@/components/stock/StockCard';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const CONFIDENCE_STYLE: Record<AnalysisResult['confidence'], string> = {
   high: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -31,7 +32,10 @@ function ScoreChange({ change, previous }: { change: number | null; previous: nu
 export function ScoreSummary({ stock, analysis }: { stock: StockListItem; analysis: AnalysisResult }) {
   return (
     <Card className="flex h-full flex-col gap-4 p-6">
-      <h2 className="text-sm font-semibold text-neutral-900">3x Opportunity Score</h2>
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+        3x Opportunity Score
+        <InfoTip topic="score" />
+      </h2>
       <div className="flex items-center gap-5">
         <ScoreRing score={analysis.totalScore} size={72} />
         <div className="min-w-0 space-y-1">

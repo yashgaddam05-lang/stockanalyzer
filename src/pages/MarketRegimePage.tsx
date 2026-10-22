@@ -13,6 +13,7 @@ import { SectorStrengthTable } from '@/components/regime/SectorStrengthTable';
 import { REGIME_EMPTY_MESSAGE, fmtDate, fmtNum, fmtSigned, isFiniteNumber, signClass } from '@/components/regime/regime-format';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 export { RegimeSummaryCard } from '@/components/regime/RegimeSummaryCard';
 
@@ -69,7 +70,10 @@ export default function MarketRegimePage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Market regime</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+            Market regime
+            <InfoTip topic="regime" />
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Macro backdrop from volatility, rates, trend and sector leadership.
           </p>

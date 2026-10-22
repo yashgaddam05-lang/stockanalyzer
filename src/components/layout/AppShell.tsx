@@ -5,6 +5,8 @@ import { NavBar } from '@/components/layout/NavBar';
 import { Footer } from '@/components/layout/Footer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OnboardingGate } from '@/components/auth/OnboardingGate';
+import { AssistantProvider } from '@/components/assistant/AssistantProvider';
+import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 
 export function PageFallback() {
   return (
@@ -22,6 +24,7 @@ export function PageFallback() {
  */
 export function AppShell({ children }: { children?: ReactNode }) {
   return (
+    <AssistantProvider>
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <NavBar />
       <main className="flex-1 w-full mx-auto max-w-6xl px-4 sm:px-8 py-8">
@@ -30,6 +33,8 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </OnboardingGate>
       </main>
       <Footer />
+      <AssistantWidget />
     </div>
+    </AssistantProvider>
   );
 }

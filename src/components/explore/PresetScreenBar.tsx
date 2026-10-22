@@ -1,5 +1,6 @@
 import { PRESET_SCREENS, getPresetScreen } from '@/lib/scoring';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 export interface PresetScreenBarProps {
   /** Active preset id, or null for All. Unknown ids are treated as All. */
@@ -20,7 +21,8 @@ export function PresetScreenBar({ value, onChange }: PresetScreenBarProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Preset screens">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Preset screens">
+        <InfoTip topic="presets" />
         <button type="button" className={pill(!active)} aria-pressed={!active} onClick={() => onChange(null)}>
           All
         </button>

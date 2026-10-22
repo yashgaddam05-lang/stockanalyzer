@@ -11,6 +11,7 @@ import type { HeatmapCell, HeatmapMetric } from '@/components/dashboard/heatmap'
 import { cn } from '@/lib/utils';
 import { withScope } from '@/components/dashboard/scope';
 import type { DashboardScope } from '@/lib/supabase';
+import { InfoTip } from '@/components/ui/info-tip';
 
 export interface SectorCapHeatmapProps {
   stocks: StockListItem[];
@@ -97,6 +98,7 @@ export function SectorCapHeatmap({
             <h2 id="sector-cap-heatmap-heading" className="text-lg font-semibold tracking-tight text-neutral-900">
               {title}
             </h2>
+            <InfoTip topic="heatmap" />
           </div>
           <Tabs value={metric} onValueChange={(v) => setMetric(v as HeatmapMetric)}>
             <TabsList aria-label="Heat map metric" className="h-auto flex-wrap justify-start">

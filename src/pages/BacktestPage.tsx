@@ -13,6 +13,7 @@ import { SummaryStats } from '@/components/backtest/SummaryStats';
 import { InsufficientHistory } from '@/components/backtest/InsufficientHistory';
 import { formatDate } from '@/components/backtest/format';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
 
 // Lazy so recharts stays out of the main bundle.
 const BucketChart = lazy(() => import('@/components/backtest/BucketChart'));
@@ -66,7 +67,10 @@ export default function BacktestPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-2 pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">Score backtest</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
+          Score backtest
+          <InfoTip topic="backtest" />
+        </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           How past 3x scores related to subsequent returns, using only stored data. Educational, not a prediction or
           investment advice.

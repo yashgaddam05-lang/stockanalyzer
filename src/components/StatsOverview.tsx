@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/ui/info-tip';
+import type { ExplainerKey } from '@/lib/explainers';
 
 const RISK_ORDER = ['low', 'medium', 'high', 'extreme'] as const;
 const RISK_BAR: Record<(typeof RISK_ORDER)[number], string> = {
@@ -25,11 +27,12 @@ export interface StatsOverviewProps {
   universeLabel?: string;
 }
 
-function Label({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+function Label({ icon, children, tip }: { icon: ReactNode; children: ReactNode; tip?: ExplainerKey }) {
   return (
     <div className="mb-3 flex items-center gap-2">
       {icon}
       <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{children}</span>
+      {tip && <InfoTip topic={tip} className="-my-1" />}
     </div>
   );
 }
@@ -65,7 +68,7 @@ export function StatsOverview({ stocks, analyses, watchlistCount = 0, universeLa
     <div className="space-y-4" data-testid="stats-overview">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">
-          <Label icon={<TrendingUp className="h-3.5 w-3.5 text-neutral-400" />}>Top candidate</Label>
+          <Label icon={<TrendingUp className="h-3.5 w-3.5 text-neutral-400" />} tip="score">Top candidate</Label>
           {stats.topPick ? (
             <>
               <div className="flex items-baseline gap-2">
@@ -98,7 +101,7 @@ export function StatsOverview({ stocks, analyses, watchlistCount = 0, universeLa
         </Card>
 
         <Card className="p-5">
-          <Label icon={<AlertTriangle className="h-3.5 w-3.5 text-neutral-400" />}>Avg risk score</Label>
+          <Label icon={<AlertTriangle className="h-3.5 w-3.5 text-neutral-400" />} tip="risk">Avg risk score</Label>
           <p className="text-2xl font-bold tracking-tight text-neutral-900">
             {stats.avgRisk}
             <span className="text-sm font-normal text-muted-foreground">/100</span>

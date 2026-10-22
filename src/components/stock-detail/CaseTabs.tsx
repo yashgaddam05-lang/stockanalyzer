@@ -1,6 +1,7 @@
 import type { AnalysisResult } from '@/lib/analysis';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InfoTip } from '@/components/ui/info-tip';
 
 const ORDER = [
   { key: 'bull', label: 'Bull' },
@@ -11,7 +12,10 @@ const ORDER = [
 export function CaseTabs({ analysis }: { analysis: AnalysisResult }) {
   return (
     <Card className="p-6">
-      <h2 className="mb-3 text-sm font-semibold text-neutral-900">Scenarios</h2>
+      <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+        Scenarios
+        <InfoTip topic="cases" />
+      </h2>
       <Tabs defaultValue="neutral">
         <TabsList aria-label="Bull, neutral and bear cases">
           {ORDER.map((c) => (
