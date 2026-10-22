@@ -74,6 +74,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         previous_score: delta?.previous_score ?? null,
       };
     });
+    // Same data for every user and refreshed every 20 minutes: let the CDN serve it.
+    response.setHeader?.('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=1200');
     response.status(200).json(items);
   } catch {
     sendServerError(response);

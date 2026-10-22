@@ -30,9 +30,40 @@ export interface StocksContextValue {
 
 const StocksContext = createContext<StocksContextValue | null>(null);
 
+// Last stock list kept in the browser so pages render instantly while fresh data loads.
+const CACHE_KEY = '3xh:stocks:v1';
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function normalizeRows(rows: StockListItem[]): StockListItem[] {
+  return rows.map((row) => ({ ...row, score_change: row.score_change ?? null, previous_score: row.previous_score ?? null }));
+}
+
+function readCachedStocks(): StockListItem[] | null {
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at: number; rows: StockListItem[] };
+    if (!Array.isArray(parsed.rows) || !parsed.rows.length || Date.now() - parsed.at > CACHE_MAX_AGE_MS) return null;
+    return parsed.rows;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedStocks(rows: StockListItem[]): void {
+  try {
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), rows }));
+  } catch {
+    // Storage full or blocked: the in-memory list still works.
+  }
+}
+
 export function StocksProvider({ children }: { children: ReactNode }) {
-  const [stocks, setStocks] = useState<StockListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialRows] = useState(readCachedStocks);
+  const [stocks, setStocks] = useState<StockListItem[]>(() => (initialRows ? normalizeRows(initialRows) : []));
+  const [loading, setLoading] = useState(initialRows === null);
+  const stocksRef = useRef(stocks);
+  stocksRef.current = stocks;
   const [error, setError] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
@@ -40,14 +71,17 @@ export function StocksProvider({ children }: { children: ReactNode }) {
   const watchlistRef = useRef(watchlist);
   watchlistRef.current = watchlist;
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  /** Fetches the universe. With data already on screen it updates silently instead of showing a loading state. */
+  const reload = useCallback(async (fresh = false) => {
+    const silent = stocksRef.current.length > 0;
+    if (!silent) setLoading(true);
     setError(null);
     try {
-      const rows = await getStocks();
-      setStocks(rows.map((row) => ({ ...row, score_change: row.score_change ?? null, previous_score: row.previous_score ?? null })));
+      const rows = await getStocks(fresh);
+      setStocks(normalizeRows(rows));
+      writeCachedStocks(rows);
     } catch {
-      setError('Could not load stock data. Please try again.');
+      if (!silent) setError('Could not load stock data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -104,7 +138,7 @@ export function StocksProvider({ children }: { children: ReactNode }) {
       if ((data.updated ?? 0) > 0 || (data.total ?? 0) === 0) {
         setLastRefreshed(new Date());
       }
-      await reload();
+      await reload(true);
       return data;
     } finally {
       setRefreshing(false);

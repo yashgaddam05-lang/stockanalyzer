@@ -97,8 +97,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function getStocks(): Promise<StockListItem[]> {
-  return request<StockListItem[]>('/api/stocks');
+/**
+ * Public stock universe. Sent without the auth header so the CDN can serve its cached copy;
+ * `fresh` bypasses that cache (used right after a manual refresh).
+ */
+export async function getStocks(fresh = false): Promise<StockListItem[]> {
+  const response = await fetch(fresh ? `/api/stocks?t=${Date.now()}` : '/api/stocks');
+  if (!response.ok) throw new ApiError('Could not load stock data.', response.status);
+  return response.json() as Promise<StockListItem[]>;
 }
 
 export function getWatchlist(): Promise<WatchlistEntry[]> {

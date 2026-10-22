@@ -72,6 +72,20 @@ export type AuthContext =
   | { kind: 'user'; db: SupabaseClient; userId: string }
   | { kind: 'invalid' };
 
+// Per-instance cache of tokens Supabase has already verified, so a page's burst of API calls
+// costs one auth round trip instead of one per request.
+const VERIFY_CACHE_MS = 60_000;
+const verifiedTokens = new Map<string, { userId: string; until: number }>();
+
+function tokenExpiryMs(token: string): number | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 /** No Authorization header => anonymous; valid JWT => user-scoped client; anything else => invalid. */
 export async function resolveAuth(request: ApiRequest): Promise<AuthContext> {
   const headers = request.headers;
@@ -82,10 +96,16 @@ export async function resolveAuth(request: ApiRequest): Promise<AuthContext> {
 
   const token = getBearerToken(request);
   if (!token) return { kind: 'invalid' };
+  const cached = verifiedTokens.get(token);
+  if (cached && cached.until > Date.now()) return { kind: 'user', db: createUserClient(token), userId: cached.userId };
   try {
     const { data, error } = await supabase.auth.getUser(token);
     const userId = data?.user?.id;
     if (error || !userId) return { kind: 'invalid' };
+    if (verifiedTokens.size >= 500) verifiedTokens.clear();
+    // Never trust a cached verification past the token's own expiry.
+    const exp = tokenExpiryMs(token);
+    verifiedTokens.set(token, { userId, until: Math.min(Date.now() + VERIFY_CACHE_MS, exp ?? Date.now() + VERIFY_CACHE_MS) });
     return { kind: 'user', db: createUserClient(token), userId };
   } catch {
     return { kind: 'invalid' };

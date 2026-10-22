@@ -4,7 +4,6 @@
 import type { ApiRequest, ApiResponse } from './_supabase.js';
 import alertEvents from './_routes/alert-events.js';
 import alerts from './_routes/alerts.js';
-import assistant from './_routes/assistant.js';
 import backtest from './_routes/backtest.js';
 import catalysts from './_routes/catalysts.js';
 import dataHealth from './_routes/data-health.js';
@@ -27,7 +26,8 @@ type Handler = (request: ApiRequest, response: ApiResponse) => unknown;
 const ROUTES: Record<string, Handler> = {
   'alert-events': alertEvents,
   'alerts': alerts,
-  'assistant': assistant,
+  // Loaded on demand so the AI SDK never adds to cold starts of the other routes.
+  'assistant': async (req, res) => (await import('./_routes/assistant.js')).default(req, res),
   'backtest': backtest,
   'catalysts': catalysts,
   'data-health': dataHealth,
