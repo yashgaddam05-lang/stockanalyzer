@@ -1,12 +1,16 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
-import { streamAssistant } from '@/lib/api';
+import { ApiError, streamAssistant } from '@/lib/api';
 import type { AssistantTurn } from '@/lib/api';
 import { useStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { cn } from '@/lib/utils';
+import { offlineAnswer } from '@/components/assistant/offlineHelp';
+import type { HelpLink } from '@/components/assistant/offlineHelp';
+
+type ChatTurn = AssistantTurn & { links?: HelpLink[] };
 
 const STARTERS = [
   'How does the 3x score work?',
@@ -53,15 +57,17 @@ function Reply({ text }: { text: string }) {
 }
 
 /** Describes what the user is looking at so answers can refer to it. */
-function useScreenContext(): () => string {
+function useScreenContext() {
   const { pathname } = useLocation();
   const { stocks, analyses } = useStocks();
-  return useCallback(() => {
+  const ticker = /^\/app\/stock\/([^/]+)/.exec(pathname)?.[1]?.toUpperCase();
+  const stock = ticker ? stocks.find((x) => x.ticker.toUpperCase() === ticker) : undefined;
+  const analysis = ticker ? analyses[stock?.ticker ?? ticker] : undefined;
+  const text = useCallback(() => {
     const lines = [`Page: ${pathname}`];
-    const ticker = /^\/app\/stock\/([^/]+)/.exec(pathname)?.[1]?.toUpperCase();
     if (ticker) {
-      const s = stocks.find((x) => x.ticker.toUpperCase() === ticker);
-      const a = analyses[s?.ticker ?? ticker];
+      const s = stock;
+      const a = analysis;
       if (s) {
         lines.push(`Viewing ${s.ticker} (${s.company_name}), sector ${s.sector ?? 'unknown'}, price ${s.current_price ?? 'n/a'}.`);
       }
@@ -76,13 +82,16 @@ function useScreenContext(): () => string {
       }
     }
     return lines.join('\n');
-  }, [pathname, stocks, analyses]);
+  }, [pathname, ticker, stock, analysis]);
+  return { pathname, stock, analysis, text };
 }
 
 export function AssistantWidget() {
   const assistant = useAssistant();
-  const getContext = useScreenContext();
-  const [turns, setTurns] = useState<AssistantTurn[]>([]);
+  const screen = useScreenContext();
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  /** Set once the AI is unavailable; from then on answers come from the built-in guide. */
+  const [offline, setOffline] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,16 +106,27 @@ export function AssistantWidget() {
     async (question: string) => {
       const q = question.trim();
       if (!q || busy) return;
-      const history: AssistantTurn[] = [...turns, { role: 'user', content: q }];
-      setTurns([...history, { role: 'assistant', content: '' }]);
+      const history: AssistantTurn[] = [...turns.map(({ role, content }) => ({ role, content })), { role: 'user', content: q }];
+      setTurns((cur) => [...cur, { role: 'user', content: q }, { role: 'assistant', content: '' }]);
       setDraft('');
       setError(null);
       setBusy(true);
+      const answerLocally = () => {
+        const a = offlineAnswer(q, screen);
+        setTurns((cur) => [...cur.slice(0, -1), { role: 'assistant', content: a.text, links: a.links }]);
+      };
+      if (offline) {
+        setTimeout(() => {
+          answerLocally();
+          setBusy(false);
+        }, 250);
+        return;
+      }
       const controller = new AbortController();
       abortRef.current = controller;
       try {
         const result = await streamAssistant(
-          { messages: history, context: getContext() },
+          { messages: history, context: screen.text() },
           (text) =>
             setTurns((cur) => {
               const next = [...cur];
@@ -119,15 +139,22 @@ export function AssistantWidget() {
         if (result.remaining !== null) setRemaining(result.remaining);
       } catch (err) {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'The assistant could not answer. Please try again.');
-        // Drop the empty placeholder reply so the user can retry.
-        setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
+        if (err instanceof ApiError && err.status === 429) {
+          setError(err.message);
+          setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
+        } else {
+          // AI unavailable (no key, outage, network): fall back to the built-in guide for the rest of the session.
+          setOffline(true);
+          setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
+          setTurns((cur) => [...cur, { role: 'assistant', content: '' }]);
+          answerLocally();
+        }
       } finally {
         setBusy(false);
         abortRef.current = null;
       }
     },
-    [busy, turns, getContext]
+    [busy, turns, screen, offline]
   );
 
   // Questions queued from info icons elsewhere in the app.
@@ -176,7 +203,7 @@ export function AssistantWidget() {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-neutral-900">3x Hunter assistant</p>
-                <p className="text-[11px] text-neutral-500">Ask how anything in the app works</p>
+                <p className="text-[11px] text-neutral-500">{offline ? 'Quick help from the 3x Hunter guide' : 'Ask how anything in the app works'}</p>
               </div>
             </div>
             <button
@@ -217,7 +244,25 @@ export function AssistantWidget() {
               ) : (
                 <div key={i} className="mr-4 rounded-2xl rounded-bl-sm bg-neutral-100 px-3 py-2 text-[13px] leading-relaxed text-neutral-900">
                   {t.content ? (
-                    <Reply text={t.content} />
+                    <>
+                      <Reply text={t.content} />
+                      {t.links && t.links.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {t.links.map((l) => (
+                            <Link
+                              key={l.to + l.label}
+                              to={l.to}
+                              onClick={() => {
+                                if (window.matchMedia('(max-width: 639px)').matches) assistant.setOpen(false);
+                              }}
+                              className="rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[12px] font-medium text-neutral-900 hover:border-neutral-900"
+                            >
+                              {l.label} →
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-neutral-500">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Thinking...
@@ -265,7 +310,7 @@ export function AssistantWidget() {
               </button>
             </div>
             <p className="mt-1.5 text-[10px] text-neutral-400">
-              Educational help, not investment advice.{remaining !== null ? ` ${remaining} messages left today.` : ''}
+              Educational help, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
             </p>
           </form>
         </div>
