@@ -1,20 +1,22 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import type { DataQualityCheck } from '@/lib/supabase';
+import type { CheckStatus, DataQualityCheck } from '@/lib/supabase';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/data-health/StatusBadge';
 import { CHECK_LABELS } from '@/components/data-health/format';
 
 interface ChecksTableProps {
   checks: DataQualityCheck[];
+  /** Show only checks with this status (set from the banner counts). */
+  filter?: CheckStatus | null;
 }
 
 const ORDER = { fail: 0, warn: 1, ok: 2 } as const;
 
-export function ChecksTable({ checks }: ChecksTableProps) {
+export function ChecksTable({ checks, filter = null }: ChecksTableProps) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const sorted = [...checks].sort((a, b) => ORDER[a.status] - ORDER[b.status]);
+  const sorted = [...checks].filter((c) => !filter || c.status === filter).sort((a, b) => ORDER[a.status] - ORDER[b.status]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {

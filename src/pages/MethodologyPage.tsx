@@ -7,6 +7,7 @@ import { MethodologyToc, type TocItem } from '@/components/methodology/Methodolo
 import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type RiskLabel } from '@/lib/scoring';
 
 const SECTIONS: TocItem[] = [
+  { id: 'simple', label: 'The simple version' },
   { id: 'overview', label: 'Overview' },
   { id: 'dimensions', label: 'Score dimensions' },
   { id: 'risk', label: 'Risk score' },
@@ -21,6 +22,18 @@ const SECTIONS: TocItem[] = [
   { id: 'data', label: 'Data and limitations' },
   { id: 'disclaimer', label: 'Disclaimer' },
 ];
+
+/** One plain-language line per dimension, keyed to DIMENSIONS so weights never drift from the model. */
+const KID_LINES: Record<string, string> = {
+  growth: 'Is the lemonade stand selling more cups every month?',
+  valuation: 'Is the stand cheap to buy compared with how much lemonade it sells?',
+  momentum: 'Are more and more kids lining up lately?',
+  quality: 'Does it keep money after paying for lemons and sugar, without big debts?',
+  catalyst: 'Is something new coming soon, like a new flavor or a summer fair?',
+  position: 'Is it a stand people already know, not one hidden down an alley?',
+  risk: 'Does business swing wildly from day to day? Calmer is better here.',
+  regime: 'Is it a sunny week for lemonade, or is everyone indoors?',
+};
 
 const REGIME_INPUTS = [
   'VIX level (market volatility)',
@@ -117,6 +130,32 @@ export default function MethodologyPage() {
         </aside>
 
         <div className="max-w-3xl space-y-12">
+          <Section id="simple" title="The simple version">
+            <Card className="space-y-4 p-5">
+              <P>
+                Imagine you want to buy part of a lemonade stand, and you hope it grows to be worth three times what you
+                paid. You can’t see the future, so you look at a report card instead. 3x Hunter gives every stock a report
+                card with {DIMENSIONS.length} subjects. Each subject gets a grade from 0 to 100, and some subjects count
+                more than others.
+              </P>
+              <ul className="space-y-2">
+                {DIMENSIONS.map((d) => (
+                  <li key={d.key} className="flex gap-3 text-sm">
+                    <span className="w-12 shrink-0 text-right font-semibold tabular-nums text-neutral-900">{d.weight}%</span>
+                    <span className="text-neutral-700">
+                      <span className="font-medium text-neutral-900">{d.label}:</span> {KID_LINES[d.key] ?? ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <P>
+                Add up the grades, giving the bigger subjects more say, and you get one number: the 3x Score. A stand with a
+                high score looks a lot like the stands that grew big in the past. It is a good report card, not a promise. A
+                kid with straight A’s can still have a bad day, and a stock with a high score can still go down.
+              </P>
+            </Card>
+          </Section>
+
           <Section id="overview" title="Overview">
             <P>
               The 3x Opportunity Score is a 0-100 heuristic that estimates how well a stock fits the profile of companies

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, RefreshCw } from 'lucide-react';
 import { ApiError, getDataHealth } from '@/lib/api';
-import type { DataHealthResponse } from '@/lib/supabase';
+import type { CheckStatus, DataHealthResponse } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +23,13 @@ export default function DataHealthPage() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [checkFilter, setCheckFilter] = useState<CheckStatus | null>(null);
+  const checksRef = useRef<HTMLElement>(null);
+
+  const showChecks = (status: CheckStatus) => {
+    setCheckFilter(status);
+    checksRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -115,7 +122,7 @@ export default function DataHealthPage() {
 
         {state.status === 'ready' && (
           <div className="space-y-8" aria-busy={refreshing}>
-            <OverallBanner overall={state.data.overall} checks={state.data.checks} generatedAt={state.data.generated_at} now={now} />
+            <OverallBanner overall={state.data.overall} checks={state.data.checks} generatedAt={state.data.generated_at} now={now} onSelect={showChecks} />
 
             <section aria-labelledby="dh-coverage" className="space-y-3">
               <h2 id="dh-coverage" className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -124,12 +131,23 @@ export default function DataHealthPage() {
               <CoverageTiles coverage={state.data.coverage} now={now} />
             </section>
 
-            <section aria-labelledby="dh-checks" className="space-y-3">
-              <h2 id="dh-checks" className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
-                Checks
-                <span className="ml-2 normal-case tracking-normal text-neutral-400">{state.data.checks.length}</span>
-              </h2>
-              <ChecksTable checks={state.data.checks} />
+            <section ref={checksRef} aria-labelledby="dh-checks" className="scroll-mt-20 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="dh-checks" className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Checks
+                  <span className="ml-2 normal-case tracking-normal text-neutral-400">{state.data.checks.length}</span>
+                </h2>
+                {checkFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setCheckFilter(null)}
+                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[12px] text-neutral-700 hover:border-neutral-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Showing {checkFilter === 'ok' ? 'passing' : checkFilter === 'warn' ? 'warnings' : 'failing'} only · Show all
+                  </button>
+                )}
+              </div>
+              <ChecksTable checks={state.data.checks} filter={checkFilter} />
             </section>
 
             <section aria-labelledby="dh-runs" className="space-y-3">

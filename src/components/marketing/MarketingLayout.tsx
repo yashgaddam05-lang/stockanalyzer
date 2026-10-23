@@ -45,7 +45,7 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
       <div className={wrap}>
         <Button asChild size="sm" className="h-9 gap-1.5 text-[13px]">
           <Link to="/app">
-            Open app
+            Dashboard
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </Button>

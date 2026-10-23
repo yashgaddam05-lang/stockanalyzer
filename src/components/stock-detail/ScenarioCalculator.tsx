@@ -246,7 +246,22 @@ function CalculatorBody({ stock }: { stock: StockListItem }) {
             assumptions imply.
           </p>
         </div>
-        <ConfidenceBadge level={result.confidence} />
+        <div className="flex flex-wrap items-center gap-2">
+          {result.flags.length > 0 && (
+            <a
+              href="#sanity-checks"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('sanity-checks')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[12px] font-medium text-amber-900 hover:border-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              {result.flags.length} sanity {result.flags.length === 1 ? 'check' : 'checks'}
+            </a>
+          )}
+          <ConfidenceBadge level={result.confidence} />
+        </div>
       </div>
 
       <ScenarioInputs initial={defaults} defaults={defaults} revenueDerived={revenueDerived} onChange={setInputs} />
@@ -290,7 +305,7 @@ function CalculatorBody({ stock }: { stock: StockListItem }) {
       </section>
 
       {result.flags.length > 0 && (
-        <section aria-label="Sanity checks">
+        <section id="sanity-checks" aria-label="Sanity checks" className="scroll-mt-20">
           <SectionTitle>Sanity checks</SectionTitle>
           <ul className="space-y-2">
             {result.flags.map((f) => (

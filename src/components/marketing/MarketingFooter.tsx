@@ -16,7 +16,7 @@ const COLUMNS: { title: string; links: { to: string; label: string }[] }[] = [
     links: [
       { to: '/signup', label: 'Create account' },
       { to: '/login', label: 'Sign in' },
-      { to: '/app', label: 'Open app' },
+      { to: '/app', label: 'Dashboard' },
     ],
   },
   {

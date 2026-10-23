@@ -9,6 +9,8 @@ interface OverallBannerProps {
   checks: DataQualityCheck[];
   generatedAt: string;
   now: number;
+  /** Clicking a count shows just those checks in the table below. */
+  onSelect?: (status: CheckStatus) => void;
 }
 
 const HEADLINES: Record<CheckStatus, string> = {
@@ -19,7 +21,13 @@ const HEADLINES: Record<CheckStatus, string> = {
 
 const ICONS = { ok: CheckCircle2, warn: AlertTriangle, fail: XCircle } as const;
 
-export function OverallBanner({ overall, checks, generatedAt, now }: OverallBannerProps) {
+const COUNT_LABELS: Record<CheckStatus, [string, string]> = {
+  ok: ['passing', 'passing'],
+  warn: ['warning', 'warnings'],
+  fail: ['failing', 'failing'],
+};
+
+export function OverallBanner({ overall, checks, generatedAt, now, onSelect }: OverallBannerProps) {
   const Icon = ICONS[overall];
   const counts = { ok: 0, warn: 0, fail: 0 };
   for (const c of checks) counts[c.status] += 1;
@@ -34,8 +42,27 @@ export function OverallBanner({ overall, checks, generatedAt, now }: OverallBann
         <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', TONE_STYLES[overall].text)} aria-hidden="true" />
         <div>
           <p className="text-sm font-semibold">{HEADLINES[overall]}</p>
-          <p className="text-[13px] opacity-80">
-            {counts.ok} passing, {counts.warn} {counts.warn === 1 ? 'warning' : 'warnings'}, {counts.fail} failing
+          <p className="text-[13px]">
+            {(['ok', 'warn', 'fail'] as const).map((status, i) => {
+              const n = counts[status];
+              const label = `${n} ${COUNT_LABELS[status][n === 1 ? 0 : 1]}`;
+              return (
+                <span key={status}>
+                  {i > 0 && <span className="opacity-80">, </span>}
+                  {onSelect && n > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(status)}
+                      className="rounded font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <span className="opacity-80">{label}</span>
+                  )}
+                </span>
+              );
+            })}
           </p>
         </div>
       </div>
