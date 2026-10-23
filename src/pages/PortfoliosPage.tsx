@@ -23,6 +23,7 @@ import type { PositionRowMeta } from '@/components/portfolio/PositionsTable';
 import { ConcentrationFlags, RiskExposure, SectorExposure } from '@/components/portfolio/ExposurePanels';
 import { PositionDialog } from '@/components/portfolio/PositionDialog';
 import { ImportHoldingsDialog } from '@/components/portfolio/ImportHoldingsDialog';
+import { PortfolioIdeas } from '@/components/portfolio/PortfolioIdeas';
 import { MAX_PORTFOLIOS, buildQuotes } from '@/components/portfolio/portfolio-format';
 import type { PortfolioPosition, PortfolioWithPositions } from '@/components/portfolio/portfolio-format';
 
@@ -337,6 +338,8 @@ export default function PortfoliosPage() {
                 </div>
 
                 <ConcentrationFlags valuation={valuation} />
+
+                <PortfolioIdeas valuation={valuation} />
               </>
             )
           )}
