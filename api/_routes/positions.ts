@@ -18,14 +18,14 @@ import {
 // Simulated, educational positions only. No brokerage or payment integration.
 
 const ALLOWED = ['POST', 'PATCH', 'DELETE'];
-const MAX_POSITIONS_PER_PORTFOLIO = 100;
+export const MAX_POSITIONS_PER_PORTFOLIO = 100;
 const MAX_SHARES = 1e9;
 const MAX_COST_BASIS = 1e7;
-const POSITION_COLUMNS = 'id, portfolio_id, ticker, shares, cost_basis, opened_at, notes, created_at, updated_at';
+export const POSITION_COLUMNS = 'id, portfolio_id, ticker, shares, cost_basis, opened_at, notes, created_at, updated_at';
 const UNAVAILABLE_MESSAGE = 'Portfolios require the latest database migration.';
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-type PositionRow = {
+export type PositionRow = {
   id: string;
   portfolio_id: string;
   ticker: string;
@@ -37,7 +37,7 @@ type PositionRow = {
   updated_at: string;
 };
 
-function toPosition(row: PositionRow) {
+export function toPosition(row: PositionRow) {
   return {
     id: row.id,
     portfolio_id: row.portfolio_id,
@@ -94,7 +94,7 @@ function parseOpenedAt(value: unknown): string | null | undefined {
 type Fields = { shares?: number; cost_basis?: number; opened_at?: string; notes?: string };
 
 /** Validates the shared numeric/date/notes fields; returns an error message or the parsed fields. */
-function parseFields(body: Record<string, unknown>): { error: string } | { fields: Fields } {
+export function parseFields(body: Record<string, unknown>): { error: string } | { fields: Fields } {
   const shares = parseShares(body.shares);
   if (shares === null) return { error: `Shares must be a number greater than 0 and at most ${MAX_SHARES}.` };
   const costBasis = parseCostBasis(body.cost_basis);

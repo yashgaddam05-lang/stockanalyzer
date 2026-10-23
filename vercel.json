@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/:route(watchlist-items|market-regime|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolios|assistant|watchlists|catalysts|positions|stock-add|watchlist|backtest|filings|alerts|stocks)",
+      "source": "/api/:route(watchlist-items|market-regime|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolio-import|portfolios|assistant|watchlists|catalysts|positions|stock-add|watchlist|backtest|filings|alerts|stocks)",
       "destination": "/api/router?__route=:route"
     },
     {

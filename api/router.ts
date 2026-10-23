@@ -9,6 +9,7 @@ import catalysts from './_routes/catalysts.js';
 import dataHealth from './_routes/data-health.js';
 import filings from './_routes/filings.js';
 import marketRegime from './_routes/market-regime.js';
+import portfolioImport from './_routes/portfolio-import.js';
 import portfolios from './_routes/portfolios.js';
 import positions from './_routes/positions.js';
 import preferences from './_routes/preferences.js';
@@ -33,6 +34,7 @@ const ROUTES: Record<string, Handler> = {
   'data-health': dataHealth,
   'filings': filings,
   'market-regime': marketRegime,
+  'portfolio-import': portfolioImport,
   'portfolios': portfolios,
   'positions': positions,
   'preferences': preferences,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Briefcase, Info, LogIn, Plus, RefreshCw } from 'lucide-react';
+import { Briefcase, Info, LogIn, Plus, RefreshCw, Upload } from 'lucide-react';
 import {
   ApiError,
   createPortfolio,
@@ -22,6 +22,7 @@ import { PositionsTable } from '@/components/portfolio/PositionsTable';
 import type { PositionRowMeta } from '@/components/portfolio/PositionsTable';
 import { ConcentrationFlags, RiskExposure, SectorExposure } from '@/components/portfolio/ExposurePanels';
 import { PositionDialog } from '@/components/portfolio/PositionDialog';
+import { ImportHoldingsDialog } from '@/components/portfolio/ImportHoldingsDialog';
 import { MAX_PORTFOLIOS, buildQuotes } from '@/components/portfolio/portfolio-format';
 import type { PortfolioPosition, PortfolioWithPositions } from '@/components/portfolio/portfolio-format';
 
@@ -49,6 +50,7 @@ export default function PortfoliosPage() {
   const [dialog, setDialog] = useState<DialogState>({ kind: 'closed' });
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [rowError, setRowError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const guard = useCallback((err: unknown): never => {
     if (err instanceof ApiError && err.status === 401) {
@@ -198,10 +200,16 @@ export default function PortfoliosPage() {
           </p>
         </div>
         {available && !loadError && !showSkeleton && (
-          <Button type="button" onClick={() => setDialog({ kind: 'add' })} className="shrink-0">
-            <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-            Add position
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-1 h-4 w-4" aria-hidden="true" />
+              Import holdings
+            </Button>
+            <Button type="button" onClick={() => setDialog({ kind: 'add' })}>
+              <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+              Add position
+            </Button>
+          </div>
         )}
       </div>
 
@@ -286,10 +294,16 @@ export default function PortfoliosPage() {
                 Add your first simulated position to see market value, unrealized P/L, sector and risk exposure.
                 {!active && ' A portfolio named "My Portfolio" is created for you.'}
               </p>
-              <Button type="button" className="mt-4" onClick={() => setDialog({ kind: 'add' })}>
-                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-                Add your first position
-              </Button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Button type="button" onClick={() => setImportOpen(true)}>
+                  <Upload className="mr-1 h-4 w-4" aria-hidden="true" />
+                  Import from your brokerage
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setDialog({ kind: 'add' })}>
+                  <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+                  Add a position
+                </Button>
+              </div>
               <p className="mt-3 text-xs text-muted-foreground">
                 Or browse candidates on the{' '}
                 <Link to="/app/explore" className="underline underline-offset-2">
@@ -328,6 +342,17 @@ export default function PortfoliosPage() {
           )}
         </div>
       )}
+
+      <ImportHoldingsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        portfolios={portfolios}
+        defaultPortfolioId={activeId}
+        onImported={(id) => {
+          setActiveId(id);
+          void load({ quiet: true });
+        }}
+      />
 
       <PositionDialog
         mode={dialog.kind === 'edit' ? 'edit' : 'add'}

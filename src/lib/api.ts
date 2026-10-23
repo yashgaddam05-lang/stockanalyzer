@@ -313,6 +313,23 @@ export function updatePosition(id: string, patch: PositionPatch): Promise<Positi
   });
 }
 
+export interface ImportPositionsResult {
+  imported: number;
+  skipped: { row: number; ticker: string; reason: string }[];
+  positions: Position[];
+}
+
+/** Bulk-adds simulated positions parsed from a brokerage export (see src/lib/portfolio-import). */
+export function importPositions(
+  portfolioId: string,
+  positions: { ticker: string; shares: number; cost_basis: number; opened_at?: string }[]
+): Promise<ImportPositionsResult> {
+  return request<ImportPositionsResult>('/api/portfolio-import', {
+    method: 'POST',
+    body: JSON.stringify({ portfolio_id: portfolioId, positions }),
+  });
+}
+
 export function deletePosition(id: string): Promise<void> {
   return request<void>(`/api/positions?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
