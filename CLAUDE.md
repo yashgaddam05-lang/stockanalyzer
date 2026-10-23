@@ -18,6 +18,9 @@ Built in Bolt, deployed on Vercel. Roadmap, design standards and architecture st
 - Commits must be authored as `yashgaddam05@gmail.com` (repo-local git config). Any other author →
   Vercel silently skips the build (`buildSkipped`, status UNKNOWN).
 
+- Installable app (PWA): `sw/sw.js` is emitted by `vite.config.ts` with a per-build id (not in `public/`), with
+  `precache-manifest.json`. It must never cache `/api` or other origins. Icons + manifest live in `public/`.
+
 ## Vercel
 - Project lives in team scope `bolot1`; the Vercel MCP connector has no access. Use the CLI with `--scope bolot1`.
 - Logs: `vercel logs --scope bolot1 --project stockanalyzer --json`

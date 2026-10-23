@@ -8,6 +8,7 @@ import { useStocks } from '@/components/data/StocksProvider';
 import { StockSearch } from '@/components/search/StockSearch';
 import type { StockSearchHandle } from '@/components/search/StockSearch';
 import { cn } from '@/lib/utils';
+import { InstallAppButton } from '@/components/app-install/InstallApp';
 
 type NavItem = { to: string; label: string; end: boolean };
 
@@ -226,6 +227,7 @@ export function NavBar() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             <span className="hidden sm:inline xl:hidden">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
+          <InstallAppButton className="hidden lg:inline-flex" />
           <NotificationBell />
           <AccountMenu />
           <Button
@@ -261,6 +263,7 @@ export function NavBar() {
                 {item.label}
               </NavLink>
             ))}
+            <InstallAppButton variant="ghost" label="Install the app" className="justify-start px-3" />
           </div>
         </nav>
       )}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { cn } from '@/lib/utils';
+import { InstallAppButton } from '@/components/app-install/InstallApp';
 
 const NAV_LINKS = [
   { to: '/#features', label: 'Features' },
@@ -40,9 +41,12 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
     return <div className={cn(wrap, 'h-9', !stacked && 'w-[168px]')} aria-hidden="true" />;
   }
 
+  const install = <InstallAppButton variant={stacked ? 'outline' : 'ghost'} className={stacked ? '' : 'hidden md:inline-flex'} />;
+
   if (user) {
     return (
       <div className={wrap}>
+        {install}
         <Button asChild size="sm" className="h-9 gap-1.5 text-[13px]">
           <Link to="/app">
             Dashboard
@@ -55,6 +59,7 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
 
   return (
     <div className={wrap}>
+      {install}
       <Button asChild variant={stacked ? 'outline' : 'ghost'} size="sm" className="h-9 text-[13px]">
         <Link to="/login">Sign in</Link>
       </Button>
