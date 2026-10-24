@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowRight,
@@ -25,6 +25,10 @@ import { ComplianceNote } from '@/components/marketing/ComplianceNote';
 import { ScorePreviewCard } from '@/components/marketing/ScorePreviewCard';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 import { DIMENSIONS, MODEL_VERSION } from '@/lib/scoring';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Chart code loads on demand so it never weighs down the first page load.
+const TrackRecordTeaser = lazy(() => import('@/components/track-record/TrackRecordView').then((m) => ({ default: m.TrackRecordTeaser })));
 
 
 const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
@@ -205,6 +209,20 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Track record */}
+      <section id="track-record" className="scroll-mt-16 border-t border-border">
+        <div className="mx-auto max-w-6xl space-y-10 px-4 py-16 sm:px-8 sm:py-24">
+          <SectionHeading
+            eyebrow="Track record"
+            title="If you had followed the 3x score since 2016"
+            body="We rebuilt the score for every quarter since 2016 using only the data available at the time, then compared the top-ranked stocks with simply holding the S&P 500."
+          />
+          <Suspense fallback={<Skeleton className="h-[420px] w-full" />}>
+            <TrackRecordTeaser />
+          </Suspense>
         </div>
       </section>
 

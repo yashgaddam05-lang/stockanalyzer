@@ -15,6 +15,7 @@ import NotFoundPage from '@/pages/NotFoundPage';
 const PricingPage = lazy(() => import('@/pages/marketing/PricingPage'));
 const LegalPage = lazy(() => import('@/pages/marketing/LegalPage'));
 const MethodologyPage = lazy(() => import('@/pages/MethodologyPage'));
+const TrackRecordPage = lazy(() => import('@/pages/TrackRecordPage'));
 
 // Auth pages.
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
@@ -92,7 +93,8 @@ export default function App() {
         <Route element={<MarketingLayout />}>
           <Route index element={<LandingPage />} />
           <Route path="pricing" element={<Lazy><PricingPage /></Lazy>} />
-          <Route path="methodology" element={<Lazy><MethodologyPage /></Lazy>} />
+          <Route path="methodology" element={<Lazy><div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><MethodologyPage /></div></Lazy>} />
+          <Route path="track-record" element={<Lazy><div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><TrackRecordPage /></div></Lazy>} />
           <Route path="legal/disclaimer" element={<Lazy><LegalPage doc="disclaimer" /></Lazy>} />
           <Route path="legal/terms" element={<Lazy><LegalPage doc="terms" /></Lazy>} />
           <Route path="legal/privacy" element={<Lazy><LegalPage doc="privacy" /></Lazy>} />
@@ -131,6 +133,7 @@ export default function App() {
             <Route path="market" element={<MarketRegimePage />} />
             <Route path="data-health" element={<DataHealthPage />} />
             <Route path="backtest" element={<BacktestPage />} />
+            <Route path="track-record" element={<TrackRecordPage />} />
             <Route path="*" element={<NotFoundPage homeHref="/app" homeLabel="Back to dashboard" />} />
           </Route>
         </Route>
