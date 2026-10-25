@@ -36,6 +36,7 @@ const MarketRegimePage = lazy(() => import('@/pages/MarketRegimePage'));
 const DataHealthPage = lazy(() => import('@/pages/DataHealthPage'));
 const BacktestPage = lazy(() => import('@/pages/BacktestPage'));
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'));
+const BotsPage = lazy(() => import('@/pages/BotsPage'));
 
 /** Suspense boundary per lazy public page, so the marketing layout stays on screen while it loads. */
 function Lazy({ children }: { children: ReactNode }) {
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="data-health" element={<DataHealthPage />} />
             <Route path="backtest" element={<BacktestPage />} />
             <Route path="track-record" element={<TrackRecordPage />} />
+            <Route path="bots" element={<BotsPage />} />
             <Route path="*" element={<NotFoundPage homeHref="/app" homeLabel="Back to dashboard" />} />
           </Route>
         </Route>

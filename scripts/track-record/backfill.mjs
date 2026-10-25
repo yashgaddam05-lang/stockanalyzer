@@ -8,6 +8,8 @@ mkdirSync(DIR + 'prices', { recursive: true });
 mkdirSync(DIR + 'facts', { recursive: true });
 
 const stocks = await (await fetch(`${SITE}/api/stocks`)).json();
+// Point-in-time S&P 500 membership for the bots backtest.
+writeFileSync(DIR + 'sp500_ticker_start_end.csv', await (await fetch('https://raw.githubusercontent.com/fja05680/sp500/master/sp500_ticker_start_end.csv')).text());
 writeFileSync(DIR + 'universe.json', JSON.stringify(stocks.map((s) => ({ ticker: s.ticker, name: s.company_name, sector: s.sector, in_sp500: s.in_sp500 }))));
 // Public anon key, read from the deployed bundle (same key every visitor's browser has).
 const html = await (await fetch(SITE + '/login')).text();

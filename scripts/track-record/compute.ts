@@ -3,10 +3,13 @@
 // Output: track-record.json (consumed by the app). Uses the app's real scoreStock().
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { scoreStock } from '../../src/lib/scoring/model';
-import { MODEL_VERSION } from '../../src/lib/scoring';
+import { MODEL_VERSION, computeRiskScore } from '../../src/lib/scoring';
+import { BOTS, botPicks } from '../../src/lib/bots';
+import type { BotCandidate } from '../../src/lib/bots';
 
-const DIR = new URL('./data/', import.meta.url).pathname;
+const DIR = process.env.TR_DATA ?? new URL('./data/', import.meta.url).pathname;
 const OUT = process.argv[2] ?? DIR + 'track-record.json';
+const BOTS_OUT = process.argv[3] ?? DIR + 'bots.json';
 type Px = { d: number[]; c: number[]; a: number[]; v: number[] };
 type Fact = { start?: string; end: string; val: number; form?: string; filed: string; fy?: number; fp?: string };
 
@@ -20,6 +23,22 @@ const iso = (d: number) => new Date(d * 86400000).toISOString().slice(0, 10);
 const ANNUAL_FORMS = new Set(['10-K', '10-K/A', '20-F', '20-F/A', '40-F', '40-F/A', '10-KT']);
 
 const spy = loadPx('SPY')!;
+
+// Point-in-time S&P 500 membership (github.com/fja05680/sp500, sp500_ticker_start_end.csv), so bots only
+// hold a stock while it was actually in the index, not because it joined later after a big run.
+const membership = new Map<string, [number, number][]>();
+if (existsSync(DIR + 'sp500_ticker_start_end.csv')) {
+  for (const line of readFileSync(DIR + 'sp500_ticker_start_end.csv', 'utf8').trim().split('\n').slice(1)) {
+    const [t, start, end] = line.split(',');
+    const key = t.trim().replace('-', '.');
+    const list = membership.get(key) ?? [];
+    list.push([day(start), end?.trim() ? day(end.trim()) : Infinity]);
+    membership.set(key, list);
+  }
+}
+const memberAt = (ticker: string, d: number) =>
+  (membership.get(ticker.replace('-', '.')) ?? []).some(([s, e]) => s <= d && d < e);
+if (!membership.size) throw new Error('sp500_ticker_start_end.csv missing: bots need point-in-time membership');
 /** Index of the last bar on or before day d. */
 function idxAt(p: Px, d: number): number {
   let lo = 0, hi = p.d.length - 1, ans = -1;
@@ -165,7 +184,11 @@ type Pick = { ticker: string; score: number };
 const SIZES = [10, 20, 50];
 const quarters: { date: string; eligible: number; picks: Pick[]; ret: Record<string, number> }[] = [];
 // Monthly marks for equity curves.
-const curves: Record<string, { d: string; v: number }[]> = { spy: [], universe: [], ...Object.fromEntries(SIZES.map((n) => [`top${n}`, []])) };
+const curves: Record<string, { d: string; v: number }[]> = {
+  spy: [], universe: [], sp500ew: [], ...Object.fromEntries(SIZES.map((n) => [`top${n}`, []])), ...Object.fromEntries(BOTS.map((b) => [`bot_${b.id}`, []])),
+};
+const coverage: number[] = [];
+const botQuarters: Record<string, { date: string; picks: [string, number, number][]; ret: number; spy: number }[]> = Object.fromEntries(BOTS.map((b) => [b.id, []]));
 const level: Record<string, number> = Object.fromEntries(Object.keys(curves).map((k) => [k, 100]));
 for (const k of Object.keys(curves)) curves[k].push({ d: iso(rebal[0]), v: 100 });
 
@@ -180,6 +203,7 @@ function growthBetween(t: string, d0: number, d1: number): number | null {
 for (let q = 0; q < rebal.length; q++) {
   const D = rebal[q], E = ends[q];
   const scored: Pick[] = [];
+  const cands: BotCandidate[] = [];
   for (const u of universe) {
     const p = px(u.ticker); const f = facts(u.ticker);
     if (!p || !f) continue;
@@ -202,6 +226,7 @@ for (let q = 0; q < rebal.length; q++) {
     const s = scoreStock(stock as never);
     if (s.availableWeight < 60) continue;
     scored.push({ ticker: u.ticker, score: s.total });
+    cands.push({ ticker: u.ticker, score: s.total, risk: computeRiskScore(stock as never).score, inSp500: memberAt(u.ticker, D) });
   }
   scored.sort((a, b) => b.score - a.score || a.ticker.localeCompare(b.ticker));
 
@@ -218,7 +243,15 @@ for (let q = 0; q < rebal.length; q++) {
     const g = tickers.map((t) => growthBetween(t, D, d1)).filter((x): x is number => x !== null);
     return g.length ? g.reduce((a, b) => a + b, 0) / g.length : 1;
   };
-  const baskets: Record<string, string[] | 'SPY'> = { spy: 'SPY', universe: scored.map((s) => s.ticker), ...Object.fromEntries(SIZES.map((n) => [`top${n}`, scored.slice(0, n).map((s) => s.ticker)])) };
+  const botSel = Object.fromEntries(BOTS.map((b) => [b.id, botPicks(b, cands)]));
+  // Share of the index's actual members on day D that we could score (the rest later left the index).
+  const membersAtD = [...membership.keys()].filter((t) => memberAt(t, D)).length;
+  coverage.push(membersAtD ? cands.filter((c) => c.inSp500).length / membersAtD : 0);
+  const baskets: Record<string, string[] | 'SPY'> = {
+    spy: 'SPY', universe: scored.map((s) => s.ticker), ...Object.fromEntries(SIZES.map((n) => [`top${n}`, scored.slice(0, n).map((s) => s.ticker)])),
+    sp500ew: cands.filter((c) => c.inSp500).map((c) => c.ticker),
+    ...Object.fromEntries(BOTS.map((b) => [`bot_${b.id}`, botSel[b.id].map((c) => c.ticker)])),
+  };
   const start = { ...level };
   const ret: Record<string, number> = {};
   for (const mk of marks) {
@@ -229,7 +262,10 @@ for (let q = 0; q < rebal.length; q++) {
     }
   }
   for (const k of Object.keys(baskets)) ret[k] = Math.round((level[k] / start[k] - 1) * 10000) / 100;
-  quarters.push({ date: iso(D), eligible: scored.length, picks: scored.slice(0, 20), ret });
+  for (const b of BOTS) {
+    botQuarters[b.id].push({ date: iso(D), picks: botSel[b.id].map((c) => [c.ticker, c.score, Math.round(c.risk)]), ret: ret[`bot_${b.id}`], spy: ret.spy });
+  }
+  quarters.push({ date: iso(D), eligible: scored.length, picks: scored.slice(0, 20), ret: Object.fromEntries(Object.entries(ret).filter(([k]) => !k.startsWith('bot_') && k !== 'sp500ew')) });
   console.log(iso(D), 'eligible', scored.length, 'top20', ret.top20, 'spy', ret.spy, 'univ', ret.universe);
 }
 
@@ -259,7 +295,10 @@ function stats(series: { d: string; v: number }[]) {
     yearly,
   };
 }
-const summary = Object.fromEntries(Object.entries(curves).map(([k, s]) => [k, stats(s)]));
+const allStats = Object.fromEntries(Object.entries(curves).map(([k, s]) => [k, stats(s)]));
+const keepForTrackRecord = (k: string) => !k.startsWith('bot_') && k !== 'sp500ew';
+const summary = Object.fromEntries(Object.entries(allStats).filter(([k]) => keepForTrackRecord(k)));
+const trCurves = Object.fromEntries(Object.entries(curves).filter(([k]) => keepForTrackRecord(k)));
 const beatRate = Object.fromEntries(SIZES.map((n) => [`top${n}`, Math.round((quarters.filter((q) => q.ret[`top${n}`] > q.ret.spy).length / quarters.length) * 100)]));
 
 writeFileSync(OUT, JSON.stringify({
@@ -269,7 +308,62 @@ writeFileSync(OUT, JSON.stringify({
   universeSize: universe.length,
   rebalance: 'quarterly',
   sizes: SIZES,
-  summary, beatRate, curves,
+  summary, beatRate, curves: trCurves,
   quarters: quarters.map((q) => ({ ...q, picks: q.picks.map((p) => [p.ticker, p.score]) })),
 }));
 console.log(JSON.stringify({ summary: Object.fromEntries(Object.entries(summary).map(([k, s]) => [k, { total: s.totalReturn, cagr: s.cagr, mdd: s.maxDrawdown, sharpe: s.sharpe }])), beatRate }, null, 1));
+
+// ----- Bots: history + survivorship-adjusted projections -----
+// Survivorship haircut: an equal-weight portfolio of point-in-time S&P 500 members (that we still have
+// prices for) beat SPY by this much a year; the gap is mostly companies that later left the index and
+// are missing from our data. Projections subtract it from bot returns.
+const haircut = Math.max(0, Math.log(1 + allStats.sp500ew.cagr / 100) - Math.log(1 + allStats.spy.cagr / 100)); // per year, log
+function monthlyLogReturns(series: { d: string; v: number }[]): number[] {
+  const out: number[] = [];
+  for (let i = 1; i < series.length; i++) out.push(Math.log(series[i].v / series[i - 1].v));
+  return out;
+}
+// Deterministic PRNG so the published numbers are reproducible.
+let seed = 42;
+const rand = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+function project(rets: number[], adjust: number) {
+  const PATHS = 5000, BLOCK = 3;
+  const at = { 60: [] as number[], 120: [] as number[] };
+  for (let p = 0; p < PATHS; p++) {
+    let lv = 0;
+    for (let m = 1; m <= 120; ) {
+      const start = Math.floor(rand() * (rets.length - BLOCK));
+      for (let k = 0; k < BLOCK && m <= 120; k++, m++) {
+        lv += rets[start + k] - adjust / 12;
+        if (m === 60) at[60].push(lv);
+        if (m === 120) at[120].push(lv);
+      }
+    }
+  }
+  const pctl = (xs: number[], q: number) => { const s = [...xs].sort((a, b) => a - b); return Math.round(10000 * Math.exp(s[Math.floor(q * (s.length - 1))])); };
+  const lossOdds = (xs: number[]) => Math.round((xs.filter((x) => x < 0).length / xs.length) * 100);
+  return Object.fromEntries(([60, 120] as const).map((m) => [m === 60 ? 'y5' : 'y10', { low: pctl(at[m], 0.1), mid: pctl(at[m], 0.5), high: pctl(at[m], 0.9), lossOdds: lossOdds(at[m]) }]));
+}
+const spyRets = monthlyLogReturns(curves.spy);
+writeFileSync(BOTS_OUT, JSON.stringify({
+  generatedAt: new Date().toISOString(),
+  modelVersion: MODEL_VERSION,
+  start: iso(rebal[0]), end: iso(lastDay),
+  haircutPct: Math.round((Math.exp(haircut) - 1) * 1000) / 10,
+  sp500ew: allStats.sp500ew,
+  indexCoverage: { avg: Math.round((coverage.reduce((a, b) => a + b, 0) / coverage.length) * 100), first: Math.round(coverage[0] * 100), last: Math.round(coverage[coverage.length - 1] * 100) },
+  spy: { summary: allStats.spy, curve: curves.spy, projection: project(spyRets, 0) },
+  bots: BOTS.map((b) => ({
+    id: b.id,
+    summary: allStats[`bot_${b.id}`],
+    curve: curves[`bot_${b.id}`],
+    beatRate: Math.round((botQuarters[b.id].filter((q) => q.ret > q.spy).length / botQuarters[b.id].length) * 100),
+    avgHoldings: Math.round(botQuarters[b.id].reduce((t, q) => t + q.picks.length, 0) / botQuarters[b.id].length),
+    projection: project(monthlyLogReturns(curves[`bot_${b.id}`]), haircut),
+    quarters: botQuarters[b.id],
+  })),
+}));
+for (const b of BOTS) {
+  const st = allStats[`bot_${b.id}`];
+  console.log(`BOT ${b.id}: total ${st.totalReturn}% cagr ${st.cagr}% mdd ${st.maxDrawdown}% vol ${st.volatility}% | avg picks ${Math.round(botQuarters[b.id].reduce((t, q) => t + q.picks.length, 0) / botQuarters[b.id].length)}`);
+}
