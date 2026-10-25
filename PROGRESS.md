@@ -92,7 +92,7 @@ These standards must be followed in every build session to maintain consistency.
 |---|---|---|
 | Phase | Phase 1 MVP subset | Stage A (items 1–10) complete; Stage B (items 11–15) built; Stage C (items 21, 22, 23, 25, 27, 28 + partial 18/19) merged on `swarm/integration` with routes wired (`app-wiring`) |
 | Stock universe | 100+ stocks seeded (137 tickers) | Document targets 200–500 |
-| Scoring dimensions | 8 of 8 | Aligned to document weights; all 8 scored as of v2.1 (Market Regime Fit added) |
+| Scoring dimensions | 9 of 9 | v2.2 adds Room to 3x (20%: log market cap + analyst mean/high target multiples) and rebalances weights; momentum uses tanh instead of a hard 0 clamp |
 | Risk model | Independent 0–100 risk score | Computed from volatility, beta, debt-to-equity, cash runway, market cap |
 | UX | Multi-page routing | react-router: Dashboard, Explore, Stock Detail, Watchlists, Methodology; SPA rewrite excludes `/api/` |
 | User accounts | Supabase Auth (email/password) | Per-user watchlists via `watchlists.owner_id` + RLS; anonymous shared lists (owner_id NULL) preserved |
@@ -108,14 +108,15 @@ The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/mo
 
 | # | Document dimension | Weight | Status | Current implementation (v2 inputs) | What's needed |
 |---|---|---:|---|---|---|
-| 1 | Growth Potential | 20% | - [x] Implemented (v2) | Single dimension: revenue growth YoY (60%) + earnings growth YoY (40%), plus up to +10 for R&D intensity | Forward revenue/EPS estimates, multi-year growth history |
-| 2 | Valuation Upside | 18% | - [x] Implemented (v2) | Mean of forward P/E, growth-adjusted P/S, PEG and analyst mean-target upside vs current price | EV/Sales, peer/sector-relative comparison |
-| 3 | Momentum | 15% | - [x] Implemented (v2) | Momentum score (MA5/MA20 + 20-day return, 70%) + position in 52-week range (30%) | Estimate revisions, earnings surprises, relative strength vs sector, volume trends, short interest |
-| 4 | Fundamental Quality | 12% | - [x] Implemented (v2) | Gross/operating/net margins, debt-to-equity, cash runway | FCF margin, ROIC, share-dilution tracking |
-| 5 | Catalyst Strength | 12% | - [x] Implemented (v2, proxy) | Proxy from pipeline count (60%) + R&D intensity (40%); no dated events | Catalyst calendar table: earnings dates, product launches, regulatory events |
-| 6 | Market Position | 10% | - [x] Implemented (v2) | Market-cap tier, gross margin as pricing-power indicator, average volume (liquidity) | Market share, moat indicators, customer concentration |
-| 7 | Risk & Volatility | 8% | - [x] Implemented (v2) | Opportunity-side asymmetry from volatility + beta. Separate independent 0-100 risk score with label, drivers and invalidation signals in `src/lib/scoring/risk.ts` (volatility, beta, leverage, runway, market cap, profitability) | Drawdown history, liquidity/float risk inputs |
+| 1 | Growth Potential | 18% | - [x] Implemented (v2) | Single dimension: revenue growth YoY (60%) + earnings growth YoY (40%), plus up to +10 for R&D intensity | Forward revenue/EPS estimates, multi-year growth history |
+| 2 | Valuation Upside | 13% | - [x] Implemented (v2) | Mean of forward P/E, growth-adjusted P/S, PEG and analyst mean-target upside vs current price | EV/Sales, peer/sector-relative comparison |
+| 3 | Momentum | 13% | - [x] Implemented (v2) | Momentum score (MA5/MA20 + 20-day return, 70%) + position in 52-week range (30%) | Estimate revisions, earnings surprises, relative strength vs sector, volume trends, short interest |
+| 4 | Fundamental Quality | 10% | - [x] Implemented (v2) | Gross/operating/net margins, debt-to-equity, cash runway | FCF margin, ROIC, share-dilution tracking |
+| 5 | Catalyst Strength | 10% | - [x] Implemented (v2, proxy) | Proxy from pipeline count (60%) + R&D intensity (40%); no dated events | Catalyst calendar table: earnings dates, product launches, regulatory events |
+| 6 | Market Position | 5% | - [x] Implemented (v2) | Market-cap tier, gross margin as pricing-power indicator, average volume (liquidity) | Market share, moat indicators, customer concentration |
+| 7 | Risk & Volatility | 6% | - [x] Implemented (v2) | Opportunity-side asymmetry from volatility + beta. Separate independent 0-100 risk score with label, drivers and invalidation signals in `src/lib/scoring/risk.ts` (volatility, beta, leverage, runway, market cap, profitability) | Drawdown history, liquidity/float risk inputs |
 | 8 | Market Regime Fit | 5% | - [x] Implemented (v2.1) | Daily `market_regime_snapshots` from `refresh-market` closes: VIX, 10y yield (^TNX) and its 63-day change, SPY vs 200-day MA, SPY 63-day return, risk-appetite 0–100 and label (risk_on / neutral / risk_off), sector/theme ETF 63-day strength vs SPY. Per-stock `regime_fit_score` + drivers from sector-ETF relative strength and style fit (beta, revenue/earnings growth, profitability, volatility) vs the regime label | FRED macro series (CPI, GDP, liquidity), credit spreads, regime backtest validation |
+| 9 | Room to 3x (added v2.2) | 20% | - [x] Implemented (v2.2) | Log market cap ($1B=100, $1T=0, 40%), analyst mean target multiple (1x-3x, 35%) and high target multiple (1x-4x, 25%); targets ignored with fewer than 3 analysts | Historical analyst targets for the track-record backfill (it scores size only) |
 
 **Non-standard dimension removed (model v2):** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
 

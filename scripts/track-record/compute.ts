@@ -52,10 +52,9 @@ function calcMomentum(closes: number[]): number | null {
   const recent = closes.slice(-20);
   const ma5 = recent.slice(-5).reduce((a, b) => a + b, 0) / 5;
   const ma20 = recent.reduce((a, b) => a + b, 0) / recent.length;
-  let score = 50 + (ma5 / ma20 - 1) * 500;
   const base = closes[Math.max(0, closes.length - 20)];
-  score += ((closes[closes.length - 1] - base) / base) * 100;
-  return Math.min(100, Math.max(0, Math.round(score)));
+  const raw = (ma5 / ma20 - 1) * 500 + ((closes[closes.length - 1] - base) / base) * 100;
+  return Math.round(50 + 50 * Math.tanh(raw / 80));
 }
 function calcVolatility(closes: number[]): number | null {
   if (closes.length < 10) return null;

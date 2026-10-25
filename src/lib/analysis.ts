@@ -40,6 +40,7 @@ export interface AnalysisResult {
 const DIMENSION_ICONS: Record<DimensionKey, string> = {
   growth: 'TrendingUp',
   valuation: 'DollarSign',
+  headroom: 'Maximize2',
   momentum: 'Activity',
   quality: 'ShieldCheck',
   catalyst: 'FlaskConical',

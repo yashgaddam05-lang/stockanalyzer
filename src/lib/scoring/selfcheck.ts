@@ -27,6 +27,10 @@
  *   risk_off (22)           RGTI    37   55 -> 54
  *   Without a stored regime_fit_score, v2.1 totals equal v2.0 (asserted).
  *
+ *   v2.2 (Room to 3x, weight 20; rebalanced) base totals without regime:
+ *   NVDA 75 -> 59 ($2.3T has little room)  CRSP 72 -> 76  RGTI 55 -> 65
+ *   The table above is historical; current base totals live in BASE_EXPECTED.
+ *
  * Run: compile with tsc (nodenext) and call runSelfCheck() / runRegimeSelfCheck() (throws on failure), or import it in a
  * test. Pure — no I/O.
  */
@@ -146,11 +150,11 @@ export function runSelfCheck(): SelfCheckRow[] {
 
 // ---------- v2.1 regime examples ----------
 
-/** v2.0 totals / available weight for the fixtures (regime dimension unscored). */
-export const V20_EXPECTED: Record<string, { total: number; availableWeight: number }> = {
-  NVDA: { total: 75, availableWeight: 95 },
-  CRSP: { total: 72, availableWeight: 95 },
-  RGTI: { total: 55, availableWeight: 77 },
+/** Current-model totals / available weight for the fixtures (regime dimension unscored). */
+export const BASE_EXPECTED: Record<string, { total: number; availableWeight: number }> = {
+  NVDA: { total: 59, availableWeight: 95 },
+  CRSP: { total: 76, availableWeight: 95 },
+  RGTI: { total: 65, availableWeight: 82 },
 };
 
 function assert(cond: boolean, msg: string): void {
@@ -233,14 +237,14 @@ export interface RegimeCheckRow {
  * the synthetic risk-on and risk-off regimes.
  */
 export function runRegimeSelfCheck(): RegimeCheckRow[] {
-  assert(MODEL_VERSION === 'v2.1', 'MODEL_VERSION is v2.1');
+  assert(MODEL_VERSION === 'v2.2', 'MODEL_VERSION is v2.2');
 
-  // Totals unchanged vs v2.0 when regime_fit_score is null / absent.
+  // Totals match the regime-free baseline when regime_fit_score is null / absent.
   for (const s of FIXTURES) {
-    const exp = V20_EXPECTED[s.ticker];
+    const exp = BASE_EXPECTED[s.ticker];
     for (const variant of [s, { ...s, regime_fit_score: null }]) {
       const sc = scoreStock(variant);
-      assert(sc.total === exp.total, `${s.ticker} total ${sc.total} === v2.0 ${exp.total}`);
+      assert(sc.total === exp.total, `${s.ticker} total ${sc.total} === base ${exp.total}`);
       assert(sc.availableWeight === exp.availableWeight, `${s.ticker} availableWeight unchanged`);
       assert(!sc.dimensions.find((d) => d.key === 'regime')?.available, `${s.ticker} regime unavailable`);
     }
@@ -290,7 +294,7 @@ export function runRegimeSelfCheck(): RegimeCheckRow[] {
         riskAppetite: snap.risk_appetite,
         ticker: s.ticker,
         fit: fit.score,
-        totalV20: V20_EXPECTED[s.ticker].total,
+        totalV20: BASE_EXPECTED[s.ticker].total,
         totalV21: v21.total,
         drivers: fit.drivers,
       });

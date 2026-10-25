@@ -1,5 +1,8 @@
 /**
- * 3x Opportunity Score — model v2 (8 dimensions).
+ * 3x Opportunity Score — model v2.2 (9 dimensions).
+ *
+ * v2.2 adds Room to 3x: a $1T company needs $2T of new value to triple, a $2B one
+ * needs $4B, so size and analyst target multiples now count directly.
  *
  * Pure, deterministic, no I/O. Portable to Node ESM (api/refresh.ts):
  * relative imports only, explicit .js extensions, type-only import of Stock.
@@ -9,7 +12,7 @@
  */
 import type { Stock } from '../supabase.js';
 
-export const MODEL_VERSION = 'v2.1';
+export const MODEL_VERSION = 'v2.2';
 
 /** Stock plus per-stock regime fit written by the refresh pipeline (see regime.ts). */
 type RegimeStock = Stock & { regime_fit_score?: number | null; regime_fit_drivers?: string[] | null };
@@ -17,6 +20,7 @@ type RegimeStock = Stock & { regime_fit_score?: number | null; regime_fit_driver
 export type DimensionKey =
   | 'growth'
   | 'valuation'
+  | 'headroom'
   | 'momentum'
   | 'quality'
   | 'catalyst'
@@ -32,13 +36,14 @@ export interface DimensionDef {
 }
 
 export const DIMENSIONS: ReadonlyArray<DimensionDef> = [
-  { key: 'growth', label: 'Growth Potential', weight: 20, inputs: ['revenue_growth_yoy', 'earnings_growth_yoy', 'rd_ratio'] },
-  { key: 'valuation', label: 'Valuation Upside', weight: 18, inputs: ['forward_pe', 'price_to_sales', 'peg_ratio', 'target_mean_price', 'current_price'] },
-  { key: 'momentum', label: 'Momentum', weight: 15, inputs: ['momentum_score', 'current_price', 'fifty_two_week_high', 'fifty_two_week_low'] },
-  { key: 'quality', label: 'Fundamental Quality', weight: 12, inputs: ['gross_margin', 'operating_margin', 'profit_margin', 'debt_to_equity', 'cash_runway_months'] },
-  { key: 'catalyst', label: 'Catalyst Strength', weight: 12, inputs: ['pipeline_count', 'rd_ratio'] },
-  { key: 'position', label: 'Market Position', weight: 10, inputs: ['market_cap', 'gross_margin', 'avg_volume'] },
-  { key: 'risk', label: 'Risk & Volatility', weight: 8, inputs: ['volatility', 'beta'] },
+  { key: 'growth', label: 'Growth Potential', weight: 18, inputs: ['revenue_growth_yoy', 'earnings_growth_yoy', 'rd_ratio'] },
+  { key: 'valuation', label: 'Valuation Upside', weight: 13, inputs: ['forward_pe', 'price_to_sales', 'peg_ratio', 'target_mean_price', 'current_price'] },
+  { key: 'headroom', label: 'Room to 3x', weight: 20, inputs: ['market_cap', 'target_mean_price', 'target_high_price', 'current_price', 'analyst_count'] },
+  { key: 'momentum', label: 'Momentum', weight: 13, inputs: ['momentum_score', 'current_price', 'fifty_two_week_high', 'fifty_two_week_low'] },
+  { key: 'quality', label: 'Fundamental Quality', weight: 10, inputs: ['gross_margin', 'operating_margin', 'profit_margin', 'debt_to_equity', 'cash_runway_months'] },
+  { key: 'catalyst', label: 'Catalyst Strength', weight: 10, inputs: ['pipeline_count', 'rd_ratio'] },
+  { key: 'position', label: 'Market Position', weight: 5, inputs: ['market_cap', 'gross_margin', 'avg_volume'] },
+  { key: 'risk', label: 'Risk & Volatility', weight: 6, inputs: ['volatility', 'beta'] },
   { key: 'regime', label: 'Market Regime Fit', weight: 5, inputs: ['regime_fit_score'] },
 ];
 
@@ -170,6 +175,39 @@ function valuation(s: Stock): DimPartial {
   const m = mean(comps);
   if (m === null) return { score: null, drivers: ['No valuation inputs (forward P/E, P/S, PEG, price target) available yet'] };
   return { score: m, drivers };
+}
+
+// Fewer than this many analysts and the target is one or two opinions, not a consensus.
+const MIN_ANALYSTS = 3;
+
+function headroom(s: Stock): DimPartial {
+  const parts: { v: number; w: number }[] = [];
+  const drivers: string[] = [];
+  const mc = num(s.market_cap);
+  if (mc !== null && mc > 0) {
+    // Log scale: $1B and below = 100, $30B ~ 51, $1T+ = 0.
+    parts.push({ v: scale(Math.log10(mc), 12, 9), w: 0.4 });
+    drivers.push(`Tripling from ${formatCap(mc)} means adding ${formatCap(mc * 2)} of market value`);
+  }
+  const px = num(s.current_price);
+  const n = num(s.analyst_count);
+  if (px !== null && px > 0 && (n === null || n >= MIN_ANALYSTS)) {
+    const avg = num(s.target_mean_price);
+    const high = num(s.target_high_price);
+    if (avg !== null && avg > 0) {
+      const m = avg / px;
+      parts.push({ v: scale(m, 1, 3), w: 0.35 });
+      drivers.push(`Analyst mean target is ${m.toFixed(1)}x the current price${m >= 3 ? ' — consensus already sees a triple' : ''}`);
+    }
+    if (high !== null && high > 0) {
+      const h = high / px;
+      parts.push({ v: scale(h, 1, 4), w: 0.25 });
+      drivers.push(`Most bullish analyst target is ${h.toFixed(1)}x${h < 3 ? ' — no analyst sees a triple' : ''}`);
+    }
+  }
+  if (!parts.length) return { score: null, drivers: ['No market cap or analyst target data'] };
+  const wsum = parts.reduce((a, p) => a + p.w, 0);
+  return { score: parts.reduce((a, p) => a + p.v * p.w, 0) / wsum, drivers };
 }
 
 function momentum(s: Stock): DimPartial {
@@ -311,6 +349,7 @@ function regime(s: RegimeStock): DimPartial {
 const SCORERS: Record<DimensionKey, (s: Stock) => DimPartial> = {
   growth,
   valuation,
+  headroom,
   momentum,
   quality,
   catalyst,

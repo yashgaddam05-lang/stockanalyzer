@@ -12,7 +12,7 @@ export interface Explainer {
 export const EXPLAINERS = {
   score: {
     title: '3x Opportunity Score',
-    body: 'A 0-100 score for how well a stock fits the profile of past big winners. It blends 8 weighted factors: Growth (20%), Valuation upside (18%), Momentum (15%), Quality (12%), Catalysts (12%), Market position (10%), Risk & volatility (8%) and Market regime fit (5%). 70+ is strong, under 40 is weak. It is a research starting point, not a prediction.',
+    body: 'A 0-100 score for how well a stock fits the profile of past big winners. It blends 9 weighted factors: Room to 3x (20%, company size and analyst target multiples), Growth (18%), Valuation upside (13%), Momentum (13%), Quality (10%), Catalysts (10%), Market position (5%), Risk & volatility (6%) and Market regime fit (5%). 70+ is strong, under 40 is weak. It is a research starting point, not a prediction.',
     anchor: 'dimensions',
     ask: 'How exactly is the 3x Opportunity Score calculated?',
   },

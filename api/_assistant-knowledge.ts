@@ -7,17 +7,20 @@ export const ASSISTANT_KNOWLEDGE = `
 and any Nasdaq/NYSE/Cboe stock a user adds) on how well they fit the profile of companies that have historically had
 room for a large move. It is not investment advice, places no trades, and connects to no brokerage.
 
-# The 3x Opportunity Score (0-100, model v2.1)
-A deterministic heuristic combining 8 weighted dimensions. Each dimension is scored 0-100 from its inputs; the total is
+# The 3x Opportunity Score (0-100, model v2.2)
+A deterministic heuristic combining 9 weighted dimensions. Each dimension is scored 0-100 from its inputs; the total is
 the weighted average of the dimensions that have data. Missing dimensions are left unscored and their weight is
 re-normalized across the rest, so the total stays on a 0-100 scale. Missing inputs are never fabricated.
-- Growth Potential (20%): revenue growth YoY, earnings growth YoY, R&D ratio.
-- Valuation Upside (18%): forward P/E, price/sales, PEG, analyst mean target vs current price.
-- Momentum (15%): momentum score, position within the 52-week high/low range.
-- Fundamental Quality (12%): gross, operating and net margin, debt/equity, cash runway.
-- Catalyst Strength (12%): pipeline count, R&D ratio.
-- Market Position (10%): market cap, gross margin, average volume.
-- Risk & Volatility (8%): volatility, beta (lower is better here).
+- Growth Potential (18%): revenue growth YoY, earnings growth YoY, R&D ratio.
+- Valuation Upside (13%): forward P/E, price/sales, PEG, analyst mean target vs current price.
+- Room to 3x (20%): market cap (log scale, $1B and below scores highest, $1T+ lowest) plus analyst mean and high
+  targets as multiples of the price (needs 3+ analysts). A huge company needs far more new value to triple.
+- Momentum (13%): momentum score, position within the 52-week high/low range.
+- Fundamental Quality (10%): gross, operating and net margin, debt/equity, cash runway.
+- Catalyst Strength (10%): pipeline count, R&D ratio.
+- Market Position (5%): market cap, gross margin, average volume.
+- Risk & Volatility (6%): volatility, beta (higher means a wider range of outcomes, scored as opportunity; downside
+  is in the separate risk score).
 - Market Regime Fit (5%): how well the stock's profile fits today's market backdrop.
 Reading it: 70+ is a strong fit, 55-69 decent, 40-54 middling, under 40 weak. A high score is a stronger model fit,
 not a prediction that the price will triple.
