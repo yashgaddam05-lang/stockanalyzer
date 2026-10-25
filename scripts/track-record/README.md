@@ -1,6 +1,8 @@
 # Track record (2016 to now)
 
 Rebuilds the 3x score point-in-time for every quarter since 2016 and backtests Top 10/20/50 vs SPY.
+Top N and the equal-weight line only pick stocks that were S&P 500 members on each rebalance day
+(`sp500_ticker_start_end.csv`), like the bots: curated growth names are in today's list because they ran.
 Output: `public/data/track-record.json`, read by `/track-record` and the landing page.
 
 1. Prices come from Yahoo, which rate-limits local machines, so the backfill calls a temporary

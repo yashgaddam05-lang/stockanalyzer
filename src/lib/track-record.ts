@@ -31,7 +31,7 @@ export const SERIES: { key: SeriesKey; label: string; short: string; color: stri
   { key: 'top10', label: '3x Hunter Top 10', short: 'Top 10', color: '#0f766e', strategy: true },
   { key: 'top20', label: '3x Hunter Top 20', short: 'Top 20', color: '#171717', strategy: true },
   { key: 'top50', label: '3x Hunter Top 50', short: 'Top 50', color: '#2563eb', strategy: true },
-  { key: 'universe', label: 'Same stocks, equal weight', short: 'Equal weight', color: '#a3a3a3', dashed: true, strategy: false },
+  { key: 'universe', label: 'S&P 500 members, equal weight', short: 'Equal weight', color: '#a3a3a3', dashed: true, strategy: false },
   { key: 'spy', label: 'S&P 500 (SPY)', short: 'S&P 500', color: '#d97706', strategy: false },
 ];
 

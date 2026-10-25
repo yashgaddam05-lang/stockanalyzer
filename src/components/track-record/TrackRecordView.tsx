@@ -91,9 +91,10 @@ function Disclosure({ data }: { data: TrackRecord }) {
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p>
         <strong>Hypothetical, reconstructed results.</strong> No real money was invested. Scores were rebuilt for each quarter
-        from data available at that time, but the stock list is today&apos;s ({data.universeSize} names), so companies that
-        failed or left the index are missing. That survivorship bias inflates every line except the S&P 500, which is why the
-        equal-weight line of the same stocks is shown. Returns include dividends but no fees, taxes or slippage. Past results do
+        from data available at that time, and each quarter only stocks that were in the S&P 500 on that day could be picked.
+        Prices come from today&apos;s list ({data.universeSize} names), so index members that later failed or were acquired are
+        missing. That survivorship bias inflates every line except the S&P 500, which is why the equal-weight line of the same
+        stocks is shown. Returns include dividends but no fees, taxes or slippage. Past results do
         not predict future returns. Not investment advice.
       </p>
     </div>
@@ -366,10 +367,11 @@ export function TrackRecordView() {
             earnings growth, margins, R&D and debt. Trailing P/E stands in for forward P/E. Momentum, volatility, beta and the 52-week
             range come from daily prices up to that day.
           </li>
-          <li>Analyst price targets, pipeline counts and market regime fit have no reliable history, so those inputs are left out and their weight is re-spread, as the live model does.</li>
+          <li>Analyst price targets, pipeline counts and market regime fit have no reliable history, so those inputs are left out and their weight is re-spread, as the live model does. Room to 3x is scored on company size alone.</li>
+          <li>Only stocks in the S&P 500 on the rebalance day are eligible, using historical index membership. Growth names on today&apos;s list that were not yet in the index are excluded, since they are on the list because they already rose.</li>
           <li>The top 10, 20 or 50 scores are held in equal weight until the next quarter. Returns use dividend-adjusted prices.</li>
           <li>
-            The equal-weight line holds every scored stock. The gap between a Top N line and it shows what the score itself added; the
+            The equal-weight line holds every scored S&P 500 member. The gap between a Top N line and it shows what the score itself added; the
             gap between it and the S&P 500 is mostly survivorship bias.
           </li>
         </ul>

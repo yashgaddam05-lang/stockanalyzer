@@ -224,8 +224,11 @@ for (let q = 0; q < rebal.length; q++) {
     };
     const s = scoreStock(stock as never);
     if (s.availableWeight < 60) continue;
-    scored.push({ ticker: u.ticker, score: s.total });
-    cands.push({ ticker: u.ticker, score: s.total, risk: computeRiskScore(stock as never).score, inSp500: memberAt(u.ticker, D) });
+    const inSp500 = memberAt(u.ticker, D);
+    // Top N only picks index members on day D. Today's curated growth names (QUBT, IONQ...) are in the
+    // universe because they already ran, so picking them before they joined is hindsight.
+    if (inSp500) scored.push({ ticker: u.ticker, score: s.total });
+    cands.push({ ticker: u.ticker, score: s.total, risk: computeRiskScore(stock as never).score, inSp500 });
   }
   scored.sort((a, b) => b.score - a.score || a.ticker.localeCompare(b.ticker));
 
