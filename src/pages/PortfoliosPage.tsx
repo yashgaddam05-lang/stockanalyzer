@@ -24,6 +24,7 @@ import { ConcentrationFlags, RiskExposure, SectorExposure } from '@/components/p
 import { PositionDialog } from '@/components/portfolio/PositionDialog';
 import { ImportHoldingsDialog } from '@/components/portfolio/ImportHoldingsDialog';
 import { PortfolioIdeas } from '@/components/portfolio/PortfolioIdeas';
+import { PortfolioReport } from '@/components/portfolio/PortfolioReport';
 import { MAX_PORTFOLIOS, buildQuotes } from '@/components/portfolio/portfolio-format';
 import type { PortfolioPosition, PortfolioWithPositions } from '@/components/portfolio/portfolio-format';
 
@@ -317,6 +318,8 @@ export default function PortfoliosPage() {
             valuation && (
               <>
                 <PortfolioSummary valuation={valuation} />
+
+                <PortfolioReport valuation={valuation} />
 
                 {rowError && (
                   <p role="alert" className="text-sm text-red-600">

@@ -79,7 +79,7 @@ export function PortfolioIdeas({ valuation }: { valuation: PortfolioValuation })
   if (loading && !stocks.length) return null;
 
   return (
-    <Card className="space-y-6 p-4 sm:p-6" data-testid="portfolio-ideas">
+    <Card id="portfolio-ideas" className="scroll-mt-20 space-y-6 p-4 sm:p-6" data-testid="portfolio-ideas">
       <div className="space-y-1">
         <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-neutral-900">
           <Lightbulb className="h-5 w-5 text-amber-500" aria-hidden="true" />

@@ -16,6 +16,12 @@ export interface Stock {
   cash_runway_months: number;
   three_x_score: number;
   risk_level: 'low' | 'medium' | 'high' | 'extreme';
+  /** Analyst consensus from Yahoo (null until refreshed). Not a score input. */
+  target_high_price?: number | null;
+  target_low_price?: number | null;
+  recommendation_mean?: number | null;
+  recommendation_key?: string | null;
+  analyst_count?: number | null;
   thesis: string;
   updated_at: string;
   // Added by 20261015191519_scoring_inputs_and_score_history.sql.

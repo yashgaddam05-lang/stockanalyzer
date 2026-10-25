@@ -342,6 +342,18 @@ async function buildUpdate(
     if (peg !== undefined) row.peg_ratio = round2(peg);
     const tgt = num(fd, "targetMeanPrice");
     if (tgt !== undefined) row.target_mean_price = round2(tgt);
+    // Analyst consensus (shown on portfolio and stock pages; not a score input).
+    const tgtHi = num(fd, "targetHighPrice");
+    if (tgtHi !== undefined) row.target_high_price = round2(tgtHi);
+    const tgtLo = num(fd, "targetLowPrice");
+    if (tgtLo !== undefined) row.target_low_price = round2(tgtLo);
+    const recMean = num(fd, "recommendationMean");
+    if (recMean !== undefined) row.recommendation_mean = round2(recMean);
+    if (typeof fd.recommendationKey === "string" && /^[a-z_]{2,20}$/.test(fd.recommendationKey) && fd.recommendationKey !== "none") {
+      row.recommendation_key = fd.recommendationKey;
+    }
+    const nAnalysts = num(fd, "numberOfAnalystOpinions");
+    if (nAnalysts !== undefined) row.analyst_count = Math.round(nAnalysts);
     const gm = num(fd, "grossMargins");
     if (gm !== undefined) row.gross_margin = round2(gm * 100);
     const om = num(fd, "operatingMargins");
