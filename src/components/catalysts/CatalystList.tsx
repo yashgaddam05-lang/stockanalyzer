@@ -16,10 +16,12 @@ interface CatalystListProps<T extends Catalyst> {
   onDelete?: (row: T) => void;
   /** Optional extra content rendered before the title (e.g. ticker link on the calendar page). */
   renderLead?: (row: T) => ReactNode;
+  /** Optional content on the right of the row (e.g. expected value badge). */
+  renderAside?: (row: T) => ReactNode;
   deletingId?: string | null;
 }
 
-export function CatalystList<T extends Catalyst>({ rows, canDelete, onDelete, renderLead, deletingId }: CatalystListProps<T>) {
+export function CatalystList<T extends Catalyst>({ rows, canDelete, onDelete, renderLead, renderAside, deletingId }: CatalystListProps<T>) {
   return (
     <ul className="divide-y divide-neutral-200">
       {rows.map((row) => {
@@ -27,7 +29,7 @@ export function CatalystList<T extends Catalyst>({ rows, canDelete, onDelete, re
         const typeLabel = CATALYST_TYPE_LABELS[row.event_type] ?? 'Other';
         const deletable = Boolean(onDelete && canDelete?.(row));
         return (
-          <li key={row.id} className="flex items-start gap-3 py-3" data-testid="catalyst-row">
+          <li key={row.id} className="flex flex-wrap items-start gap-3 py-3 sm:flex-nowrap" data-testid="catalyst-row">
             <div className="w-24 shrink-0 sm:w-28">
               <p className="text-[13px] font-medium text-neutral-900 tabular-nums">{formatCatalystDate(row.event_date)}</p>
               <p className="text-[12px] text-muted-foreground">{relativeLabel(row.event_date)}</p>
@@ -55,6 +57,7 @@ export function CatalystList<T extends Catalyst>({ rows, canDelete, onDelete, re
                 </a>
               )}
             </div>
+            {renderAside?.(row)}
             {deletable && (
               <Button
                 variant="ghost"

@@ -9,6 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CatalystList } from '@/components/catalysts/CatalystList';
 import { AddCatalystDialog } from '@/components/catalysts/AddCatalystDialog';
 import { addDays, daysUntil, toISODate } from '@/components/catalysts/catalyst-format';
+import { CatalystEdgeBadge } from '@/components/catalysts/CatalystEdgeBadge';
+import { useStocks } from '@/components/data/StocksProvider';
+import { scoreCatalyst } from '@/lib/scoring/catalyst-edge';
 
 interface CatalystPanelProps {
   ticker: string;
@@ -34,6 +37,7 @@ export function CatalystPanel({ ticker, canEdit, currentUserId, onCatalystsLoade
   const loadedRef = useRef(onCatalystsLoaded);
   loadedRef.current = onCatalystsLoaded;
   const upper = ticker.toUpperCase();
+  const stock = useStocks().getStock(upper);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -162,7 +166,10 @@ export function CatalystPanel({ ticker, canEdit, currentUserId, onCatalystsLoade
             {upcoming.length === 0 ? (
               <p className="py-2 text-[13px] text-muted-foreground">No upcoming catalysts on file.</p>
             ) : (
-              <CatalystList rows={upcoming} canDelete={canDelete} onDelete={(r) => void handleDelete(r)} deletingId={deletingId} />
+              <CatalystList
+                rows={upcoming}
+                renderAside={(row) => <CatalystEdgeBadge edge={scoreCatalyst(row, stock)} />}
+                canDelete={canDelete} onDelete={(r) => void handleDelete(r)} deletingId={deletingId} />
             )}
           </section>
           <section aria-labelledby={`catalysts-recent-${upper}`}>

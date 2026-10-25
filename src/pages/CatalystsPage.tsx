@@ -10,6 +10,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CatalystList } from '@/components/catalysts/CatalystList';
 import { AddCatalystDialog } from '@/components/catalysts/AddCatalystDialog';
+import { CatalystEdgeBadge } from '@/components/catalysts/CatalystEdgeBadge';
+import { rankCatalysts, scoreCatalyst } from '@/lib/scoring/catalyst-edge';
+import type { CatalystEdge, CatalystRankKey } from '@/lib/scoring/catalyst-edge';
 import {
   CATALYST_TYPES,
   CATALYST_TYPE_LABELS,
@@ -29,6 +32,11 @@ interface CatalystsPageProps {
 const WINDOWS = [30, 90, 180] as const;
 type WindowDays = (typeof WINDOWS)[number];
 const ALL = 'all';
+const SORTS: { key: CatalystRankKey; label: string }[] = [
+  { key: 'value', label: 'Best expected value' },
+  { key: 'odds', label: 'Best odds' },
+  { key: 'date', label: 'By date' },
+];
 const FETCH_LIMIT = 500;
 
 type State =
@@ -36,6 +44,10 @@ type State =
   | { status: 'error'; message: string }
   | { status: 'unavailable' }
   | { status: 'ready'; rows: Catalyst[] };
+
+function pickSort(raw: string | null): CatalystRankKey {
+  return raw === 'odds' || raw === 'date' ? raw : 'value';
+}
 
 function pickWindow(raw: string | null): WindowDays {
   const n = Number(raw);
@@ -60,6 +72,7 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
   const rawType = params.get('type');
   const typeFilter = isCatalystType(rawType) ? rawType : ALL;
   const sectorFilter = params.get('sector') ?? ALL;
+  const sort = pickSort(params.get('sort'));
 
   useEffect(() => {
     const previous = document.title;
@@ -120,6 +133,27 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
       }),
     [allRows, typeFilter, sectorFilter, getStock]
   );
+
+  const edges = useMemo(() => {
+    const map = new Map<string, CatalystEdge>();
+    for (const row of filtered) map.set(row.id, scoreCatalyst(row, getStock(row.ticker)));
+    return map;
+  }, [filtered, getStock]);
+
+  const ranked = useMemo(() => {
+    if (sort === 'date') return [];
+    const scored = filtered.flatMap((catalyst) => {
+      const edge = edges.get(catalyst.id);
+      return edge ? [{ catalyst, edge }] : [];
+    });
+    return rankCatalysts(scored, sort).map((r) => r.catalyst);
+  }, [filtered, edges, sort]);
+  const rankOf = useMemo(() => new Map(ranked.map((r, i) => [r.id, i + 1])), [ranked]);
+
+  const renderAside = (row: Catalyst) => {
+    const edge = edges.get(row.id);
+    return edge ? <CatalystEdgeBadge edge={edge} rank={rankOf.get(row.id)} /> : null;
+  };
 
   const groups = useMemo(() => groupByWeek(filtered), [filtered]);
   const tickerCount = useMemo(() => new Set(filtered.map((r) => r.ticker)).size, [filtered]);
@@ -202,6 +236,22 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
               )}
             >
               Next {w} days
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-md border border-neutral-200 p-0.5" role="group" aria-label="Rank catalysts">
+          {SORTS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setParam('sort', s.key === 'value' ? null : s.key)}
+              aria-pressed={sort === s.key}
+              className={cn(
+                'rounded px-3 py-1.5 text-[13px] transition-colors',
+                sort === s.key ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+              )}
+            >
+              {s.label}
             </button>
           ))}
         </div>
@@ -290,12 +340,29 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
               {deleteError}
             </p>
           )}
+          {sort !== 'date' && (
+            <p className="text-[12px] text-muted-foreground">
+              EV = chance of a good reaction × typical up-move − chance of a bad reaction × typical down-move. Base rates
+              by event type (FDA approvals ~85-90%, Phase 3 ~58%, Phase 2 ~40%, earnings ~53%), scaled by company size and
+              volatility and adjusted for analyst views, growth, momentum and cash runway.
+            </p>
+          )}
           {groups.length === 0 ? (
             <Card className="flex flex-col items-center justify-center gap-2 p-12 text-center">
               <CalendarDays className="h-6 w-6 text-neutral-400" aria-hidden="true" />
               <p className="text-sm text-neutral-700">
                 {hasFilters ? 'No catalysts match these filters.' : `No catalysts in the next ${windowDays} days.`}
               </p>
+            </Card>
+          ) : sort !== 'date' ? (
+            <Card className="px-4 sm:px-6" data-testid="catalyst-ranked">
+              <CatalystList
+                rows={ranked}
+                renderLead={renderLead}
+                renderAside={renderAside}
+                canDelete={canDelete}
+                onDelete={(r) => void handleDelete(r)}
+              />
             </Card>
           ) : (
             <div className="space-y-6">
@@ -312,6 +379,7 @@ export default function CatalystsPage({ canEdit = false, currentUserId = null }:
                     <CatalystList
                       rows={group.items}
                       renderLead={renderLead}
+                      renderAside={renderAside}
                       canDelete={canDelete}
                       onDelete={(r) => void handleDelete(r)}
                     />
