@@ -20,7 +20,7 @@
       "maxDuration": 120
     },
     "api/router.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "crons": [

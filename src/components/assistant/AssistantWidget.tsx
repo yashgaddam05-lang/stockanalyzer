@@ -1,11 +1,12 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
+import { Loader2, MessageCircle, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 import { ApiError, streamAssistant } from '@/lib/api';
 import type { AssistantTurn } from '@/lib/api';
 import { useStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { cn } from '@/lib/utils';
 import { offlineAnswer } from '@/components/assistant/offlineHelp';
 import type { HelpLink } from '@/components/assistant/offlineHelp';
@@ -13,10 +14,10 @@ import type { HelpLink } from '@/components/assistant/offlineHelp';
 type ChatTurn = AssistantTurn & { links?: HelpLink[] };
 
 const STARTERS = [
+  'Review my portfolio',
+  'Tell me about NVDA. Would you buy it at this price?',
+  'I have $500. Is TSLA strong or weak right now?',
   'How does the 3x score work?',
-  'What is the difference between the 3x score and the risk score?',
-  'Which preset screen should I start with?',
-  'How do I add a stock and set an alert?',
 ];
 
 /** Minimal formatting for replies: paragraphs, "- " bullets and **bold**. */
@@ -88,6 +89,7 @@ function useScreenContext() {
 
 export function AssistantWidget() {
   const assistant = useAssistant();
+  const userId = useAuth().user?.id ?? null;
   const screen = useScreenContext();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   /** Set once the AI is unavailable; from then on answers come from the built-in guide. */
@@ -99,6 +101,21 @@ export function AssistantWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Server-side chat session; past sessions are summarized into this account, never shared with another. */
+  const sessionRef = useRef<string | null>(null);
+
+  const newChat = useCallback(() => {
+    abortRef.current?.abort();
+    sessionRef.current = null;
+    setTurns([]);
+    setError(null);
+  }, []);
+
+  // A different account signing in starts from a clean slate in this tab.
+  useEffect(() => {
+    newChat();
+    setRemaining(null);
+  }, [userId, newChat]);
 
   const open = assistant?.open ?? false;
 
@@ -128,10 +145,10 @@ export function AssistantWidget() {
       const timer = setTimeout(() => {
         timedOut = true;
         controller.abort();
-      }, 45_000);
+      }, 180_000);
       try {
         const result = await streamAssistant(
-          { messages: history, context: screen.text() },
+          { messages: history, context: screen.text(), session_id: sessionRef.current },
           (text) =>
             setTurns((cur) => {
               const next = [...cur];
@@ -142,6 +159,7 @@ export function AssistantWidget() {
           controller.signal
         );
         if (result.remaining !== null) setRemaining(result.remaining);
+        if (result.sessionId) sessionRef.current = result.sessionId;
       } catch (err) {
         if (controller.signal.aborted && !timedOut) return;
         if (err instanceof ApiError && err.status === 429) {
@@ -209,24 +227,38 @@ export function AssistantWidget() {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-neutral-900">3x Hunter assistant</p>
-                <p className="text-[11px] text-neutral-500">{offline ? 'Quick help from the 3x Hunter guide' : 'Ask how anything in the app works'}</p>
+                <p className="text-[11px] text-neutral-500">{offline ? 'Quick help from the 3x Hunter guide' : 'Stocks, your portfolio and the app'}</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => assistant.setOpen(false)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-              aria-label="Close assistant"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {turns.length > 0 && !offline && (
+                <button
+                  type="button"
+                  onClick={newChat}
+                  disabled={busy}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-40"
+                  aria-label="Start a new chat"
+                  title="New chat"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => assistant.setOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                aria-label="Close assistant"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
             {turns.length === 0 && (
               <div className="space-y-3">
                 <p className="text-[13px] leading-relaxed text-neutral-600">
-                  Hi! I can explain scores, screens and pages, or help you find your way around. What would you like to know?
+                  Hi! I know your portfolio and what we talked about before. Ask me about any stock, your holdings, or how the app works.
                 </p>
                 <div className="flex flex-col gap-2">
                   {STARTERS.map((s) => (
@@ -300,7 +332,7 @@ export function AssistantWidget() {
                 }}
                 rows={1}
                 maxLength={2000}
-                placeholder="Ask about scores, screens, pages..."
+                placeholder="Ask about a stock, your portfolio, the app..."
                 className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] focus:border-neutral-400 focus:outline-none"
               />
               <button
@@ -316,7 +348,7 @@ export function AssistantWidget() {
               </button>
             </div>
             <p className="mt-1.5 text-[10px] text-neutral-400">
-              Educational help, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
+              Educational research, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
             </p>
           </form>
         </div>

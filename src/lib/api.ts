@@ -388,12 +388,15 @@ export interface AssistantTurn {
   content: string;
 }
 
-/** Streams an assistant reply; calls onText for each chunk. Resolves with the remaining daily message count. */
+/**
+ * Streams an assistant reply; calls onText for each chunk. Resolves with the remaining daily message count and the
+ * chat session id to send with the next message (the server summarizes the session into the account once it ends).
+ */
 export async function streamAssistant(
-  input: { messages: AssistantTurn[]; context?: string },
+  input: { messages: AssistantTurn[]; context?: string; session_id?: string | null },
   onText: (text: string) => void,
   signal?: AbortSignal
-): Promise<{ remaining: number | null }> {
+): Promise<{ remaining: number | null; sessionId: string | null }> {
   const response = await fetch('/api/assistant', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
@@ -415,6 +418,7 @@ export async function streamAssistant(
   const decoder = new TextDecoder();
   let buffer = '';
   let remaining: number | null = null;
+  let sessionId: string | null = null;
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -426,11 +430,13 @@ export async function streamAssistant(
       const event = /^event: (.+)$/m.exec(block)?.[1];
       const data = /^data: (.+)$/m.exec(block)?.[1];
       if (!event || !data) continue;
-      const payload = JSON.parse(data) as { text?: string; remaining?: number; error?: string };
+      const payload = JSON.parse(data) as { text?: string; remaining?: number; session_id?: string | null; error?: string };
       if (event === 'delta' && payload.text) onText(payload.text);
-      else if (event === 'meta' && typeof payload.remaining === 'number') remaining = payload.remaining;
-      else if (event === 'error') throw new ApiError(payload.error ?? 'The assistant could not answer.', 502);
+      else if (event === 'meta') {
+        if (typeof payload.remaining === 'number') remaining = payload.remaining;
+        if (typeof payload.session_id === 'string') sessionId = payload.session_id;
+      } else if (event === 'error') throw new ApiError(payload.error ?? 'The assistant could not answer.', 502);
     }
   }
-  return { remaining };
+  return { remaining, sessionId };
 }
