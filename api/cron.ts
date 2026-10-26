@@ -11,12 +11,13 @@ import {
 } from './_supabase.js';
 import { logRefreshRun, runStockRefresh } from './_refresh-core.js';
 
-const JOBS = ['market', 'stocks', 'filings'] as const;
+const JOBS = ['market', 'stocks', 'filings', 'smart-money'] as const;
 type CronJob = (typeof JOBS)[number];
 
 const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks'>, string> = {
   market: 'refresh-market',
   filings: 'refresh-filings',
+  'smart-money': 'refresh-smart-money',
 };
 
 const EDGE_TIMEOUT_MS = 100_000;

@@ -118,6 +118,8 @@ The scope document specifies 8 dimensions. Scoring model v2 (`src/lib/scoring/mo
 | 8 | Market Regime Fit | 5% | - [x] Implemented (v2.1) | Daily `market_regime_snapshots` from `refresh-market` closes: VIX, 10y yield (^TNX) and its 63-day change, SPY vs 200-day MA, SPY 63-day return, risk-appetite 0–100 and label (risk_on / neutral / risk_off), sector/theme ETF 63-day strength vs SPY. Per-stock `regime_fit_score` + drivers from sector-ETF relative strength and style fit (beta, revenue/earnings growth, profitability, volatility) vs the regime label | FRED macro series (CPI, GDP, liquidity), credit spreads, regime backtest validation |
 | 9 | Room to 3x (added v2.2) | 20% | - [x] Implemented (v2.2) | Log market cap ($1B=100, $1T=0, 40%), analyst mean target multiple (1x-3x, 35%) and high target multiple (1x-4x, 25%); targets ignored with fewer than 3 analysts | Historical analyst targets for the track-record backfill (it scores size only) |
 
+**Tested and not added (2026-10-26): Smart Money.** Specialist-fund ownership (13F) and C-suite buying (Form 4) made Top N worse on the fair point-in-time test, so it stays display-only and the model stays v2.2. See section 15.
+
 **Non-standard dimension removed (model v2):** "Innovation & Pipeline" (15pts) — not in the document's framework. R&D ratio and pipeline count can feed into Growth Potential and Catalyst Strength instead.
 
 ---
@@ -157,6 +159,7 @@ Features from scope document sections 8.1–8.7.
 - [~] Insider activity (Form 4 transactions, `SecActivityPanel` insider tab via `/api/filings`; `SecActivityPanel` mounted on stock detail; Form 4 marker migration `20261016173437_sec_form4_processed.sql`) — short interest still missing
 - [~] SEC filings (`SecActivityPanel` filings tab, EDGAR links; `SecActivityPanel` mounted on stock detail; `refresh-filings` source in `supabase/functions/refresh-filings`) — news still missing
 - [x] 3x scenario calculator
+- [x] Smart money panel: specialist biotech/healthcare fund holders (13F) with quarter-over-quarter change, and C-suite open-market buys ($25k+, last 90 days), with the 45-day 13F lag stated (`SmartMoneyPanel`, `/api/smart-money`). Display only, not scored
 - [ ] Thesis invalidation signals
 - [x] Historical score trend
 
@@ -202,7 +205,7 @@ Data categories from scope document section 6.
 | Price and volume | - [x] Stored daily | Daily OHLCV bars stored in `price_daily` for the universe (`refresh-stocks` v6) and regime symbols (`refresh-market`), refreshed by Vercel cron | Adjusted prices, corporate actions, intraday data, real-time quotes |
 | Fundamentals | - [ ] Partial | revenue growth, earnings growth, debt-to-equity, cash runway | Income statement, balance sheet, cash flow, margins, ROIC, dilution, SBC |
 | Estimates and analyst | - [ ] Missing | Nothing | Forward EPS/revenue, revisions, price targets, ratings, earnings calendar |
-| Alternative data | - [ ] Partial | SEC EDGAR filings (`sec_filings`) and Form 4 insider transactions (`insider_transactions`) via `refresh-filings` | News, transcripts, institutional ownership, short interest, options data |
+| Alternative data | - [ ] Partial | SEC EDGAR filings (`sec_filings`) and Form 4 insider transactions (`insider_transactions`) via `refresh-filings`; specialist healthcare fund 13F holdings for 41 managers (`smart_money_*`) via `refresh-smart-money` | News, transcripts, broad institutional ownership, short interest, options data |
 | Macro data | - [ ] Partial | VIX, 10y yield, SPY trend, sector/theme ETF strength, derived risk appetite (`market_regime_snapshots`) | CPI, GDP, liquidity, credit spreads (FRED) |
 
 ---
@@ -225,6 +228,7 @@ Scope document section 13 recommends ~30+ tables. We have 17 live (see section 1
 - [x] `sec_form4_processed` — processed Form 4 markers (live version 20261016173437)
 - [x] `alerts`, `alert_events` — per-user alert rules and fired events (migration 20261016164150)
 - [x] `portfolios`, `positions` — simulated portfolios (migration 20261016164150)
+- [x] `smart_money_managers`, `smart_money_filings`, `smart_money_holdings`, `cusip_tickers`, `smart_money_signals` — specialist fund 13F holdings and per-ticker summary (migration 20261026120000)
 
 ### Phase 1 target tables
 - [x] `score_history` — historical score snapshots for tracking changes
@@ -367,15 +371,21 @@ Roadmap items 21, 22, 23, 25, 27, 28 (plus partial 18 and 19) built by the engin
 - Wave 3: `app-wiring`, `marketing-methodology-beta-copy`, `progress-doc-stage-c`
 - Note: `backtest-ui` landed through `app-wiring`; the `edge-sec-filings` function source and marker migration were reconciled onto `swarm/integration` (`refresh-filings` deployed, version 3)
 
+### Session 6 — 2026-10-26 (Smart Money)
+- Fixed list of 41 specialist biotech/healthcare 13F filers (Baker Bros, RA Capital, Perceptive, Deerfield, EcoR1, Avoro, Cormorant, BVF, OrbiMed, RTW...). Generalists with a healthcare book (Farallon, Viking, Adage) are left out because their 13F cannot be split by sector
+- Migration `20261026120000_smart_money.sql`, edge function `refresh-smart-money` (13F info tables, OpenFIGI CUSIP map, per-ticker signals), `/api/cron?job=smart-money` daily 10:30 UTC, `/api/smart-money`, `SmartMoneyPanel` on stock detail
+- Point-in-time backtest (`scripts/smart-money`) through a new `TR_SCORE_HOOK` in `scripts/track-record/compute.ts`; the signal hurt Top N, so no model v2.3 (section 15)
+- Track-record prices: the `history-backfill` edge function is retired, so `scripts/track-record/prices-local.mjs` fetches from Yahoo directly
+
 ---
 
 ## 13. Environment
 
 - **Supabase URL:** configured in `.env` (project: irbwaucilrznbqynhtmr)
 - **Supabase Anon Key:** configured in `.env`
-- **Edge functions deployed:** `refresh-stocks` v6 code (Supabase version 7: Yahoo refresh, earnings ingest, `price_daily` bars), `refresh-market` (version 1), `refresh-filings` (version 3)
+- **Edge functions deployed:** `refresh-stocks` v6 code (Supabase version 7: Yahoo refresh, earnings ingest, `price_daily` bars), `refresh-market` (version 1), `refresh-filings` (version 3), `refresh-smart-money` (version 2, 2026-10-26)
 - **Edge Function secrets:** `SEC_USER_AGENT` (required by `refresh-filings`; SEC EDGAR rejects requests without a contact user agent), optional `REFRESH_FILINGS_SECRET` (gates forced re-sync)
-- **Vercel cron:** `CRON_SECRET` env var authenticates `/api/cron`. Schedule (UTC, `vercel.json`): `job=market` 22:00 Mon–Fri, `job=stocks` 23:00 Mon–Fri, `job=filings` 10:00 daily. `api/cron.ts` and `api/refresh.ts` have `maxDuration` 120
+- **Vercel cron:** `CRON_SECRET` env var authenticates `/api/cron`. Schedule (UTC, `vercel.json`): `job=market` 22:00 Mon–Fri, `job=stocks` 23:00 Mon–Fri, `job=filings` 10:00 daily, `job=smart-money` 10:30 daily. `api/cron.ts` and `api/refresh.ts` have `maxDuration` 120
 - **Git:** repository on GitHub; commits must be authored as `yashgaddam05@gmail.com` or Vercel skips the build
 - **Vercel:** project `stockanalyzer` in team scope `bolot1`; pushing to `main` deploys to production. Env vars (`DATABASE_URL`, `DATABASE_ANON_KEY`, and the new public `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) are Production-only, so preview deploys 500 until they are added to Preview
 - **Browser Supabase access:** `supabase-js` in the browser is used for Auth only (`src/lib/auth-client.ts`); all data goes through `/api/*`
@@ -412,3 +422,49 @@ Stage C (session 5) migrations, applied to production Supabase; local filenames 
 - [ ] **Owner action:** set the `SEC_USER_AGENT` Edge Function secret (Supabase Dashboard > Edge Functions > Secrets) if not already set, e.g. `3x Hunter contact@yourdomain`
 - [ ] **Owner action:** set `CRON_SECRET` in Vercel Production env if not set, then confirm the three cron jobs run in the Vercel dashboard (Settings > Cron Jobs) and that `refresh_runs` gets rows
 - [ ] Post-deploy smoke test: `/api/market-regime`, `/api/alerts`, `/api/alert-events`, `/api/portfolios`, `/api/positions`, `/api/backtest`, `/api/filings`, `/api/data-health` return 200 + sane JSON
+
+Smart Money (session 6), applied 2026-10-26:
+- [x] `supabase/migrations/20261026120000_smart_money.sql` applied (live as `smart_money`; `smart_money_holdings` was recreated once with the `cik` key column before any data, so the live table matches the file)
+- [x] `refresh-smart-money` deployed (version 2) and run once: 41 managers, 128 filings (Q4 2025 to Q2 2026), 7,587 positions, 571 ticker signals. The 44 older filings in its 400-day window load on the next daily runs
+- [x] `cusip_tickers` seeded with the 387 CUSIPs that map to universe tickers; other CUSIPs are mapped through OpenFIGI at 120 per run
+- [ ] **Owner action:** `vercel.json` adds the `job=smart-money` cron; confirm it shows under Settings > Cron Jobs after deploy
+- [ ] `SEC_USER_AGENT` secret is still unset (the run reported `user_agent_source: fallback`); same owner action as above
+
+---
+
+## 15. Smart Money backtest (2026-10-26)
+
+**Question:** does specialist biotech/healthcare fund ownership (and C-suite buying) improve the 3x model's Top N picks? Research reported secondhand from Verdad Capital (2026) says the most specialist-owned biotech stocks returned about 20%/yr vs about -2% for the least-owned.
+
+**Method (same fair rules as the track record):** quarterly rebalance 2016-01 to 2026-10 (44 quarters), only point-in-time S&P 500 members, scores from data known before the rebalance day. Each 13F counts from its SEC filing date, not quarter end (45-day lag), and only the first original filing per period (no later amendments). 1,607 13F-HR filings from 41 managers (2015 to 2026), CUSIPs mapped with OpenFIGI. Insider buys come from SEC Form 345 data sets through 2026-Q1: C-suite titles only, $25k+ per purchase, filed before the rebalance day, traded in the prior 90 days. Code: `scripts/smart-money/` (README there).
+
+**1. Signal alone, next-quarter equal-weight returns**
+
+| Test (S&P members on the day) | Group A | Group B | A ann. | B ann. | Spread / quarter | t-stat | A beats B |
+|---|---|---|---:|---:|---:|---:|---:|
+| Health care: most vs least specialist-owned third | ~16 names | ~16 names | 9.9% | 13.6% | -0.89 pts | -1.16 | 43% |
+| Health care: 3+ specialist holders vs none | ~12 | ~18 | 8.4% | 13.2% | -1.16 pts | -1.33 | 41% |
+| Health care: holders rose vs fell q/q | ~10 | ~11 | 15.2% | 12.9% | +0.65 pts | 0.57 | 50% |
+| All sectors: C-suite buy vs none | ~14 | ~388 | 18.8% | 15.1% | +0.92 pts | 1.16 | 52% |
+| Health care: C-suite buy vs none | ~2 | ~49 | 29.1% | 11.1% | +4.85 pts | 1.93 | 61% |
+
+With hindsight bias (all health care incl. today's curated biotech names): most vs least owned +0.12 pts/quarter (t 0.10).
+
+**2. Candidate dimension in the model.** v2.2 plus a Smart Money dimension (holders 0-6 scaled, optionally Q/Q holder change and C-suite buys), added at weight 8 or 15 through `TR_SCORE_HOOK`. Weight 0 reproduces v2.2 exactly (harness check).
+
+| Model | Top 10 CAGR / Sharpe | Top 20 CAGR / Sharpe | Top 50 CAGR / Sharpe |
+|---|---|---|---|
+| **v2.2 (current)** | **25.9% / 1.38** | **22.6% / 1.28** | **19.4% / 1.17** |
+| + holders, w8 | 26.0% / 1.34 | 21.4% / 1.22 | 19.3% / 1.16 |
+| + holders, w15 | 25.0% / 1.29 | 20.2% / 1.14 | 18.8% / 1.13 |
+| + holders + Q/Q, w8 | 26.0% / 1.35 | 21.3% / 1.20 | 19.5% / 1.17 |
+| + holders + Q/Q, w15 | 24.9% / 1.29 | 21.3% / 1.19 | 19.0% / 1.14 |
+| + holders + Q/Q + C-suite buys, w8 | 25.3% / 1.34 | 21.1% / 1.18 | 19.5% / 1.20 |
+| + holders + Q/Q + C-suite buys, w15 | 25.6% / 1.37 | 21.3% / 1.24 | 18.7% / 1.15 |
+
+**Decision: display-only, no v2.3.** Every variant lowers Top 20 by 1.3 to 2.4 points a year, and none beats v2.2 on Top 10 Sharpe. Top 10 CAGR moves by +0.1 at most, which is noise.
+
+**Why it fails here when the paper finds an edge:** the fair test only allows S&P 500 members, about 50 large-cap health care names a quarter. The specialist-fund effect lives in small and mid-cap biotech, which the S&P rule excludes. Among large caps, specialist ownership tilted toward names that lagged. The C-suite buy signal points the right way (+0.9 pts/quarter across all S&P members) but is not significant (t 1.2), and in health care it rests on about 2 names a quarter.
+
+**Revisit when:** the universe gets a fair point-in-time small/mid-cap biotech set (e.g. historical XBI or Russell 2000 health care membership). That is where this signal should be tested next. The insider-buy signal could also be retested on its own once the 2026 Q2+ Form 345 data sets are out.
+

@@ -24,6 +24,12 @@ const ANNUAL_FORMS = new Set(['10-K', '10-K/A', '20-F', '20-F/A', '40-F', '40-F/
 
 const spy = loadPx('SPY')!;
 
+// Optional candidate-signal hook for testing a new dimension before it enters the model:
+// TR_SCORE_HOOK=<module> whose default export maps (ticker, sector, day D, v2.x result) -> adjusted total.
+// It may only use information published before D (see scripts/smart-money/hook.ts).
+type ScoreHook = (ticker: string, sector: string | null, D: number, s: ReturnType<typeof scoreStock>) => number;
+const hook: ScoreHook | null = process.env.TR_SCORE_HOOK ? (await import(process.env.TR_SCORE_HOOK)).default : null;
+
 // Point-in-time S&P 500 membership (github.com/fja05680/sp500, sp500_ticker_start_end.csv), so bots only
 // hold a stock while it was actually in the index, not because it joined later after a big run.
 const membership = new Map<string, [number, number][]>();
@@ -224,6 +230,7 @@ for (let q = 0; q < rebal.length; q++) {
     };
     const s = scoreStock(stock as never);
     if (s.availableWeight < 60) continue;
+    if (hook) s.total = hook(u.ticker, u.sector, D, s);
     const inSp500 = memberAt(u.ticker, D);
     // Top N only picks index members on day D. Today's curated growth names (QUBT, IONQ...) are in the
     // universe because they already ran, so picking them before they joined is hindsight.

@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.refresh-filings]
 verify_jwt = false
+
+[functions.refresh-smart-money]
+verify_jwt = false

@@ -8,7 +8,11 @@ Output: `public/data/track-record.json`, read by `/track-record` and the landing
 1. Prices come from Yahoo, which rate-limits local machines, so the backfill calls a temporary
    Supabase edge function `history-backfill` (redeploy it from git history of this README's commit,
    run, then retire it). SEC companyfacts are fetched directly.
-   `node scripts/track-record/backfill.mjs` → `scripts/track-record/data/` (gitignored)
+   `node scripts/track-record/backfill.mjs` → `scripts/track-record/data/` (gitignored).
+   With the edge function retired, `node scripts/track-record/prices-local.mjs` fetches the prices
+   directly from Yahoo at a gentle pace (about 15 minutes for 570 tickers).
 2. `npx tsx --tsconfig tsconfig.app.json scripts/track-record/compute.ts public/data/track-record.json`
+
+`TR_SCORE_HOOK=<module>` tests a candidate signal on top of the current model (see `scripts/smart-money`).
 
 Re-run quarterly. Results are hypothetical and carry survivorship bias (today's stock list).

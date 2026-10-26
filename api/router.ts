@@ -15,6 +15,7 @@ import positions from './_routes/positions.js';
 import preferences from './_routes/preferences.js';
 import priceHistory from './_routes/price-history.js';
 import scoreHistory from './_routes/score-history.js';
+import smartMoney from './_routes/smart-money.js';
 import stockAdd from './_routes/stock-add.js';
 import stockSearch from './_routes/stock-search.js';
 import stocks from './_routes/stocks.js';
@@ -40,6 +41,7 @@ const ROUTES: Record<string, Handler> = {
   'preferences': preferences,
   'price-history': priceHistory,
   'score-history': scoreHistory,
+  'smart-money': smartMoney,
   'stock-add': stockAdd,
   'stock-search': stockSearch,
   'stocks': stocks,

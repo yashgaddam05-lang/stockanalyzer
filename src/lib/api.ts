@@ -35,6 +35,7 @@ import type {
   Experience,
   RiskAppetite,
 } from '@/lib/supabase';
+import type { SmartMoneyResponse } from '@/lib/smart-money';
 
 export class ApiError extends Error {
   status: number;
@@ -337,6 +338,11 @@ export function deletePosition(id: string): Promise<void> {
 export function getFilings(ticker: string): Promise<FilingsResponse> {
   const params = new URLSearchParams({ ticker });
   return request<FilingsResponse>(`/api/filings?${params.toString()}`);
+}
+
+export function getSmartMoney(ticker: string): Promise<SmartMoneyResponse> {
+  const params = new URLSearchParams({ ticker });
+  return request<SmartMoneyResponse>(`/api/smart-money?${params.toString()}`);
 }
 
 export function getBacktest(params: { horizon: BacktestHorizon; modelVersion?: string }): Promise<BacktestResponse> {

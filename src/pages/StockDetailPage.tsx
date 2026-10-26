@@ -17,6 +17,7 @@ import { ScenarioCalculator } from '@/components/stock-detail/ScenarioCalculator
 import type { PriceChartMarker } from '@/components/stock-detail/PriceChart';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { SecActivityPanel } from '@/components/filings/SecActivityPanel';
+import { SmartMoneyPanel } from '@/components/stock-detail/SmartMoneyPanel';
 import { CreateAlertButton } from '@/components/alerts';
 import { AddPositionButton } from '@/components/portfolio';
 import type { Catalyst } from '@/lib/supabase';
@@ -155,6 +156,8 @@ export default function StockDetailPage() {
           <ScoreHistoryPanel ticker={stock.ticker} />
         </div>
       </div>
+
+      <SmartMoneyPanel ticker={stock.ticker} sector={stock.sector} />
 
       <SecActivityPanel ticker={stock.ticker} />
 

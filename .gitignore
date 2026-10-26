@@ -24,3 +24,4 @@ dist-ssr
 .vercel
 *.local.*
 scripts/track-record/data/
+scripts/smart-money/data/
