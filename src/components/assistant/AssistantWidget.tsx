@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Loader2, MessageCircle, RotateCcw, Send, Sparkles, X } from 'lucide-react';
+import { Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 import { ApiError, streamAssistant } from '@/lib/api';
 import type { AssistantTurn } from '@/lib/api';
 import { useOptionalStocks } from '@/components/data/StocksProvider';
@@ -13,11 +13,11 @@ import type { HelpLink } from '@/components/assistant/offlineHelp';
 
 type ChatTurn = AssistantTurn & { links?: HelpLink[] };
 
-const STARTERS = [
-  'Review my portfolio',
-  'Tell me about NVDA. Would you buy it at this price?',
-  'I have $500. Is TSLA strong or weak right now?',
+const HELP_STARTERS = [
   'How does the 3x score work?',
+  'How do I import my holdings from my brokerage?',
+  'What do the 3x Bots do?',
+  'Which preset screen should I start with?',
 ];
 
 const GUEST_STARTERS = [
@@ -27,41 +27,114 @@ const GUEST_STARTERS = [
   'Is it free?',
 ];
 
-/** Minimal formatting for replies: paragraphs, "- " bullets and **bold**. */
-function inline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith('**') && part.endsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : <Fragment key={i}>{part}</Fragment>
-  );
+/** Starters built from the signed-in user's own stocks and the page they are on. */
+function useStarters(viewing: string | undefined): string[] {
+  const data = useOptionalStocks();
+  const followed = data
+    ? data.stocks
+        .filter((s) => data.watchlist.has(s.ticker))
+        .sort((a, b) => (b.three_x_score ?? 0) - (a.three_x_score ?? 0))
+        .map((s) => s.ticker)
+    : [];
+  const out = [
+    viewing ? `Give me the full analysis of ${viewing}: short and long term, and how it fits my portfolio.` : null,
+    'Review my portfolio: every holding, the risks, and the top 3 moves you would make.',
+    followed[0] && followed[0] !== viewing ? `Deep dive on ${followed[0]}: strong or weak right now, and why?` : null,
+    followed.length > 1 ? 'Which of my stocks looks weakest right now, and what would you do about it?' : 'Find stocks that fit my profile and explain why.',
+    'What events are coming up for my stocks in the next 90 days?',
+  ].filter((x): x is string => !!x);
+  return out.slice(0, 4);
 }
 
+const SAFE_HREF = /^(\/(?!\/)|https?:\/\/)/;
+
+/** Inline markdown: **bold**, *italic* and [links](url); internal links route in-app, external open a new tab. */
+function inline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)\s]+\)|\*[^*\s][^*]*\*)/g).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    const link = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(part);
+    if (link && SAFE_HREF.test(link[2])) {
+      const cls = 'font-medium text-neutral-900 underline underline-offset-2';
+      return link[2].startsWith('/') ? (
+        <Link key={i} to={link[2]} className={cls}>{link[1]}</Link>
+      ) : (
+        <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className={cls}>{link[1]}</a>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return <em key={i}>{part.slice(1, -1)}</em>;
+    return <Fragment key={i}>{part}</Fragment>;
+  });
+}
+
+const cells = (line: string) => line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+
+/** Markdown subset for replies: headings, paragraphs, bullet and numbered lists, tables, bold, italics, links. */
 function Reply({ text }: { text: string }) {
-  const blocks = text.split(/\n{2,}/);
-  return (
-    <div className="space-y-2">
-      {blocks.map((block, i) => {
-        const lines = block.split('\n').filter(Boolean);
-        if (lines.length && lines.every((l) => /^\s*([-*]|\d+\.)\s+/.test(l))) {
-          return (
-            <ul key={i} className="list-disc space-y-1 pl-4">
-              {lines.map((l, j) => (
-                <li key={j}>{inline(l.replace(/^\s*([-*]|\d+\.)\s+/, ''))}</li>
+  const lines = text.split('\n');
+  const blocks: ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) {
+      i++;
+      continue;
+    }
+    if (/^\s*\|/.test(line)) {
+      const rows: string[] = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
+      const body = rows.filter((r) => !/^\s*\|?\s*:?-{2,}/.test(r));
+      const [head, ...rest] = body.map(cells);
+      blocks.push(
+        <div key={blocks.length} className="-mx-1 overflow-x-auto">
+          <table className="w-full border-collapse text-[12px]">
+            <thead>
+              <tr>{head?.map((c, j) => <th key={j} className="border-b border-neutral-300 px-1.5 py-1 text-left font-semibold">{inline(c)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {rest.map((r, k) => (
+                <tr key={k} className="border-b border-neutral-200 last:border-0">
+                  {r.map((c, j) => <td key={j} className="px-1.5 py-1 align-top">{inline(c)}</td>)}
+                </tr>
               ))}
-            </ul>
-          );
-        }
-        return (
-          <p key={i}>
-            {lines.map((l, j) => (
-              <Fragment key={j}>
-                {j > 0 && <br />}
-                {inline(l.replace(/^#+\s*/, ''))}
-              </Fragment>
-            ))}
-          </p>
-        );
-      })}
-    </div>
-  );
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
+    }
+    const heading = /^\s*#{1,6}\s+(.*)$/.exec(line);
+    if (heading) {
+      blocks.push(<p key={blocks.length} className="pt-1 text-[14px] font-semibold text-neutral-900">{inline(heading[1])}</p>);
+      i++;
+      continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items: string[] = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ''));
+      const ListTag = ordered ? 'ol' : 'ul';
+      blocks.push(
+        <ListTag key={blocks.length} className={cn('space-y-1 pl-4', ordered ? 'list-decimal' : 'list-disc')}>
+          {items.map((it, j) => <li key={j}>{inline(it)}</li>)}
+        </ListTag>
+      );
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^\s*(\||#{1,6}\s|[-*]\s|\d+\.\s)/.test(lines[i])) para.push(lines[i++]);
+    if (!para.length) para.push(lines[i++]);
+    blocks.push(
+      <p key={blocks.length}>
+        {para.map((l, j) => (
+          <Fragment key={j}>
+            {j > 0 && <br />}
+            {inline(l)}
+          </Fragment>
+        ))}
+      </p>
+    );
+  }
+  return <div className="space-y-2">{blocks}</div>;
 }
 
 /** Describes what the user is looking at so answers can refer to it. */
@@ -104,6 +177,9 @@ export function AssistantWidget() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   /** Set once the AI is unavailable; from then on answers come from the built-in guide. */
   const [offline, setOffline] = useState(false);
+  /** Full reports need room: signed-in chats open wide on larger screens. */
+  const [wide, setWide] = useState(true);
+  const starters = useStarters(screen.stock?.ticker);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +216,8 @@ export function AssistantWidget() {
       setBusy(true);
       const answerLocally = () => {
         const a = offlineAnswer(q, screen);
-        setTurns((cur) => [...cur.slice(0, -1), { role: 'assistant', content: a.text, links: a.links }]);
+        const note = '*Live analysis is unavailable right now, so this is a quick answer from the built-in guide. Try again in a few minutes for a full answer.*';
+        setTurns((cur) => [...cur.slice(0, -1), { role: 'assistant', content: `${note}\n\n${a.text}`, links: a.links }]);
       };
       if (offline) {
         setTimeout(() => {
@@ -228,7 +305,10 @@ export function AssistantWidget() {
         <div
           role="dialog"
           aria-label="3x Hunter assistant"
-          className="fixed inset-x-0 bottom-0 z-50 flex h-[85vh] flex-col border border-border bg-background shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[600px] sm:max-h-[calc(100vh-40px)] sm:w-[400px] sm:rounded-2xl"
+          className={cn(
+            'fixed inset-x-0 bottom-0 z-50 flex h-[85vh] flex-col border border-border bg-background shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-h-[calc(100vh-40px)] sm:rounded-2xl',
+            wide && !guest ? 'sm:h-[calc(100vh-40px)] sm:w-[min(760px,calc(100vw-40px))]' : 'sm:h-[600px] sm:w-[400px]'
+          )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
@@ -241,6 +321,17 @@ export function AssistantWidget() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {!guest && (
+                <button
+                  type="button"
+                  onClick={() => setWide((w) => !w)}
+                  className="hidden h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 sm:flex"
+                  aria-label={wide ? 'Make the chat smaller' : 'Make the chat wider'}
+                  title={wide ? 'Smaller' : 'Wider'}
+                >
+                  {wide ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+              )}
               {turns.length > 0 && !offline && (
                 <button
                   type="button"
@@ -273,7 +364,7 @@ export function AssistantWidget() {
                     : 'Hi! I know your portfolio and what we talked about before. Ask me about any stock, your holdings, or how the app works.'}
                 </p>
                 <div className="flex flex-col gap-2">
-                  {(guest ? GUEST_STARTERS : STARTERS).map((s) => (
+                  {(guest ? GUEST_STARTERS : offline ? HELP_STARTERS : starters).map((s) => (
                     <button
                       key={s}
                       type="button"

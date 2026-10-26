@@ -194,17 +194,79 @@ async function historyBlock(db: SupabaseClient, userId: string, currentId: strin
   return rows.map((r) => `Session on ${r.started_at.slice(0, 10)}:\n${r.summary}`).join('\n\n');
 }
 
+/** What the user follows and watches for: watchlists with notes, stocks they added, alerts, recent alert hits and
+ * upcoming catalysts on those names. Together with the portfolio this is how the assistant reads their behavior. */
+async function activityBlock(db: SupabaseClient, userId: string): Promise<string> {
+  const [lists, added, alerts, hits] = await Promise.all([
+    db.from('watchlists').select('id, name').eq('owner_id', userId),
+    db.from('stocks').select('ticker, added_at').eq('added_by', userId).order('added_at', { ascending: false }).limit(25),
+    db.from('alerts').select('ticker, kind, threshold').eq('owner_id', userId).eq('is_active', true).limit(30),
+    db.from('alert_events').select('ticker, message, triggered_at').eq('owner_id', userId).order('triggered_at', { ascending: false }).limit(10),
+  ]);
+  const listRows = (lists.data ?? []) as { id: string; name: string }[];
+  const items = listRows.length
+    ? (((await db.from('watchlist_items').select('watchlist_id, ticker, notes, tags, added_at').in('watchlist_id', listRows.map((l) => l.id))).data ?? []) as {
+        watchlist_id: string;
+        ticker: string;
+        notes: string | null;
+        tags: string[] | null;
+        added_at: string;
+      }[])
+    : [];
+  const followed = [...new Set([...items.map((i) => i.ticker.toUpperCase()), ...((added.data ?? []) as { ticker: string }[]).map((r) => r.ticker.toUpperCase())])];
+  const [quotes, events] = followed.length
+    ? await Promise.all([
+        db.from('stocks').select('ticker, current_price, three_x_score, risk_level').in('ticker', followed),
+        db
+          .from('catalysts')
+          .select('ticker, event_type, title, event_date, date_status')
+          .in('ticker', followed)
+          .gte('event_date', new Date().toISOString().slice(0, 10))
+          .lte('event_date', new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10))
+          .order('event_date')
+          .limit(25),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const quote = new Map(((quotes.data ?? []) as { ticker: string; current_price: unknown; three_x_score: number | null; risk_level: string | null }[]).map((q) => [q.ticker.toUpperCase(), q]));
+  const describe = (t: string) => {
+    const q = quote.get(t);
+    const price = num(q?.current_price);
+    return `${t}${price !== null ? ` ${usd(price)}` : ''}${q?.three_x_score != null ? `, 3x ${q.three_x_score}` : ''}${q?.risk_level ? `, ${q.risk_level} risk` : ''}`;
+  };
+
+  const out: string[] = [];
+  for (const list of listRows) {
+    const rows = items.filter((i) => i.watchlist_id === list.id);
+    if (!rows.length) continue;
+    out.push(`Watchlist "${list.name}": ` + rows.map((r) => {
+      const extra = [r.notes?.trim() && `note "${r.notes.trim().slice(0, 120)}"`, r.tags?.length && `tags ${r.tags.join('/')}`, `added ${r.added_at.slice(0, 10)}`].filter(Boolean).join(', ');
+      return `${describe(r.ticker.toUpperCase())} (${extra})`;
+    }).join('; '));
+  }
+  const addedRows = (added.data ?? []) as { ticker: string; added_at: string | null }[];
+  if (addedRows.length) out.push(`Stocks they added to 3x Hunter: ${addedRows.map((r) => `${r.ticker.toUpperCase()}${r.added_at ? ` (${r.added_at.slice(0, 10)})` : ''}`).join(', ')}`);
+  const alertRows = (alerts.data ?? []) as { ticker: string; kind: string; threshold: number | null }[];
+  if (alertRows.length) out.push(`Active alerts: ${alertRows.map((a) => `${a.ticker} ${a.kind}${a.threshold != null ? ` ${a.threshold}` : ''}`).join('; ')}`);
+  const hitRows = (hits.data ?? []) as { ticker: string; message: string; triggered_at: string }[];
+  if (hitRows.length) out.push(`Recent alert hits: ${hitRows.map((h) => `${h.triggered_at.slice(0, 10)} ${h.ticker}: ${h.message}`).join('; ')}`);
+  const eventRows = (events.data ?? []) as { ticker: string; event_type: string; title: string; event_date: string; date_status: string | null }[];
+  if (eventRows.length) out.push(`Upcoming catalysts on their stocks (90 days): ${eventRows.map((e) => `${e.event_date}${e.date_status === 'estimated' ? ' (est.)' : ''} ${e.ticker} ${e.title}`).join('; ')}`);
+  return out.length ? out.join('\n') : 'No watchlists, alerts or added stocks yet.';
+}
+
 /** The account block placed in the system prompt for this user's request. */
 export async function accountContext(db: SupabaseClient, userId: string, currentId: string): Promise<string> {
-  const [profile, portfolio, history] = await Promise.all([
+  const [profile, portfolio, activity, history] = await Promise.all([
     profileBlock(db, userId),
     portfolioBlock(db, userId),
+    activityBlock(db, userId).catch(() => 'Activity could not be loaded.'),
     historyBlock(db, userId, currentId),
   ]);
   return [
     `Today is ${new Date().toISOString().slice(0, 10)}.`,
     `<user_profile>\n${profile}\n</user_profile>`,
     `<portfolio>\n${portfolio}\n</portfolio>`,
+    `<activity>\n${activity}\n</activity>`,
     `<past_sessions>\n${history}\n</past_sessions>`,
   ].join('\n\n');
 }
