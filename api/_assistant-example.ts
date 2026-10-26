@@ -61,8 +61,4 @@ EV ≈ +37% total (~8%/yr), but almost all of it comes from the 5% moonshot. Wit
 
 ## Disclaimer
 *This is general analysis for educational purposes, not personal financial advice. ...* (full disclaimer text)
-
-Sources:
-- [Electrek: Q3 2026 results](https://electrek.co/...)
-- [MarketBeat: consensus target](https://www.marketbeat.com/...)
 `.trim();

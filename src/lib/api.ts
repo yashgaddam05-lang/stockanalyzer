@@ -388,15 +388,33 @@ export interface AssistantTurn {
   content: string;
 }
 
+export interface AssistantSource {
+  url: string;
+  title: string;
+}
+
+export interface AssistantStreamResult {
+  remaining: number | null;
+  sessionId: string | null;
+  /** Web pages the live search actually returned for this answer. */
+  sources: AssistantSource[];
+  /** False when the stream ended without a "done" event (cut off by a timeout or the network). */
+  completed: boolean;
+  /** True when the answer hit the length limit even after the server continued it. */
+  truncated: boolean;
+}
+
 /**
- * Streams an assistant reply; calls onText for each chunk. Resolves with the remaining daily message count and the
- * chat session id to send with the next message (the server summarizes the session into the account once it ends).
+ * Streams an assistant reply; calls onText for each chunk and onWorking while the model searches or thinks.
+ * Resolves with the remaining daily message count, the chat session id to send with the next message (the server
+ * summarizes the session into the account once it ends), the answer's sources and whether it finished.
  */
 export async function streamAssistant(
   input: { messages: AssistantTurn[]; context?: string; session_id?: string | null },
   onText: (text: string) => void,
-  signal?: AbortSignal
-): Promise<{ remaining: number | null; sessionId: string | null }> {
+  signal?: AbortSignal,
+  onWorking?: (seconds: number) => void
+): Promise<AssistantStreamResult> {
   const response = await fetch('/api/assistant', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
@@ -417,8 +435,7 @@ export async function streamAssistant(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  let remaining: number | null = null;
-  let sessionId: string | null = null;
+  const result: AssistantStreamResult = { remaining: null, sessionId: null, sources: [], completed: false, truncated: false };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -430,13 +447,26 @@ export async function streamAssistant(
       const event = /^event: (.+)$/m.exec(block)?.[1];
       const data = /^data: (.+)$/m.exec(block)?.[1];
       if (!event || !data) continue;
-      const payload = JSON.parse(data) as { text?: string; remaining?: number; session_id?: string | null; error?: string };
+      const payload = JSON.parse(data) as {
+        text?: string;
+        remaining?: number;
+        session_id?: string | null;
+        error?: string;
+        seconds?: number;
+        sources?: AssistantSource[];
+        truncated?: boolean;
+      };
       if (event === 'delta' && payload.text) onText(payload.text);
+      else if (event === 'status') onWorking?.(payload.seconds ?? 0);
+      else if (event === 'sources' && Array.isArray(payload.sources)) result.sources = payload.sources.filter((x) => /^https?:\/\//.test(x?.url ?? ''));
       else if (event === 'meta') {
-        if (typeof payload.remaining === 'number') remaining = payload.remaining;
-        if (typeof payload.session_id === 'string') sessionId = payload.session_id;
+        if (typeof payload.remaining === 'number') result.remaining = payload.remaining;
+        if (typeof payload.session_id === 'string') result.sessionId = payload.session_id;
+      } else if (event === 'done') {
+        result.completed = true;
+        result.truncated = Boolean(payload.truncated);
       } else if (event === 'error') throw new ApiError(payload.error ?? 'The assistant could not answer.', 502);
     }
   }
-  return { remaining, sessionId };
+  return result;
 }

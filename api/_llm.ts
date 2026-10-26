@@ -38,6 +38,7 @@ export type ChatRequest = {
   effort: 'low' | 'medium' | 'high';
   /** Live web results for this turn (OpenRouter web plugin). */
   webSearch?: { maxResults: number };
+  signal?: AbortSignal;
 };
 
 function body(req: ChatRequest, stream: boolean) {
@@ -83,9 +84,19 @@ async function post(req: ChatRequest, stream: boolean, signal?: AbortSignal): Pr
   return response;
 }
 
-/** Streams the reply, calling onText per chunk. Resolves with the finish reason. */
-export async function streamChat(req: ChatRequest, onText: (text: string) => void): Promise<string | null> {
-  const response = await post(req, true);
+export type Citation = { url: string; title: string };
+
+export type StreamHandlers = {
+  onText: (text: string) => void;
+  /** Fires on OpenRouter keep-alives while the model searches or thinks, so the UI can show progress. */
+  onWorking?: () => void;
+  /** Web sources the search actually returned (from the API, not written by the model). */
+  onCitation?: (citation: Citation) => void;
+};
+
+/** Streams the reply. Resolves with the finish reason ("stop", "length", ...). */
+export async function streamChat(req: ChatRequest, handlers: StreamHandlers): Promise<string | null> {
+  const response = await post(req, true, req.signal);
   if (!response.body) throw new LlmError('Empty response', 502);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -99,11 +110,21 @@ export async function streamChat(req: ChatRequest, onText: (text: string) => voi
     while ((cut = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, cut).trim();
       buffer = buffer.slice(cut + 1);
-      // Blank lines and ": OPENROUTER PROCESSING" keep-alive comments carry no data.
+      if (line.startsWith(':')) {
+        // ": OPENROUTER PROCESSING" keep-alive while the model searches or reasons.
+        handlers.onWorking?.();
+        continue;
+      }
       if (!line.startsWith('data:')) continue;
       const data = line.slice(5).trim();
       if (data === '[DONE]') return finish;
-      let chunk: { error?: { message?: string; code?: number }; choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[] };
+      let chunk: {
+        error?: { message?: string; code?: number };
+        choices?: {
+          delta?: { content?: string | null; reasoning?: string | null; annotations?: { type?: string; url_citation?: { url?: string; title?: string } }[] };
+          finish_reason?: string | null;
+        }[];
+      };
       try {
         chunk = JSON.parse(data);
       } catch {
@@ -111,7 +132,12 @@ export async function streamChat(req: ChatRequest, onText: (text: string) => voi
       }
       if (chunk.error) throw new LlmError(chunk.error.message ?? 'Model error', chunk.error.code ?? 502);
       const choice = chunk.choices?.[0];
-      if (choice?.delta?.content) onText(choice.delta.content);
+      if (choice?.delta?.content) handlers.onText(choice.delta.content);
+      else if (choice?.delta?.reasoning) handlers.onWorking?.();
+      for (const a of choice?.delta?.annotations ?? []) {
+        const url = a.url_citation?.url;
+        if (a.type === 'url_citation' && url && /^https?:\/\//.test(url)) handlers.onCitation?.({ url, title: a.url_citation?.title || new URL(url).hostname });
+      }
       if (choice?.finish_reason) finish = choice.finish_reason;
     }
   }

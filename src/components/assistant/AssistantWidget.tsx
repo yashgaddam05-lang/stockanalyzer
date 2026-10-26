@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
+import { Download, Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 import { ApiError, streamAssistant } from '@/lib/api';
-import type { AssistantTurn } from '@/lib/api';
+import type { AssistantSource, AssistantTurn } from '@/lib/api';
 import { useOptionalStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -12,7 +12,42 @@ import { offlineAnswer } from '@/components/assistant/offlineHelp';
 import { ChatChart } from '@/components/assistant/ChatChart';
 import type { HelpLink } from '@/components/assistant/offlineHelp';
 
-type ChatTurn = AssistantTurn & { links?: HelpLink[] };
+type ChatTurn = AssistantTurn & { links?: HelpLink[]; sources?: AssistantSource[]; cut?: boolean };
+
+const CONTINUE_QUESTION = 'Continue exactly where you stopped.';
+
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/** Prints answers (charts included) through the browser dialog, where "Save as PDF" downloads them. */
+function printAnswers(sections: { question?: string; html: string }[]) {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  if (!doc || !win) return frame.remove();
+  const styles = [...document.querySelectorAll('link[rel="stylesheet"], style')].map((n) => n.outerHTML).join('');
+  const body = sections
+    .map((s) => `<section class="answer">${s.question ? `<p class="question">${escapeHtml(s.question)}</p>` : ''}${s.html}</section>`)
+    .join('');
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>3x Hunter research ${new Date().toISOString().slice(0, 10)}</title>${styles}
+<style>@page{margin:14mm}body{background:#fff;color:#0a0a0a;font-size:12px;line-height:1.5;padding:4px}
+.no-print{display:none!important}figure,table,tr{break-inside:avoid}.answer{margin-bottom:22px}
+.question{font-weight:600;font-size:13px;border-left:3px solid #0a0a0a;padding-left:8px;margin:0 0 8px}
+.brand{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding-bottom:6px;margin-bottom:14px;font-size:11px;color:#555}</style>
+</head><body><div class="brand"><strong style="color:#0a0a0a">3x Hunter research assistant</strong><span>${escapeHtml(new Date().toLocaleString())} · Educational research, not investment advice</span></div>${body}</body></html>`);
+  doc.close();
+  const go = () => {
+    win.focus();
+    win.print();
+    setTimeout(() => frame.remove(), 1000);
+  };
+  // Give the copied stylesheets a moment to apply before the print dialog snapshots the page.
+  if (doc.readyState === 'complete') setTimeout(go, 300);
+  else win.addEventListener('load', () => setTimeout(go, 300));
+}
 
 const HELP_STARTERS = [
   'How does the 3x score work?',
@@ -204,6 +239,8 @@ export function AssistantWidget() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   /** Set once the AI is unavailable; from then on answers come from the built-in guide. */
   const [offline, setOffline] = useState(false);
+  /** Seconds the model has been searching or thinking on the current answer; null when idle. */
+  const [working, setWorking] = useState<number | null>(null);
   /** Full reports need room: signed-in chats open wide on larger screens. */
   const [wide, setWide] = useState(true);
   const starters = useStarters(screen.stock?.ticker);
@@ -216,6 +253,18 @@ export function AssistantWidget() {
   const abortRef = useRef<AbortController | null>(null);
   /** Server-side chat session; past sessions are summarized into this account, never shared with another. */
   const sessionRef = useRef<string | null>(null);
+
+  /** One answer (index) or the whole chat, with each answer's question, as a printable/PDF page. */
+  const saveAnswers = (index?: number) => {
+    const sections = turns.flatMap((t, i) => {
+      if (t.role !== 'assistant' || !t.content || (index !== undefined && i !== index)) return [];
+      const node = scrollRef.current?.querySelector(`[data-reply="${i}"]`);
+      if (!node) return [];
+      const question = turns[i - 1]?.role === 'user' ? turns[i - 1].content : undefined;
+      return [{ question, html: node.innerHTML }];
+    });
+    if (sections.length) printAnswers(sections);
+  };
 
   const newChat = useCallback(() => {
     abortRef.current?.abort();
@@ -270,8 +319,15 @@ export function AssistantWidget() {
               next[next.length - 1] = { ...last, content: last.content + text };
               return next;
             }),
-          controller.signal
+          controller.signal,
+          (seconds) => setWorking(seconds)
         );
+        setTurns((cur) => {
+          const next = [...cur];
+          const last = next[next.length - 1];
+          if (last?.role === 'assistant') next[next.length - 1] = { ...last, sources: result.sources, cut: !result.completed || result.truncated };
+          return next;
+        });
         if (result.remaining !== null) setRemaining(result.remaining);
         if (result.sessionId) sessionRef.current = result.sessionId;
       } catch (err) {
@@ -287,11 +343,16 @@ export function AssistantWidget() {
           answerLocally();
         } else {
           // One failed or cut-off answer (timeout, network, model error): keep what arrived and stay live.
-          setError(timedOut ? 'That answer took too long and was cut off. Ask again, or narrow the question.' : err instanceof Error ? err.message : 'The assistant could not answer. Please try again.');
-          setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
+          setError(timedOut ? 'That answer took too long and was cut off.' : err instanceof Error ? err.message : 'The assistant could not answer. Please try again.');
+          setTurns((cur) => {
+            const last = cur[cur.length - 1];
+            if (!last?.content) return cur.slice(0, -1);
+            return [...cur.slice(0, -1), { ...last, cut: true }];
+          });
         }
       } finally {
         clearTimeout(timer);
+        setWorking(null);
         setBusy(false);
         abortRef.current = null;
       }
@@ -363,6 +424,17 @@ export function AssistantWidget() {
                   {wide ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                 </button>
               )}
+              {turns.some((t) => t.role === 'assistant' && t.content) && !busy && (
+                <button
+                  type="button"
+                  onClick={() => saveAnswers()}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                  aria-label="Save this chat as PDF"
+                  title="Save chat as PDF"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              )}
               {turns.length > 0 && !offline && (
                 <button
                   type="button"
@@ -417,7 +489,49 @@ export function AssistantWidget() {
                 <div key={i} className="mr-4 rounded-2xl rounded-bl-sm bg-neutral-100 px-3 py-2 text-[13px] leading-relaxed text-neutral-900">
                   {t.content ? (
                     <>
-                      <Reply text={t.content} />
+                      <div data-reply={i}>
+                        <Reply text={t.content} />
+                        {t.sources && t.sources.length > 0 && (
+                          <div className="mt-3 border-t border-neutral-200 pt-2 text-[11px] text-neutral-600">
+                            <p className="mb-1 font-semibold text-neutral-800">Sources from live search</p>
+                            <ol className="list-decimal space-y-0.5 pl-4">
+                              {t.sources.map((src) => (
+                                <li key={src.url}>
+                                  <a href={src.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                                    {src.title}
+                                  </a>{' '}
+                                  <span className="text-neutral-400">{new URL(src.url).hostname.replace(/^www\./, '')}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </div>
+                      {busy && i === turns.length - 1 && working !== null && (
+                        <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-neutral-500">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Still working... {working}s
+                        </p>
+                      )}
+                      {!(busy && i === turns.length - 1) && !offline && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {t.cut && i === turns.length - 1 && (
+                            <button
+                              type="button"
+                              onClick={() => void send(CONTINUE_QUESTION)}
+                              className="rounded-full bg-neutral-900 px-3 py-1 text-[12px] font-semibold text-white"
+                            >
+                              Answer was cut off. Continue →
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => saveAnswers(i)}
+                            className="inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[12px] font-medium text-neutral-900 hover:border-neutral-900"
+                          >
+                            <Download className="h-3 w-3" aria-hidden="true" /> Save as PDF
+                          </button>
+                        </div>
+                      )}
                       {t.links && t.links.length > 0 && (
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
                           {t.links.map((l) => (
@@ -437,7 +551,8 @@ export function AssistantWidget() {
                     </>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-neutral-500">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Thinking...
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      {working !== null ? `Researching live data and thinking... ${working}s` : 'Thinking...'}
                     </span>
                   )}
                 </div>
