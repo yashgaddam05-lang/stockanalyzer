@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingRelation } from './_supabase.js';
+import { completeChat } from './_llm.js';
 
 // Per-account context for the research assistant: the signed-in user's profile, portfolio and summaries of their
 // earlier chats. Every query runs on the caller's RLS-scoped client and is also filtered by owner, so nothing here can
@@ -58,8 +58,6 @@ long term), their stated goals, amounts, horizon and risk tolerance, decisions t
 /** Summarizes this account's finished sessions (all but the current one) and drops their raw transcripts. */
 export async function summarizeFinishedSessions(
   db: SupabaseClient,
-  client: Anthropic,
-  model: string,
   userId: string,
   currentId: string
 ): Promise<void> {
@@ -79,17 +77,13 @@ export async function summarizeFinishedSessions(
       if (!turns.length) return;
       const text = turns.map((t) => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content}`).join('\n\n');
       try {
-        const message = await client.messages.create({
-          model,
-          max_tokens: 1000,
-          output_config: { effort: 'low' },
-          system: SUMMARY_PROMPT,
+        const summary = await completeChat({
+          tier: 'member',
+          system: [{ text: SUMMARY_PROMPT }],
           messages: [{ role: 'user', content: `Chat from ${row.started_at.slice(0, 10)}:\n\n${text}` }],
+          maxTokens: 1000,
+          effort: 'low',
         });
-        const summary = message.content
-          .map((b) => (b.type === 'text' ? b.text : ''))
-          .join('')
-          .trim();
         if (!summary) return;
         await db
           .from('assistant_sessions')

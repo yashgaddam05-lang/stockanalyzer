@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import Anthropic from '@anthropic-ai/sdk';
 import {
   readJsonBody,
   resolveAuth,
@@ -11,6 +10,7 @@ import {
 } from '../_supabase.js';
 import { ASSISTANT_KNOWLEDGE } from '../_assistant-knowledge.js';
 import { ASSISTANT_EXAMPLE } from '../_assistant-example.js';
+import { LlmError, llmConfigured, streamChat } from '../_llm.js';
 import { accountContext, openSession, saveTranscript, summarizeFinishedSessions, type Turn } from '../_assistant-account.js';
 
 // POST /api/assistant { messages: [{role, content}], context?: string, session_id?: string }
@@ -19,14 +19,12 @@ import { accountContext, openSession, saveTranscript, summarizeFinishedSessions,
 // summaries) through their RLS-scoped client; the assistant keeps no memory of its own.
 // Signed out: a product guide that explains 3x Hunter and invites sign-up, limited per visitor IP and globally.
 
-const MODEL = process.env.ASSISTANT_MODEL || 'claude-opus-5-5';
 const DAILY_LIMIT = 40;
 const MAX_TURNS = 20;
 const MAX_CHARS = 2000;
 const MAX_ASSISTANT_CHARS = 12000;
 const MAX_CONTEXT_CHARS = 2500;
-const MAX_SEARCHES = 6;
-const MAX_CONTINUATIONS = 3;
+const WEB_RESULTS = 10;
 
 const RULES = `You are the 3x Hunter research assistant. You answer two kinds of questions.
 
@@ -120,27 +118,17 @@ async function handleGuest(request: ApiRequest, response: StreamResponse, messag
   });
   const send = (event: string, data: unknown) => response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   send('meta', { remaining, session_id: null });
-  const system: Anthropic.Beta.BetaTextBlockParam[] = [
-    { type: 'text', text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${GUEST_RULES}`, cache_control: { type: 'ephemeral' } },
-  ];
-  if (context) system.push({ type: 'text', text: `<screen_context>\n${context}\n</screen_context>` });
-  client ??= new Anthropic();
+  const system = [{ text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${GUEST_RULES}`, cache: true }];
+  if (context) system.push({ text: `<screen_context>\n${context}\n</screen_context>`, cache: false });
   try {
-    const stream = client.beta.messages.stream({
-      model: MODEL,
-      max_tokens: GUEST_MAX_TOKENS,
-      output_config: { effort: 'low' },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    });
-    stream.on('text', (text) => send('delta', { text }));
-    const message = await stream.finalMessage();
-    send('done', { stop_reason: message.stop_reason });
+    const finish = await streamChat(
+      { tier: 'guest', system, messages, maxTokens: GUEST_MAX_TOKENS, effort: 'low' },
+      (text) => send('delta', { text })
+    );
+    send('done', { stop_reason: finish });
   } catch (error) {
-    console.error('assistant guest error', (error as { status?: number })?.status ?? '', (error as Error)?.message ?? error);
-    send('error', { error: 'The assistant could not answer. Please try again.' });
+    console.error('assistant guest error', (error as LlmError)?.status ?? '', (error as Error)?.message ?? error);
+    send('error', { error: errorText(error) });
   } finally {
     response.end();
   }
@@ -151,7 +139,12 @@ type StreamResponse = ApiResponse & {
   write: (chunk: string) => void;
 };
 
-let client: Anthropic | null = null;
+function errorText(error: unknown): string {
+  const status = error instanceof LlmError ? error.status : 0;
+  if (status === 429) return 'The assistant is busy right now. Try again in a minute.';
+  if (status === 401 || status === 402 || status === 403) return 'The assistant is offline right now.';
+  return 'The assistant could not answer. Please try again.';
+}
 
 function sanitize(raw: unknown): Turn[] | null {
   if (!Array.isArray(raw)) return null;
@@ -177,7 +170,7 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     sendUnauthorized(response, 'Your session expired. Sign in again.');
     return;
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!llmConfigured()) {
     response.status(503).json({ error: 'The assistant is offline right now. Please try again later.' });
     return;
   }
@@ -203,10 +196,9 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     return;
   }
 
-  client ??= new Anthropic();
   const session = await openSession(auth.db, auth.userId, body.session_id);
   // A new session means the previous ones are over: fold them into summaries before loading this account's history.
-  if (session?.isNew) await summarizeFinishedSessions(auth.db, client, MODEL, auth.userId, session.id);
+  if (session?.isNew) await summarizeFinishedSessions(auth.db, auth.userId, session.id);
   const account = await accountContext(auth.db, auth.userId, session?.id ?? '');
 
   response.writeHead(200, {
@@ -218,51 +210,26 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
   send('meta', { remaining, session_id: session?.id ?? null });
 
   // The knowledge and rules block is identical for every request, so it is cached; the account block is per user.
-  const system: Anthropic.Beta.BetaTextBlockParam[] = [
-    {
-      type: 'text',
-      text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${RULES}\n\n<example_answer>\n${ASSISTANT_EXAMPLE}\n</example_answer>`,
-      cache_control: { type: 'ephemeral' },
-    },
-    { type: 'text', text: account },
+  const system = [
+    { text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${RULES}\n\n<example_answer>\n${ASSISTANT_EXAMPLE}\n</example_answer>`, cache: true },
+    { text: account, cache: false },
   ];
-  if (context) system.push({ type: 'text', text: `<screen_context>\n${context}\n</screen_context>` });
+  if (context) system.push({ text: `<screen_context>\n${context}\n</screen_context>`, cache: false });
 
-  const conversation: Anthropic.Beta.BetaMessageParam[] = messages.map((m) => ({ role: m.role, content: m.content }));
   let reply = '';
   try {
-    let message: Anthropic.Beta.BetaMessage | null = null;
-    // Web search runs server side; a long search loop can pause the turn, which is resumed by sending it back.
-    for (let i = 0; i <= MAX_CONTINUATIONS; i++) {
-      const stream = client.beta.messages.stream({
-        model: MODEL,
-        max_tokens: 16000,
-        output_config: { effort: 'high' },
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-        system,
-        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: MAX_SEARCHES }],
-        messages: conversation,
-      });
-      stream.on('text', (text) => {
+    const finish = await streamChat(
+      { tier: 'member', system, messages, maxTokens: 16000, effort: 'high', webSearch: { maxResults: WEB_RESULTS } },
+      (text) => {
         reply += text;
         send('delta', { text });
-      });
-      message = await stream.finalMessage();
-      if (message.stop_reason !== 'pause_turn') break;
-      conversation.push({ role: 'assistant', content: message.content });
-    }
-    if (message?.stop_reason === 'refusal') {
-      send('error', { error: 'The assistant cannot help with that request.' });
-    } else {
-      send('done', { stop_reason: message?.stop_reason ?? null });
-    }
+      }
+    );
+    if (finish === 'content_filter') send('error', { error: 'The assistant cannot help with that request.' });
+    else send('done', { stop_reason: finish });
   } catch (error) {
-    let text = 'The assistant could not answer. Please try again.';
-    if (error instanceof Anthropic.RateLimitError) text = 'The assistant is busy right now. Try again in a minute.';
-    else if (error instanceof Anthropic.AuthenticationError) text = 'The assistant is offline right now.';
-    console.error('assistant error', (error as { status?: number })?.status ?? '', (error as Error)?.message ?? error);
-    send('error', { error: text });
+    console.error('assistant error', (error as LlmError)?.status ?? '', (error as Error)?.message ?? error);
+    send('error', { error: errorText(error) });
   } finally {
     if (session && reply.trim()) {
       await saveTranscript(auth.db, auth.userId, session.id, [...messages, { role: 'assistant', content: reply }]).catch((error) =>
