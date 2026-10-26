@@ -50,10 +50,13 @@ export async function saveTranscript(db: SupabaseClient, userId: string, session
     .eq('owner_id', userId);
 }
 
-const SUMMARY_PROMPT = `Summarize this 3x Hunter research chat for the same user's future sessions. Under 150 words, plain
-bullets. Keep: what they asked about, tickers discussed with the price and date context, verdicts or leans given (short and
-long term), their stated goals, amounts, horizon and risk tolerance, decisions they said they made, and open follow-ups
-(for example "wants a re-check after the Nov 15 earnings"). Drop greetings and generic explanations. Write about "the user".`;
+const SUMMARY_PROMPT = `Summarize this 3x Hunter research chat for the same user's future sessions. Under 220 words, plain
+bullets, grouped as: Asked about; Verdicts given; Ideas suggested; About the user; Follow-ups.
+Keep: tickers discussed with the price and date context; verdicts or leans given (short and long term) with the key
+reason; every stock idea suggested, each with its industry, the reason it was suggested, the holding it relates to and
+its price on that date; the user's stated goals, amounts, horizon and risk tolerance, decisions they said they made and
+how they reacted to ideas; open follow-ups (for example "wants a re-check after the Nov 15 earnings"). Drop greetings,
+charts and generic explanations. Write about "the user".`;
 
 /** Summarizes this account's finished sessions (all but the current one) and drops their raw transcripts. */
 export async function summarizeFinishedSessions(

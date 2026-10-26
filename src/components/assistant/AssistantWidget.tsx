@@ -9,6 +9,7 @@ import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { cn } from '@/lib/utils';
 import { offlineAnswer } from '@/components/assistant/offlineHelp';
+import { ChatChart } from '@/components/assistant/ChatChart';
 import type { HelpLink } from '@/components/assistant/offlineHelp';
 
 type ChatTurn = AssistantTurn & { links?: HelpLink[] };
@@ -79,6 +80,32 @@ function Reply({ text }: { text: string }) {
       i++;
       continue;
     }
+    const fence = /^\s*```\s*([\w-]*)/.exec(line);
+    if (fence) {
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
+      const closed = i < lines.length;
+      i++;
+      if (fence[1] === 'chart') {
+        blocks.push(
+          closed ? (
+            <ChatChart key={blocks.length} raw={body.join('\n')} />
+          ) : (
+            <p key={blocks.length} className="inline-flex items-center gap-1.5 text-[12px] text-neutral-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Drawing chart...
+            </p>
+          )
+        );
+      } else {
+        blocks.push(
+          <pre key={blocks.length} className="overflow-x-auto rounded-lg bg-neutral-900 p-2 text-[11px] text-neutral-100">
+            {body.join('\n')}
+          </pre>
+        );
+      }
+      continue;
+    }
     if (/^\s*\|/.test(line)) {
       const rows: string[] = [];
       while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
@@ -121,7 +148,7 @@ function Reply({ text }: { text: string }) {
       continue;
     }
     const para: string[] = [];
-    while (i < lines.length && lines[i].trim() && !/^\s*(\||#{1,6}\s|[-*]\s|\d+\.\s)/.test(lines[i])) para.push(lines[i++]);
+    while (i < lines.length && lines[i].trim() && !/^\s*(\||#{1,6}\s|[-*]\s|\d+\.\s|```)/.test(lines[i])) para.push(lines[i++]);
     if (!para.length) para.push(lines[i++]);
     blocks.push(
       <p key={blocks.length}>
@@ -232,7 +259,7 @@ export function AssistantWidget() {
       const timer = setTimeout(() => {
         timedOut = true;
         controller.abort();
-      }, 180_000);
+      }, 290_000);
       try {
         const result = await streamAssistant(
           { messages: history, context: screen.text(), session_id: sessionRef.current },
@@ -252,12 +279,16 @@ export function AssistantWidget() {
         if (err instanceof ApiError && err.status === 429) {
           setError(err.message);
           setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
-        } else {
-          // AI unavailable (no key, outage, network): fall back to the built-in guide for the rest of the session.
+        } else if (err instanceof ApiError && err.status === 503) {
+          // AI not configured or down: fall back to the built-in guide for the rest of the session.
           setOffline(true);
           setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
           setTurns((cur) => [...cur, { role: 'assistant', content: '' }]);
           answerLocally();
+        } else {
+          // One failed or cut-off answer (timeout, network, model error): keep what arrived and stay live.
+          setError(timedOut ? 'That answer took too long and was cut off. Ask again, or narrow the question.' : err instanceof Error ? err.message : 'The assistant could not answer. Please try again.');
+          setTurns((cur) => (cur[cur.length - 1]?.content ? cur : cur.slice(0, -1)));
         }
       } finally {
         clearTimeout(timer);
