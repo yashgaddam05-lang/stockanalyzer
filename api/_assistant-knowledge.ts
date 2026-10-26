@@ -1,4 +1,4 @@
-// Product knowledge for the in-app help assistant. Mirrors the Methodology page and app navigation;
+// Product knowledge for the in-app research assistant (signed in and signed out). Mirrors the Methodology page and app navigation;
 // update both together when the model or the app changes.
 
 export const ASSISTANT_KNOWLEDGE = `
@@ -81,4 +81,40 @@ predict future returns.
   Market regime (/app/market), Backtest, Data health, Account (/app/account). "Personalize" in the account menu reruns
   the onboarding setup (goal, experience, risk, stocks).
 - Methodology (/methodology) explains all of the above in full.
+
+# Public pages (no account needed)
+- Home (/): what 3x Hunter does, the features, how it works, and sign-up. "Find stocks with room to run. See exactly why."
+- Pricing (/pricing): everything is free during the beta, no credit card. A future Pro plan (not available yet) may add
+  deeper data and broader coverage; there is a waitlist and no payment details are collected. Features in use today
+  will not disappear without notice.
+- Methodology (/methodology): every weight, input and threshold of the 3x score and risk score. No black box.
+- Track record (/track-record): what following the 3x score every quarter since 2016 would have done, rebuilt from data
+  available at the time (point-in-time S&P 500 members), compared with holding the S&P 500.
+- Legal (/legal/disclaimer, /legal/terms, /legal/privacy). Sign up (/signup), log in (/login), password reset.
+- Accounts: email and password, a one-time email code, or Google. Users can ask to have their account and data deleted.
+- Installable app: 3x Hunter can be installed on phone or desktop ("Install app" button).
+
+# More signed-in features
+- Onboarding (/app/welcome): a short interview (goal: find multibaggers / track my stocks / get ideas / learn;
+  experience; risk tolerance; sectors; starter stocks) that personalizes the dashboard. Rerun via "Personalize".
+- Portfolios (/app/portfolios): simulated portfolios with unrealized P/L, sector and risk exposure, a 0-100 portfolio
+  score, a per-holding report (3x score plus analyst view) and improvement tips. Flags a single position over 25% or a
+  sector over 40%. "Import holdings" reads a brokerage CSV export: positions files from Fidelity, Schwab, Vanguard,
+  E*TRADE, Webull and most others, Robinhood's "Account activity" CSV (replayed with average cost, since Robinhood has
+  no positions export), or pasted lines "TICKER SHARES [COST]". The file is parsed in the browser and previewed before
+  anything is saved. There is no live brokerage connection and no trading.
+- 3x Bots (/app/bots): four rule-based bots picking from S&P 500 members, from calm to wild: Steady, Balanced, Growth,
+  Moonshot. Each shows its history since 2016 vs the S&P 500, 5- and 10-year projections (5,000 random replays of its
+  own monthly history; "likely" is the middle outcome, the range the middle 80%) and today's picks. "Follow this bot"
+  puts its picks into a simulated portfolio.
+- Catalysts (/app/catalysts): upcoming earnings, regulatory, clinical and product events across tracked stocks,
+  ranked by expected value: chance of a good reaction x typical up-move minus chance of a bad reaction x typical
+  down-move, from base rates by event type (FDA approvals ~85-90%, Phase 3 ~58%, Phase 2 ~40%, earnings ~53%) scaled
+  by company size and volatility. Users can add catalysts.
+- Smart money (stock page): holders among 41 specialist health-care funds from 13F filings with quarter-over-quarter
+  changes, plus C-suite open-market insider buys from Form 4.
+- Track record (/app/track-record) and Backtest (/app/backtest): historical tests of the score; Data health
+  (/app/data-health): freshness and coverage of the data.
+- Research assistant (this chat): signed-in users get full stock and portfolio analysis that reads their saved
+  profile and portfolios, uses live web data, and remembers summaries of their earlier chats in their own account.
 `.trim();

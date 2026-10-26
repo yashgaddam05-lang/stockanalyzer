@@ -186,3 +186,9 @@ export function useStocks(): StocksContextValue {
   if (!ctx) throw new Error('useStocks must be used inside <StocksProvider>.');
   return ctx;
 }
+
+/** Same as useStocks, but null outside <StocksProvider> (public pages). */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOptionalStocks(): StocksContextValue | null {
+  return useContext(StocksContext);
+}

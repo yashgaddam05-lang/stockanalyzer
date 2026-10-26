@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Loader2, MessageCircle, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 import { ApiError, streamAssistant } from '@/lib/api';
 import type { AssistantTurn } from '@/lib/api';
-import { useStocks } from '@/components/data/StocksProvider';
+import { useOptionalStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,13 @@ const STARTERS = [
   'Tell me about NVDA. Would you buy it at this price?',
   'I have $500. Is TSLA strong or weak right now?',
   'How does the 3x score work?',
+];
+
+const GUEST_STARTERS = [
+  'What can 3x Hunter do for me?',
+  'How does the 3x score work?',
+  'Can it analyze my portfolio?',
+  'Is it free?',
 ];
 
 /** Minimal formatting for replies: paragraphs, "- " bullets and **bold**. */
@@ -60,7 +67,9 @@ function Reply({ text }: { text: string }) {
 /** Describes what the user is looking at so answers can refer to it. */
 function useScreenContext() {
   const { pathname } = useLocation();
-  const { stocks, analyses } = useStocks();
+  const data = useOptionalStocks();
+  const stocks = data?.stocks ?? [];
+  const analyses = data?.analyses ?? {};
   const ticker = /^\/app\/stock\/([^/]+)/.exec(pathname)?.[1]?.toUpperCase();
   const stock = ticker ? stocks.find((x) => x.ticker.toUpperCase() === ticker) : undefined;
   const analysis = ticker ? analyses[stock?.ticker ?? ticker] : undefined;
@@ -90,6 +99,7 @@ function useScreenContext() {
 export function AssistantWidget() {
   const assistant = useAssistant();
   const userId = useAuth().user?.id ?? null;
+  const guest = !userId;
   const screen = useScreenContext();
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   /** Set once the AI is unavailable; from then on answers come from the built-in guide. */
@@ -227,7 +237,7 @@ export function AssistantWidget() {
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-neutral-900">3x Hunter assistant</p>
-                <p className="text-[11px] text-neutral-500">{offline ? 'Quick help from the 3x Hunter guide' : 'Stocks, your portfolio and the app'}</p>
+                <p className="text-[11px] text-neutral-500">{offline ? 'Quick help from the 3x Hunter guide' : guest ? 'Ask what 3x Hunter can do' : 'Stocks, your portfolio and the app'}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -258,10 +268,12 @@ export function AssistantWidget() {
             {turns.length === 0 && (
               <div className="space-y-3">
                 <p className="text-[13px] leading-relaxed text-neutral-600">
-                  Hi! I know your portfolio and what we talked about before. Ask me about any stock, your holdings, or how the app works.
+                  {guest
+                    ? 'Hi! I can show you what 3x Hunter does, how the scores work and what every page is for. Create a free account and I can analyze any stock against your own portfolio.'
+                    : 'Hi! I know your portfolio and what we talked about before. Ask me about any stock, your holdings, or how the app works.'}
                 </p>
                 <div className="flex flex-col gap-2">
-                  {STARTERS.map((s) => (
+                  {(guest ? GUEST_STARTERS : STARTERS).map((s) => (
                     <button
                       key={s}
                       type="button"
@@ -347,9 +359,18 @@ export function AssistantWidget() {
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
-            <p className="mt-1.5 text-[10px] text-neutral-400">
-              Educational research, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
-            </p>
+            {guest ? (
+              <p className="mt-1.5 text-[11px] text-neutral-500">
+                <Link to="/signup" className="font-semibold text-neutral-900 underline underline-offset-2">
+                  Create a free account
+                </Link>{' '}
+                for full stock reports on your own portfolio. Educational research, not investment advice.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[10px] text-neutral-400">
+                Educational research, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
+              </p>
+            )}
           </form>
         </div>
       )}

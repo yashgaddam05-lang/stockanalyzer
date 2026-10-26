@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { ArrowRight, Menu, TrendingUp, X } from 'lucide-react';
@@ -7,6 +7,10 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { cn } from '@/lib/utils';
 import { InstallAppButton } from '@/components/app-install/InstallApp';
+import { AssistantProvider } from '@/components/assistant/AssistantProvider';
+
+// Same chat as in the app; signed out it answers as a guide to 3x Hunter. Loaded after the page.
+const AssistantWidget = lazy(() => import('@/components/assistant/AssistantWidget').then((m) => ({ default: m.AssistantWidget })));
 
 const NAV_LINKS = [
   { to: '/#features', label: 'Features' },
@@ -85,6 +89,7 @@ export function MarketingLayout() {
   }, [pathname, hash]);
 
   return (
+    <AssistantProvider>
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <a
         href="#main"
@@ -162,6 +167,10 @@ export function MarketingLayout() {
       </main>
 
       <MarketingFooter />
+      <Suspense fallback={null}>
+        <AssistantWidget />
+      </Suspense>
     </div>
+    </AssistantProvider>
   );
 }
