@@ -8,12 +8,31 @@ export type AssistantTier = 'guest' | 'member';
 
 const DEFAULT_MODEL = 'anthropic/claude-opus-5.5';
 const DEFAULT_FALLBACK = 'anthropic/claude-sonnet-5.5';
+// Strongest free reasoning models on OpenRouter (large context, reasoning, tools), tried in order. Used silently when the
+// paid models cannot answer: credits used up, account rate limit, or provider outage. Override with ASSISTANT_FREE_MODELS.
+const DEFAULT_FREE = ['nvidia/nemotron-3-ultra-550b-a55b:free', 'thinkingmachines/inkling:free', 'nvidia/nemotron-3.5-super-vl:free'];
+const FREE_MAX_TOKENS = 32000;
+const FREE_NOTE = `Live web search is not available for this answer. Use only the data in this prompt (portfolio, activity,
+past sessions, product knowledge) and what the user said. For any live price, earnings figure, target or date you cannot
+confirm from that data, say you couldn't confirm it live and use the app's last refreshed value where one exists,
+labeled as such. Keep the same structure, depth, charts and disclaimer.`;
 
 /** Model per tier, from env so it can change without a deploy of new code: ASSISTANT_MODEL, ASSISTANT_GUEST_MODEL. */
 export function modelsFor(tier: AssistantTier): string[] {
   const primary = (tier === 'guest' ? process.env.ASSISTANT_GUEST_MODEL : undefined) || process.env.ASSISTANT_MODEL || DEFAULT_MODEL;
   const fallback = process.env.ASSISTANT_FALLBACK_MODEL || DEFAULT_FALLBACK;
   return primary === fallback ? [primary] : [primary, fallback];
+}
+
+function freeModels(): string[] {
+  const list = (process.env.ASSISTANT_FREE_MODELS ?? '').split(',').map((m) => m.trim()).filter(Boolean);
+  return list.length ? list : DEFAULT_FREE;
+}
+
+/** Paid model unavailable for reasons the user should never see: try the free models instead. */
+function shouldUseFree(error: unknown): boolean {
+  if (!(error instanceof LlmError)) return false;
+  return error.status === 402 || error.status === 429 || error.status >= 500 || /credit|no endpoints|unavailable|overloaded/i.test(error.message);
 }
 
 export function llmConfigured(): boolean {
@@ -39,21 +58,25 @@ export type ChatRequest = {
   /** Live web results for this turn (OpenRouter web plugin). */
   webSearch?: { maxResults: number };
   signal?: AbortSignal;
+  /** Run on the free models (set internally on fallback, or by a caller continuing after a mid-answer failure). */
+  free?: boolean;
 };
 
 function body(req: ChatRequest, stream: boolean) {
-  const [model, ...fallbacks] = modelsFor(req.tier);
+  const [model, ...fallbacks] = req.free ? freeModels() : modelsFor(req.tier);
+  // Free models get no web plugin (it is billed) and a note so they stay grounded in the data they do have.
+  const system = req.free ? [...req.system, { text: FREE_NOTE }] : req.system;
   return JSON.stringify({
     model,
     ...(fallbacks.length ? { models: [model, ...fallbacks] } : {}),
     stream,
-    max_tokens: req.maxTokens,
-    reasoning: { effort: req.effort, exclude: true },
-    ...(req.webSearch ? { plugins: [{ id: 'web', max_results: req.webSearch.maxResults }], web_search_options: { search_context_size: 'high' } } : {}),
+    max_tokens: req.free ? Math.min(req.maxTokens, FREE_MAX_TOKENS) : req.maxTokens,
+    reasoning: { effort: req.free && req.effort === 'high' ? 'medium' : req.effort, exclude: true },
+    ...(req.webSearch && !req.free ? { plugins: [{ id: 'web', max_results: req.webSearch.maxResults }], web_search_options: { search_context_size: 'high' } } : {}),
     messages: [
       {
         role: 'system',
-        content: req.system.map((s): Part => ({ type: 'text', text: s.text, ...(s.cache ? { cache_control: { type: 'ephemeral' } } : {}) })),
+        content: system.map((s): Part => ({ type: 'text', text: s.text, ...('cache' in s && s.cache ? { cache_control: { type: 'ephemeral' } } : {}) })),
       },
       ...req.messages,
     ] satisfies ChatMessage[],
@@ -94,8 +117,31 @@ export type StreamHandlers = {
   onCitation?: (citation: Citation) => void;
 };
 
-/** Streams the reply. Resolves with the finish reason ("stop", "length", ...). */
+/**
+ * Streams the reply. Resolves with the finish reason ("stop", "length", ...). If the paid models fail before any text
+ * arrives (credits, rate limit, outage), the same request runs on the free models; the user sees the same answer flow.
+ */
 export async function streamChat(req: ChatRequest, handlers: StreamHandlers): Promise<string | null> {
+  let started = false;
+  const tracked: StreamHandlers = {
+    ...handlers,
+    onText: (text) => {
+      started = true;
+      handlers.onText(text);
+    },
+  };
+  try {
+    return await streamOnce(req, tracked);
+  } catch (error) {
+    if (req.free || started || !shouldUseFree(error)) throw error;
+    console.warn('assistant paid model unavailable, using free models', (error as LlmError).status, (error as Error).message);
+    return streamOnce({ ...req, free: true }, tracked);
+  }
+}
+
+export { shouldUseFree };
+
+async function streamOnce(req: ChatRequest, handlers: StreamHandlers): Promise<string | null> {
   const response = await post(req, true, req.signal);
   if (!response.body) throw new LlmError('Empty response', 502);
   const reader = response.body.getReader();
@@ -146,7 +192,13 @@ export async function streamChat(req: ChatRequest, handlers: StreamHandlers): Pr
 
 /** One-shot completion (summaries). */
 export async function completeChat(req: ChatRequest): Promise<string> {
-  const response = await post(req, false);
+  let response: Response;
+  try {
+    response = await post(req, false);
+  } catch (error) {
+    if (req.free || !shouldUseFree(error)) throw error;
+    response = await post({ ...req, free: true }, false);
+  }
   const json = (await response.json()) as { choices?: { message?: { content?: string | null } }[] };
   return json.choices?.[0]?.message?.content?.trim() ?? '';
 }

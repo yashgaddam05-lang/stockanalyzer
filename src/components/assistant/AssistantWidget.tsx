@@ -1,8 +1,8 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Download, Loader2, Maximize2, MessageCircle, Minimize2, RotateCcw, Send, Sparkles, X } from 'lucide-react';
-import { ApiError, streamAssistant } from '@/lib/api';
+import { Download, Headphones, Loader2, Maximize2, MessageCircle, Mic, Minimize2, RotateCcw, Send, Sparkles, Square, Volume2, X } from 'lucide-react';
+import { ApiError, speakText, streamAssistant, transcribeSpeech } from '@/lib/api';
 import type { AssistantSource, AssistantTurn } from '@/lib/api';
 import { useOptionalStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
@@ -241,6 +241,127 @@ export function AssistantWidget() {
   const [offline, setOffline] = useState(false);
   /** Seconds the model has been searching or thinking on the current answer; null when idle. */
   const [working, setWorking] = useState<number | null>(null);
+  // Voice (ElevenLabs): mic input, read-aloud answers, and a hands-free mode for people who find typing or reading hard.
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [voiceMode, setVoiceMode] = useState(() => {
+    try {
+      return localStorage.getItem('3xh:voice-mode') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const voiceModeRef = useRef(voiceMode);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [speaking, setSpeaking] = useState<{ index: number; loading: boolean } | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speakAbortRef = useRef<AbortController | null>(null);
+  const sendRef = useRef<((question: string) => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+    try {
+      localStorage.setItem('3xh:voice-mode', voiceMode ? '1' : '0');
+    } catch {
+      // Storage unavailable (private mode): the toggle still works for this visit.
+    }
+  }, [voiceMode]);
+
+  const stopSpeaking = useCallback(() => {
+    speakAbortRef.current?.abort();
+    speakAbortRef.current = null;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setSpeaking(null);
+  }, []);
+
+  const speakReply = useCallback(
+    async (index: number, text: string) => {
+      stopSpeaking();
+      const controller = new AbortController();
+      speakAbortRef.current = controller;
+      setSpeaking({ index, loading: true });
+      try {
+        const url = URL.createObjectURL(await speakText(text, controller.signal));
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          setSpeaking((cur) => (cur?.index === index ? null : cur));
+        };
+        setSpeaking({ index, loading: false });
+        await audio.play();
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setSpeaking(null);
+        if (err instanceof DOMException && err.name === 'NotAllowedError') return; // autoplay blocked: Listen still works
+        if (err instanceof ApiError && err.status === 503) setVoiceOn(false);
+        else setError(err instanceof Error ? err.message : 'Audio is not available right now.');
+      }
+    },
+    [stopSpeaking]
+  );
+
+  const toggleRecording = useCallback(async () => {
+    if (recorderRef.current) {
+      recorderRef.current.stop();
+      return;
+    }
+    stopSpeaking();
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError('Microphone access is blocked. Allow it in your browser settings to talk to the assistant.');
+      return;
+    }
+    const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported?.(t));
+    const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    const limit = setTimeout(() => recorder.state !== 'inactive' && recorder.stop(), 110_000);
+    recorder.onstop = async () => {
+      clearTimeout(limit);
+      stream.getTracks().forEach((t) => t.stop());
+      recorderRef.current = null;
+      setRecording(false);
+      const blob = new Blob(chunks, { type: recorder.mimeType || type || 'audio/webm' });
+      if (blob.size < 1000) return;
+      setTranscribing(true);
+      try {
+        const text = (await transcribeSpeech(blob)).trim();
+        if (!text) {
+          setError("I didn't catch that. Try again a little closer to the mic.");
+        } else if (voiceModeRef.current) {
+          void sendRef.current?.(text);
+        } else {
+          setDraft((cur) => (cur ? `${cur} ${text}` : text));
+          inputRef.current?.focus();
+        }
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 503) setVoiceOn(false);
+        setError(err instanceof Error ? err.message : 'Voice is not available right now.');
+      } finally {
+        setTranscribing(false);
+      }
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    setRecording(true);
+    setError(null);
+  }, [stopSpeaking]);
+
+  useEffect(
+    () => () => {
+      recorderRef.current?.stop();
+      speakAbortRef.current?.abort();
+      audioRef.current?.pause();
+    },
+    []
+  );
   /** Full reports need room: signed-in chats open wide on larger screens. */
   const [wide, setWide] = useState(true);
   const starters = useStarters(screen.stock?.ticker);
@@ -268,10 +389,11 @@ export function AssistantWidget() {
 
   const newChat = useCallback(() => {
     abortRef.current?.abort();
+    stopSpeaking();
     sessionRef.current = null;
     setTurns([]);
     setError(null);
-  }, []);
+  }, [stopSpeaking]);
 
   // A different account signing in starts from a clean slate in this tab.
   useEffect(() => {
@@ -310,15 +432,18 @@ export function AssistantWidget() {
         controller.abort();
       }, 290_000);
       try {
+        let full = '';
         const result = await streamAssistant(
           { messages: history, context: screen.text(), session_id: sessionRef.current },
-          (text) =>
+          (text) => {
+            full += text;
             setTurns((cur) => {
               const next = [...cur];
               const last = next[next.length - 1];
               next[next.length - 1] = { ...last, content: last.content + text };
               return next;
-            }),
+            });
+          },
           controller.signal,
           (seconds) => setWorking(seconds)
         );
@@ -330,6 +455,8 @@ export function AssistantWidget() {
         });
         if (result.remaining !== null) setRemaining(result.remaining);
         if (result.sessionId) sessionRef.current = result.sessionId;
+        // Hands-free: read the finished answer aloud (the reply is the second turn added by this send).
+        if (voiceModeRef.current && full.trim() && result.completed) void speakReply(turns.length + 1, full);
       } catch (err) {
         if (controller.signal.aborted && !timedOut) return;
         if (err instanceof ApiError && err.status === 429) {
@@ -357,8 +484,12 @@ export function AssistantWidget() {
         abortRef.current = null;
       }
     },
-    [busy, turns, screen, offline]
+    [busy, turns, screen, offline, speakReply]
   );
+
+  useEffect(() => {
+    sendRef.current = send;
+  }, [send]);
 
   // Questions queued from info icons elsewhere in the app.
   useEffect(() => {
@@ -422,6 +553,24 @@ export function AssistantWidget() {
                   title={wide ? 'Smaller' : 'Wider'}
                 >
                   {wide ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </button>
+              )}
+              {voiceOn && !offline && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (voiceMode) stopSpeaking();
+                    setVoiceMode((v) => !v);
+                  }}
+                  aria-pressed={voiceMode}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-md hover:bg-neutral-100',
+                    voiceMode ? 'bg-neutral-900 text-white hover:bg-neutral-800' : 'text-neutral-500 hover:text-neutral-900'
+                  )}
+                  aria-label={voiceMode ? 'Turn voice mode off' : 'Turn voice mode on: speak your questions and hear the answers'}
+                  title={voiceMode ? 'Voice mode on' : 'Voice mode: speak and listen'}
+                >
+                  <Headphones className="h-4 w-4" />
                 </button>
               )}
               {turns.some((t) => t.role === 'assistant' && t.content) && !busy && (
@@ -523,6 +672,30 @@ export function AssistantWidget() {
                               Answer was cut off. Continue →
                             </button>
                           )}
+                          {voiceOn && (
+                            <button
+                              type="button"
+                              onClick={() => (speaking?.index === i ? stopSpeaking() : void speakReply(i, t.content))}
+                              aria-pressed={speaking?.index === i}
+                              className="inline-flex items-center gap-1 rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[12px] font-medium text-neutral-900 hover:border-neutral-900"
+                            >
+                              {speaking?.index === i ? (
+                                speaking.loading ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> Preparing audio...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Square className="h-3 w-3" aria-hidden="true" /> Stop
+                                  </>
+                                )
+                              ) : (
+                                <>
+                                  <Volume2 className="h-3 w-3" aria-hidden="true" /> Listen
+                                </>
+                              )}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => saveAnswers(i)}
@@ -568,7 +741,41 @@ export function AssistantWidget() {
               void send(draft);
             }}
           >
+            {(recording || transcribing || (voiceMode && voiceOn)) && (
+              <p className="mb-2 flex items-center gap-1.5 text-[12px] text-neutral-600" aria-live="polite">
+                {recording ? (
+                  <>
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" aria-hidden="true" /> Listening... tap the mic again when you're done.
+                  </>
+                ) : transcribing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Turning your voice into text...
+                  </>
+                ) : (
+                  <>
+                    <Headphones className="h-3.5 w-3.5" aria-hidden="true" /> Voice mode is on: tap the mic, ask out loud, and I'll read the answer back.
+                  </>
+                )}
+              </p>
+            )}
             <div className="flex items-end gap-2">
+              {voiceOn && !offline && (
+                <button
+                  type="button"
+                  onClick={() => void toggleRecording()}
+                  disabled={busy || transcribing}
+                  aria-pressed={recording}
+                  aria-label={recording ? 'Stop recording' : 'Ask with your voice'}
+                  title={recording ? 'Stop recording' : 'Ask with your voice'}
+                  className={cn(
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
+                    recording ? 'border-red-600 bg-red-600 text-white' : 'border-border bg-background text-neutral-700 hover:border-neutral-400',
+                    'disabled:opacity-40'
+                  )}
+                >
+                  {transcribing ? <Loader2 className="h-4 w-4 animate-spin" /> : recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
               <textarea
                 ref={inputRef}
                 value={draft}

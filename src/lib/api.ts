@@ -470,3 +470,45 @@ export async function streamAssistant(
   }
   return result;
 }
+
+// ---------- voice (ElevenLabs via /api/voice) ----------
+
+async function voiceRequest(body: Record<string, unknown>, signal?: AbortSignal): Promise<Response> {
+  const response = await fetch('/api/voice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    let message = 'Voice is not available right now.';
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload?.error) message = payload.error;
+    } catch {
+      // Non-JSON error body.
+    }
+    throw new ApiError(message, response.status);
+  }
+  return response;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Speech to text for the assistant's mic button. */
+export async function transcribeSpeech(audio: Blob): Promise<string> {
+  const response = await voiceRequest({ action: 'transcribe', audio: await blobToBase64(audio), mime: audio.type || 'audio/webm' });
+  return ((await response.json()) as { text?: string }).text ?? '';
+}
+
+/** Spoken version of an assistant answer (long answers are condensed to a short briefing server side). */
+export async function speakText(text: string, signal?: AbortSignal): Promise<Blob> {
+  return (await voiceRequest({ action: 'speak', text }, signal)).blob();
+}

@@ -45,6 +45,7 @@ const ROUTES: Record<string, Handler> = {
   'stock-add': stockAdd,
   'stock-search': stockSearch,
   'stocks': stocks,
+  'voice': async (req, res) => (await import('./_routes/voice.js')).default(req, res),
   'watchlist-items': watchlistItems,
   'watchlist': watchlist,
   'watchlists': watchlists,
