@@ -139,7 +139,7 @@ function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: stri
 }
 
 export default function LandingPage() {
-  useDocumentTitle('3x Hunter - Transparent stock opportunity scores');
+  useDocumentTitle('3x Hunter - Transparent stock opportunity scores', '3x Hunter ranks US stocks with a transparent 0-100 3x Opportunity Score and an independent risk score. Portfolio reports, rule-based bots and a 10-year track record. Free to start.');
   const { hash } = useLocation();
 
   // React Router does not scroll to hash targets on client-side navigation.

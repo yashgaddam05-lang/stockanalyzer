@@ -21,14 +21,62 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="3x Hunter" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="description" content="Stock opportunity scanner ranking stocks by a 0-100 3x Opportunity Score. Educational research tool, not investment advice." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>3x Hunter — Stock Opportunity Scanner</title>
-    <meta property="og:image" content="https://bolt.new/static/og_default.png" />
+    <!-- Search and social crawlers (static so they work without running JavaScript) -->
+    <meta name="description" content="3x Hunter ranks US stocks with a transparent 0-100 3x Opportunity Score and an independent risk score. Portfolio reports, rule-based bots and a 10-year track record. Free to start." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://3xhunter.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="3x Hunter" />
+    <meta property="og:url" content="https://3xhunter.com/" />
+    <meta property="og:title" content="3x Hunter — Find stocks with room to run. See exactly why." />
+    <meta property="og:description" content="A transparent 0-100 3x Opportunity Score, an independent risk score, portfolio reports and rule-based bots. Free to start." />
+    <meta property="og:image" content="https://3xhunter.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="3x Hunter: find stocks with room to run" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <meta name="twitter:title" content="3x Hunter — Find stocks with room to run. See exactly why." />
+    <meta name="twitter:description" content="A transparent 0-100 3x Opportunity Score, an independent risk score, portfolio reports and rule-based bots." />
+    <meta name="twitter:image" content="https://3xhunter.com/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://3xhunter.com/#org",
+            "name": "3x Hunter",
+            "url": "https://3xhunter.com/",
+            "logo": "https://3xhunter.com/icons/apple-touch-icon.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://3xhunter.com/#website",
+            "name": "3x Hunter",
+            "url": "https://3xhunter.com/",
+            "publisher": { "@id": "https://3xhunter.com/#org" }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "3x Hunter",
+            "applicationCategory": "FinanceApplication",
+            "operatingSystem": "Web",
+            "url": "https://3xhunter.com/",
+            "description": "Stock research app that scores US stocks 0-100 on their potential for a large move, with an independent risk score. Educational, not investment advice.",
+            "offers": [
+              { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD" },
+              { "@type": "Offer", "name": "Pro monthly", "price": "19", "priceCurrency": "USD" },
+              { "@type": "Offer", "name": "Pro annual", "price": "149", "priceCurrency": "USD" }
+            ],
+            "publisher": { "@id": "https://3xhunter.com/#org" }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

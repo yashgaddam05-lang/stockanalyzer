@@ -80,7 +80,7 @@ function FeatureList({ items, muted = false }: { items: Feature[]; muted?: boole
 }
 
 export default function PricingPage() {
-  useDocumentTitle('Pricing - 3x Hunter');
+  useDocumentTitle('Pricing - 3x Hunter', '3x Hunter is free to start. Pro is $19/month or $149/year for full score breakdowns, scenarios, the AI research assistant, voice and alerts.');
 
   return (
     <div className="mx-auto max-w-6xl space-y-16 px-4 py-16 sm:px-8 sm:py-24">

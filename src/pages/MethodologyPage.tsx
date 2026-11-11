@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 import { Card } from '@/components/ui/card';
 import { DimensionTable } from '@/components/methodology/DimensionTable';
 import { Disclaimer } from '@/components/methodology/Disclaimer';
@@ -76,6 +77,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
 const P = ({ children }: { children: ReactNode }) => <p className="text-sm leading-relaxed text-neutral-700">{children}</p>;
 
 export default function MethodologyPage() {
+  useDocumentTitle('Methodology · 3x Hunter', 'How the 3x Opportunity Score, risk score and scenarios are calculated: 9 weighted factors, data sources, confidence and limits.');
   const { hash } = useLocation();
   const [activeId, setActiveId] = useState<string | undefined>(SECTIONS[0].id);
 

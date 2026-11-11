@@ -1,0 +1,11 @@
+# 3x Hunter
+User-agent: *
+Allow: /
+Disallow: /app/
+Disallow: /api/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+
+Sitemap: https://3xhunter.com/sitemap.xml

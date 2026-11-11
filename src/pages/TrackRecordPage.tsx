@@ -3,7 +3,7 @@ import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 
 /** 3x Hunter reconstructed since 2016 vs the S&P 500. Rendered both publicly and inside the app. */
 export default function TrackRecordPage() {
-  useDocumentTitle('Track record since 2016 · 3x Hunter');
+  useDocumentTitle('Track record since 2016 · 3x Hunter', 'How the 3x score would have done since 2016, rebuilt from data available at the time, compared with the S&P 500. Hypothetical results with full method and limits.');
   return (
     <div className="space-y-6">
       <div className="space-y-2 pt-2">
