@@ -1,4 +1,5 @@
 import {
+  getQueryValue,
   isMissingRelation,
   sendMethodNotAllowed,
   sendServerError,
@@ -60,24 +61,44 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
-    const [stocks, deltas] = await Promise.all([loadActiveStocks(), loadScoreDeltas()]);
-    if (!stocks) {
+    const fresh = getQueryValue(request, 't') !== undefined;
+    const items = await cachedUniverse(fresh);
+    if (!items) {
       sendServerError(response);
       return;
     }
-
-    const items = stocks.map((stock) => {
-      const delta = deltas.get(stock.ticker);
-      return {
-        ...stock,
-        score_change: delta?.score_change ?? null,
-        previous_score: delta?.previous_score ?? null,
-      };
-    });
     // Same data for every user and refreshed every 20 minutes: let the CDN serve it.
-    response.setHeader?.('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=1200');
+    response.setHeader?.('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=1800');
     response.status(200).json(items);
   } catch {
     sendServerError(response);
   }
+}
+
+async function buildUniverse(): Promise<unknown[] | null> {
+  const [stocks, deltas] = await Promise.all([loadActiveStocks(), loadScoreDeltas()]);
+  if (!stocks) return null;
+  return stocks.map((stock) => {
+    const delta = deltas.get(stock.ticker);
+    return { ...stock, score_change: delta?.score_change ?? null, previous_score: delta?.previous_score ?? null };
+  });
+}
+
+// Per-instance cache: when the CDN copy expires, a burst of requests shares one database rebuild
+// instead of each running its own (the 100-user load test showed a 9s tail without this).
+const INSTANCE_TTL_MS = 60_000;
+let memo: { at: number; items: unknown[] } | null = null;
+let inflight: Promise<unknown[] | null> | null = null;
+
+async function cachedUniverse(fresh: boolean): Promise<unknown[] | null> {
+  if (!fresh && memo && Date.now() - memo.at < INSTANCE_TTL_MS) return memo.items;
+  inflight ??= buildUniverse()
+    .then((items) => {
+      if (items) memo = { at: Date.now(), items };
+      return items;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
 }
