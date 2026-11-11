@@ -10,6 +10,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { MarketingLayout } from '@/components/marketing/MarketingLayout';
 import LandingPage from '@/pages/marketing/LandingPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import { MaintenanceGate } from '@/components/layout/MaintenanceGate';
 
 // Public pages (the landing page is eager for first paint).
 const PricingPage = lazy(() => import('@/pages/marketing/PricingPage'));
@@ -38,6 +39,7 @@ const BacktestPage = lazy(() => import('@/pages/BacktestPage'));
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'));
 const BotsPage = lazy(() => import('@/pages/BotsPage'));
 const BillingPage = lazy(() => import('@/pages/BillingPage'));
+const AdminPage = lazy(() => import('@/pages/AdminPage'));
 
 /** Suspense boundary per lazy public page, so the marketing layout stays on screen while it loads. */
 function Lazy({ children }: { children: ReactNode }) {
@@ -90,6 +92,7 @@ export default function App() {
   return (
     <>
       <ScrollToTop />
+      <MaintenanceGate>
       <Routes>
         {/* Public marketing site */}
         <Route element={<MarketingLayout />}>
@@ -138,6 +141,7 @@ export default function App() {
             <Route path="track-record" element={<TrackRecordPage />} />
             <Route path="bots" element={<BotsPage />} />
             <Route path="billing" element={<BillingPage />} />
+            <Route path="admin" element={<AdminPage />} />
             <Route path="*" element={<NotFoundPage homeHref="/app" homeLabel="Back to dashboard" />} />
           </Route>
         </Route>
@@ -149,6 +153,7 @@ export default function App() {
         <Route path="watchlists" element={<LegacyRedirect to="/app/watchlists" />} />
         <Route path="catalysts" element={<LegacyRedirect to="/app/catalysts" />} />
       </Routes>
+      </MaintenanceGate>
     </>
   );
 }

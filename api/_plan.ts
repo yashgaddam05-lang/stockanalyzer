@@ -14,6 +14,7 @@ export interface PlanState {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   hasCustomer: boolean;
+  isAdmin: boolean;
 }
 
 export const PRICES = {
@@ -52,7 +53,7 @@ type Row = {
 };
 
 function toState(row: Row | null): PlanState {
-  if (!row) return { plan: 'free', tier: 'free', status: 'none', interval: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, hasCustomer: false };
+  if (!row) return { plan: 'free', tier: 'free', status: 'none', interval: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, hasCustomer: false, isAdmin: false };
   const notExpired = !row.current_period_end || Date.parse(row.current_period_end) > Date.now();
   const pro = (row.plan === 'pro' || row.plan === 'founding') && ACTIVE.has(row.status) && notExpired;
   return {
@@ -63,6 +64,7 @@ function toState(row: Row | null): PlanState {
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: row.cancel_at_period_end,
     hasCustomer: Boolean(row.stripe_customer_id),
+    isAdmin: false,
   };
 }
 
@@ -110,7 +112,11 @@ export async function getPlan(userId: string, db: SupabaseClient): Promise<PlanS
       }
     }
   }
-  return toState(row);
+  const state = toState(row);
+  // Admins have every feature, whatever their billing row says.
+  const { data: admin } = await db.rpc('is_app_admin');
+  if (admin === true) return { ...state, plan: 'pro', tier: state.tier === 'pro' ? 'pro' : 'admin', isAdmin: true };
+  return state;
 }
 
 export async function getStoredCustomerId(userId: string): Promise<string | null> {

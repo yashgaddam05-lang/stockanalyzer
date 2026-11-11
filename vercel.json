@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/:route(watchlist-items|market-regime|smart-money|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolio-import|portfolios|assistant|watchlists|catalysts|positions|stock-add|watchlist|backtest|billing|filings|alerts|stocks|voice)",
+      "source": "/api/:route(watchlist-items|market-regime|smart-money|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolio-import|portfolios|assistant|watchlists|catalysts|positions|stock-add|watchlist|backtest|billing|filings|status|admin|alerts|stocks|voice)",
       "destination": "/api/router?__route=:route"
     },
     {
@@ -45,6 +45,39 @@
     "pdx1"
   ],
   "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-EKYfaNIQnnT11aoex2ApVoFxYS1UEHRLU1lKFiCB7ms=' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https://irbwaucilrznbqynhtmr.supabase.co wss://irbwaucilrznbqynhtmr.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com; worker-src 'self'; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://checkout.stripe.com https://billing.stripe.com; upgrade-insecure-requests"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
     {
       "source": "/sw.js",
       "headers": [

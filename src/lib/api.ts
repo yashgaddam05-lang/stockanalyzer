@@ -524,6 +524,7 @@ export interface BillingState {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   hasCustomer: boolean;
+  isAdmin: boolean;
   billingAvailable: boolean;
   prices: { month: string; year: string };
 }
@@ -542,4 +543,38 @@ export function confirmCheckout(sessionId: string): Promise<BillingState> {
 
 export function openBillingPortal(): Promise<{ url: string }> {
   return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'portal' }) });
+}
+
+// ---------- status & admin ----------
+
+export interface SiteStatus {
+  maintenance: { enabled: boolean; message: string };
+}
+
+export async function getSiteStatus(): Promise<SiteStatus> {
+  const r = await fetch('/api/status');
+  if (!r.ok) throw new ApiError('Status unavailable.', r.status);
+  return r.json() as Promise<SiteStatus>;
+}
+
+export interface AdminStats {
+  users: number;
+  new_7d: number;
+  active_7d: number;
+  active_30d: number;
+  paying: number;
+  founding: number;
+  mrr_usd: number;
+  assistant_today: number;
+  portfolios: number;
+  watchlist_items: number;
+  recent_users: { email: string; created_at: string; last_sign_in_at: string | null; plan: string }[];
+}
+
+export function getAdminStats(): Promise<AdminStats> {
+  return request<AdminStats>('/api/admin');
+}
+
+export function setMaintenance(enabled: boolean, message: string): Promise<SiteStatus> {
+  return request<SiteStatus>('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'maintenance', enabled, message }) });
 }

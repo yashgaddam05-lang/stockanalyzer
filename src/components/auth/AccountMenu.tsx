@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogOut, SlidersHorizontal, User, CreditCard } from 'lucide-react';
+import { LogOut, SlidersHorizontal, User, CreditCard, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { usePlan } from '@/components/billing/usePlan';
 import { useSignOutToHome } from '@/components/auth/use-sign-out';
 import { Button } from '@/components/ui/button';
 
 export function AccountMenu() {
   const { enabled, loading, user } = useAuth();
+  const { plan } = usePlan();
   const signOutToHome = useSignOutToHome();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -107,6 +109,17 @@ export function AccountMenu() {
             <CreditCard className="h-4 w-4" aria-hidden="true" />
             Plan & billing
           </Link>
+          {plan?.isAdmin && (
+            <Link
+              role="menuitem"
+              to="/app/admin"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+            >
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Admin
+            </Link>
+          )}
           <button
             role="menuitem"
             type="button"
