@@ -29,6 +29,7 @@ const ROUTES: Record<string, Handler> = {
   'alert-events': alertEvents,
   'alerts': alerts,
   // Loaded on demand so the AI SDK never adds to cold starts of the other routes.
+  'billing': async (req, res) => (await import('./_routes/billing.js')).default(req, res),
   'assistant': async (req, res) => (await import('./_routes/assistant.js')).default(req, res),
   'backtest': backtest,
   'catalysts': catalysts,

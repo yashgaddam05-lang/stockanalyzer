@@ -24,6 +24,17 @@ const resolvedAnonKey: string = anonKey;
 
 export const supabase = createClient(resolvedUrl, resolvedAnonKey);
 
+/**
+ * Server-only client for writes ordinary users must never make (stock data, scores, billing).
+ * Uses SUPABASE_SERVICE_ROLE_KEY. Until that key is configured it falls back to the anon client,
+ * which only works while the legacy anon write policies exist (drop them once the key is live).
+ */
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const hasServiceRole = Boolean(serviceKey);
+export const supabaseAdmin: SupabaseClient = serviceKey
+  ? createClient(resolvedUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  : supabase;
+
 export type ApiRequest = {
   method?: string;
   body?: unknown;

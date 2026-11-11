@@ -512,3 +512,34 @@ export async function transcribeSpeech(audio: Blob): Promise<string> {
 export async function speakText(text: string, signal?: AbortSignal): Promise<Blob> {
   return (await voiceRequest({ action: 'speak', text }, signal)).blob();
 }
+
+// ---------- billing ----------
+
+export interface BillingState {
+  plan: 'free' | 'pro';
+  /** free | pro | founding */
+  tier: string;
+  status: string;
+  interval: 'month' | 'year' | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  hasCustomer: boolean;
+  billingAvailable: boolean;
+  prices: { month: string; year: string };
+}
+
+export function getBilling(): Promise<BillingState> {
+  return request<BillingState>('/api/billing');
+}
+
+export function startCheckout(interval: 'month' | 'year'): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'checkout', interval }) });
+}
+
+export function confirmCheckout(sessionId: string): Promise<BillingState> {
+  return request<BillingState>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'confirm', session_id: sessionId }) });
+}
+
+export function openBillingPortal(): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'portal' }) });
+}

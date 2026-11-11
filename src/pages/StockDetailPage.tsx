@@ -9,6 +9,7 @@ import { DetailHeader } from '@/components/stock-detail/DetailHeader';
 import { ScoreSummary } from '@/components/stock-detail/ScoreSummary';
 import { RiskPanel } from '@/components/stock-detail/RiskPanel';
 import { DimensionBreakdown } from '@/components/stock-detail/DimensionBreakdown';
+import { ProGate } from '@/components/billing/ProGate';
 import { CaseTabs } from '@/components/stock-detail/CaseTabs';
 import { ScoreHistoryPanel } from '@/components/stock-detail/ScoreHistoryPanel';
 import { MetricsTable } from '@/components/stock-detail/MetricsTable';
@@ -144,7 +145,9 @@ export default function StockDetailPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <DimensionBreakdown analysis={analysis} />
+        <ProGate feature="The full score breakdown">
+          <DimensionBreakdown analysis={analysis} />
+        </ProGate>
         <div className="space-y-6">
           <CatalystPanel
             ticker={stock.ticker}
@@ -152,7 +155,9 @@ export default function StockDetailPage() {
             currentUserId={user?.id ?? null}
             onCatalystsLoaded={setCatalysts}
           />
-          <CaseTabs analysis={analysis} />
+          <ProGate feature="Bull, neutral and bear scenarios">
+            <CaseTabs analysis={analysis} />
+          </ProGate>
           <ScoreHistoryPanel ticker={stock.ticker} />
         </div>
       </div>

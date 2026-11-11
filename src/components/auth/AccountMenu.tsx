@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LogOut, SlidersHorizontal, User } from 'lucide-react';
+import { LogOut, SlidersHorizontal, User, CreditCard } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useSignOutToHome } from '@/components/auth/use-sign-out';
 import { Button } from '@/components/ui/button';
@@ -97,6 +97,15 @@ export function AccountMenu() {
           >
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
             Personalize
+          </Link>
+          <Link
+            role="menuitem"
+            to="/app/billing"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <CreditCard className="h-4 w-4" aria-hidden="true" />
+            Plan & billing
           </Link>
           <button
             role="menuitem"

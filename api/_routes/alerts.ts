@@ -10,6 +10,7 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from '../_supabase.js';
+import { LIMITS, getPlan } from '../_plan.js';
 import {
   ALERT_COLUMNS,
   MAX_RULES_PER_USER,
@@ -90,8 +91,14 @@ async function handlePost(request: ApiRequest, response: ApiResponse, scope: Use
     return;
   }
   // Soft cap: count-then-insert can overshoot by a few under concurrent POSTs. Enforce in the DB if it matters.
-  if ((countResult.count ?? 0) >= MAX_RULES_PER_USER) {
-    response.status(409).json({ error: `You can have at most ${MAX_RULES_PER_USER} alert rules.` });
+  const plan = await getPlan(scope.userId, scope.db);
+  const maxRules = Math.min(MAX_RULES_PER_USER, LIMITS[plan.plan].maxAlerts);
+  if ((countResult.count ?? 0) >= maxRules) {
+    response.status(plan.plan === 'pro' ? 409 : 402).json(
+      plan.plan === 'pro'
+        ? { error: `You can have at most ${maxRules} alert rules.` }
+        : { error: `The free plan includes ${maxRules} alert. Upgrade to Pro for up to ${LIMITS.pro.maxAlerts}.`, upgrade: true }
+    );
     return;
   }
 

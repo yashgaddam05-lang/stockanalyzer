@@ -1,4 +1,4 @@
-import { isMissingRelation, supabase, supabaseUrl } from './_supabase.js';
+import { isMissingRelation, supabase, supabaseAdmin, supabaseUrl } from './_supabase.js';
 import {
   MODEL_VERSION,
   REGIME_SYMBOLS,
@@ -149,7 +149,7 @@ async function buildRegime(): Promise<RegimeSnapshotInput | null> {
     const snap = computeRegimeSnapshot(await loadMacroSeries());
     if (!snap.as_of) return null;
     try {
-      await supabase
+      await supabaseAdmin
         .from('market_regime_snapshots')
         .upsert({ ...snap, updated_at: new Date().toISOString() }, { onConflict: 'as_of' });
     } catch {
@@ -198,7 +198,7 @@ function updateStock(row: Rescored, columns: ColumnSet) {
     values.regime_fit_score = row.regimeFitScore;
     values.regime_fit_drivers = row.regimeFitDrivers;
   }
-  return supabase.from('stocks').update(values).eq('ticker', row.ticker);
+  return supabaseAdmin.from('stocks').update(values).eq('ticker', row.ticker);
 }
 
 /** Writes scores back to stocks; probes once and falls back to older column sets if missing. */
@@ -271,7 +271,7 @@ async function writeSnapshots(rows: Rescored[]): Promise<{ historyAvailable: boo
 
   let snapshots = 0;
   for (const group of chunk(inserts, CHUNK_SIZE)) {
-    const { error } = await supabase.from('score_history').insert(group);
+    const { error } = await supabaseAdmin.from('score_history').insert(group);
     if (error) {
       if (isMissingRelation(error)) return { historyAvailable: false, snapshots };
       continue;
@@ -293,7 +293,7 @@ export async function logRefreshRun(
   stats: Record<string, unknown>,
 ): Promise<void> {
   try {
-    await supabase.from('refresh_runs').insert({
+    await supabaseAdmin.from('refresh_runs').insert({
       job: job.slice(0, 40),
       started_at: startedAt.toISOString(),
       finished_at: new Date().toISOString(),

@@ -11,6 +11,7 @@ import { ASSISTANT_KNOWLEDGE } from '../_assistant-knowledge.js';
 import { ASSISTANT_EXAMPLE } from '../_assistant-example.js';
 import { LlmError, llmConfigured, shouldUseFree, streamChat } from '../_llm.js';
 import { visitorHash } from '../_visitor.js';
+import { LIMITS, getPlan } from '../_plan.js';
 import { accountContext, openSession, saveTranscript, summarizeFinishedSessions, type Turn } from '../_assistant-account.js';
 
 // POST /api/assistant { messages: [{role, content}], context?: string, session_id?: string }
@@ -217,13 +218,19 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     return;
   }
 
-  const { data: remaining, error: quotaError } = await auth.db.rpc('assistant_consume', { p_limit: DAILY_LIMIT });
+  const plan = await getPlan(auth.userId, auth.db);
+  const dailyLimit = Math.min(DAILY_LIMIT, LIMITS[plan.plan].assistantPerDay);
+  const { data: remaining, error: quotaError } = await auth.db.rpc('assistant_consume', { p_limit: dailyLimit });
   if (quotaError) {
     response.status(503).json({ error: 'The assistant is temporarily unavailable.' });
     return;
   }
   if (typeof remaining !== 'number' || remaining < 0) {
-    response.status(429).json({ error: `You have used today's ${DAILY_LIMIT} assistant messages. Try again tomorrow.` });
+    response.status(429).json(
+      plan.plan === 'pro'
+        ? { error: `You have used today's ${dailyLimit} assistant messages. Try again tomorrow.` }
+        : { error: `You have used today's ${dailyLimit} free assistant messages. Upgrade to Pro for ${LIMITS.pro.assistantPerDay} a day.`, upgrade: true }
+    );
     return;
   }
 

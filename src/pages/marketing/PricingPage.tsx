@@ -10,35 +10,36 @@ import { cn } from '@/lib/utils';
 type Feature = { label: string; isNew?: boolean };
 
 const FREE_FEATURES: Feature[] = [
-  { label: '3x Opportunity Score on every tracked stock' },
-  { label: 'Independent 0-100 risk score' },
-  { label: 'Bull, neutral and bear cases' },
-  { label: '3x scenario calculator' },
-  { label: 'Catalyst calendar' },
-  { label: 'Named watchlists with notes and tags' },
-  { label: 'Score-change tracking and movers' },
-  { label: 'Sector heat map and price charts' },
-  { label: 'In-app score and catalyst alerts', isNew: true },
-  { label: 'Strategy backtesting on stored score history', isNew: true },
-  { label: 'Simulated (hypothetical) portfolios', isNew: true },
-  { label: 'SEC filings and insider activity (Form 4)', isNew: true },
-  { label: 'Market regime dashboard and regime-fit scoring', isNew: true },
+  { label: '3x Opportunity Score and risk score on every tracked stock' },
+  { label: 'Dashboard, Explore, preset screens and the heat map' },
+  { label: 'Watchlists, simulated portfolios and brokerage import' },
+  { label: 'Portfolio score, holding report and improvement tips' },
+  { label: '3x Bots and the 2016 track record' },
+  { label: 'Catalyst calendar, market regime and SEC filings' },
+  { label: 'AI assistant: 5 questions a day' },
+  { label: '1 alert' },
 ];
 
 const PRO_FEATURES: Feature[] = [
-  { label: 'Expanded stock coverage' },
-  { label: 'Longer score and price history' },
-  { label: 'Deeper fundamental and filings data' },
+  { label: 'Full 3x score breakdown: all 8 factors and their drivers', isNew: true },
+  { label: 'Bull, neutral and bear scenarios for every stock', isNew: true },
+  { label: 'AI research assistant: 40 questions a day', isNew: true },
+  { label: 'Voice assistant', isNew: true },
+  { label: 'Up to 50 alerts on score, price and catalysts', isNew: true },
 ];
 
 const FAQ = [
   {
-    q: 'Is 3x Hunter really free?',
-    a: 'Yes. Everything currently in the product is free while we are in beta. If we introduce paid plans later, features you use today will not disappear without notice.',
+    q: 'What stays free?',
+    a: 'Scores, the dashboard, Explore, watchlists, simulated portfolios, the portfolio report, bots and the track record stay free. Pro adds the full score breakdown, scenarios, more AI assistant questions, voice and more alerts.',
   },
   {
-    q: 'When will Pro be available?',
-    a: 'There is no date yet. Alerts, backtesting, simulated portfolios, SEC filings and market regime are all free during the beta. Pro is planned for deeper data and broader coverage later. Join the waitlist and we will email you if it opens. Joining does not commit you to anything and no payment details are collected.',
+    q: 'I signed up during the beta. Do I lose anything?',
+    a: 'No. Every account created before paid plans launched is a founding member and keeps Pro free until January 31, 2027. Nothing you set up is deleted.',
+  },
+  {
+    q: 'How do I cancel?',
+    a: 'Open Plan & billing in your account menu and choose Manage billing. Cancel in two clicks; you keep Pro until the end of the period you paid for. Payments are handled by Stripe.',
   },
   {
     q: 'Is this investment advice?',
@@ -86,54 +87,54 @@ export default function PricingPage() {
       <div className="mx-auto max-w-2xl space-y-3 text-center">
         <p className="text-[12px] font-semibold uppercase tracking-wider text-neutral-500">Pricing</p>
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-neutral-900 sm:text-4xl">
-          Free while in beta
+          Free to start. Pro when you want the full picture.
         </h1>
         <p className="text-[15px] leading-relaxed text-neutral-600">
-          Every feature we have shipped is free, including alerts, backtesting, simulated portfolios, SEC filings and market regime. A future Pro plan may add deeper data and broader coverage.
+          Scores, portfolios and the market view are free forever. Pro unlocks the full score breakdown, scenarios, the AI research assistant,
+          voice and alerts.
         </p>
       </div>
 
       <div className="mx-auto grid max-w-4xl gap-6 md:grid-cols-2">
-        <Card className="flex flex-col border-neutral-900 p-6 sm:p-8">
+        <Card className="flex flex-col p-6 sm:p-8">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Free</h2>
-              <Badge>Beta</Badge>
             </div>
-            <p className="text-[13px] text-neutral-500">Everything currently built.</p>
+            <p className="text-[13px] text-neutral-500">Everything you need to start researching.</p>
           </div>
           <p className="mt-6 flex items-baseline gap-1">
             <span className="text-4xl font-semibold tracking-tight tabular-nums text-neutral-900">$0</span>
             <span className="text-[13px] text-neutral-500">/ month</span>
           </p>
-          <Button asChild size="lg" className="mt-6 w-full">
-            <Link to="/signup">Get started</Link>
+          <Button asChild size="lg" variant="outline" className="mt-6 w-full">
+            <Link to="/signup">Start free</Link>
           </Button>
           <div className="mt-8 border-t border-border pt-6">
             <FeatureList items={FREE_FEATURES} />
           </div>
         </Card>
 
-        <Card className="flex flex-col bg-neutral-50 p-6 sm:p-8">
+        <Card className="flex flex-col border-neutral-900 p-6 shadow-md sm:p-8">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold tracking-tight text-neutral-900">Pro</h2>
-              <Badge variant="outline">Coming soon</Badge>
+              <Badge>Most popular</Badge>
             </div>
-            <p className="text-[13px] text-neutral-500">Future plan for deeper data. Not available yet.</p>
+            <p className="text-[13px] text-neutral-500">The full research toolkit.</p>
           </div>
           <p className="mt-6 flex items-baseline gap-1">
-            <span className="text-4xl font-semibold tracking-tight text-neutral-400">TBD</span>
+            <span className="text-4xl font-semibold tracking-tight tabular-nums text-neutral-900">$19</span>
+            <span className="text-[13px] text-neutral-500">/ month</span>
           </p>
-          <Button asChild size="lg" variant="outline" className="mt-6 w-full bg-background">
-            <Link to="/signup?plan=pro">Join waitlist</Link>
+          <p className="text-[12px] text-neutral-500">or $149 / year (save 35%)</p>
+          <Button asChild size="lg" className="mt-6 w-full">
+            <Link to="/signup?next=%2Fapp%2Fbilling">Get Pro</Link>
           </Button>
           <div className="mt-8 space-y-4 border-t border-border pt-6">
-            <p className="text-[13px] font-medium text-neutral-900">Everything in Free, plus ideas we are exploring:</p>
-            <FeatureList items={PRO_FEATURES} muted />
-            <p className="text-[12px] leading-relaxed text-neutral-500">
-              Join the waitlist to hear if Pro opens. No payment details are collected.
-            </p>
+            <p className="text-[13px] font-medium text-neutral-900">Everything in Free, plus:</p>
+            <FeatureList items={PRO_FEATURES} />
+            <p className="text-[12px] leading-relaxed text-neutral-500">Cancel anytime. Secure checkout by Stripe.</p>
           </div>
         </Card>
       </div>

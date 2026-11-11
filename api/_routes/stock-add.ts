@@ -7,6 +7,7 @@ import {
   sendServerError,
   sendUnauthorized,
   supabase,
+  supabaseAdmin,
   type ApiRequest,
   type ApiResponse,
 } from '../_supabase.js';
@@ -61,8 +62,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
     const now = new Date().toISOString();
     const write = existing.data
-      ? await supabase.from('stocks').update({ is_active: true, added_by: auth.userId, added_at: now }).eq('ticker', ticker)
-      : await supabase.from('stocks').insert({
+      ? await supabaseAdmin.from('stocks').update({ is_active: true, added_by: auth.userId, added_at: now }).eq('ticker', ticker)
+      : await supabaseAdmin.from('stocks').insert({
         ticker,
         company_name: match.name,
         sector: 'Other',
@@ -85,7 +86,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const price = Number(fresh.data?.current_price ?? 0);
     if (!fresh.data || !(price > 0)) {
       // No usable market data: don't leave an empty $0 row in everyone's universe.
-      await supabase.from('stocks').update({ is_active: false }).eq('ticker', ticker);
+      await supabaseAdmin.from('stocks').update({ is_active: false }).eq('ticker', ticker);
       response.status(422).json({ error: `No market data is available for ${ticker} right now. Try again later.` });
       return;
     }

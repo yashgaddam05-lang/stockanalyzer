@@ -10,6 +10,7 @@ import {
 } from '../_supabase.js';
 import { completeChat } from '../_llm.js';
 import { visitorHash } from '../_visitor.js';
+import { getPlan } from '../_plan.js';
 
 // POST /api/voice
 //   { action: "transcribe", audio: <base64>, mime: "audio/webm" }  -> { text }      (ElevenLabs Scribe)
@@ -56,9 +57,11 @@ function clip(text: string, max: number): string {
 }
 
 /** Counts usage against the caller's daily voice limit; null when their sign-in expired. */
-async function consume(request: ApiRequest, kind: 'tts' | 'stt', amount: number): Promise<{ ok: boolean } | null> {
+async function consume(request: ApiRequest, kind: 'tts' | 'stt', amount: number): Promise<{ ok: boolean; upgrade?: boolean } | null> {
   const auth = await resolveAuth(request);
   if (auth.kind === 'invalid') return null;
+  // Voice runs on paid ElevenLabs minutes: Pro only.
+  if (auth.kind !== 'user' || (await getPlan(auth.userId, auth.db)).plan !== 'pro') return { ok: false, upgrade: true };
   const db = auth.kind === 'user' ? auth.db : anonymousDb;
   const { data, error } = await db.rpc('voice_consume', {
     p_kind: kind,
@@ -78,6 +81,10 @@ async function transcribe(request: ApiRequest, response: ApiResponse, body: Reco
   const quota = await consume(request, 'stt', 1);
   if (!quota) return sendUnauthorized(response, 'Your session expired. Sign in again.');
   if (!quota.ok) {
+    if (quota.upgrade) {
+      response.status(402).json({ error: 'Voice is part of 3x Hunter Pro. You can still type your question.', upgrade: true });
+      return;
+    }
     response.status(429).json({ error: "You've reached today's voice limit. You can still type your question." });
     return;
   }
@@ -121,6 +128,10 @@ async function speak(request: ApiRequest, rawResponse: ApiResponse, body: Record
   const quota = await consume(request, 'tts', text.length);
   if (!quota) return sendUnauthorized(response, 'Your session expired. Sign in again.');
   if (!quota.ok) {
+    if (quota.upgrade) {
+      response.status(402).json({ error: 'Voice is part of 3x Hunter Pro. The answer is still on screen.', upgrade: true });
+      return;
+    }
     response.status(429).json({ error: "You've reached today's voice limit. The answer is still on screen." });
     return;
   }

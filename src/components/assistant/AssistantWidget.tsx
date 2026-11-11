@@ -731,7 +731,19 @@ export function AssistantWidget() {
                 </div>
               )
             )}
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-800">{error}</p>}
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-800">
+                {error}
+                {/upgrade|Pro\b/.test(error) && (
+                  <>
+                    {' '}
+                    <Link to="/app/billing" className="font-semibold underline underline-offset-2">
+                      See Pro
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
           </div>
 
           <form
