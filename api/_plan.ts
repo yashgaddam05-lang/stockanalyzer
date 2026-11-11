@@ -30,6 +30,7 @@ export const LIMITS = {
 
 const ACTIVE = new Set(['active', 'trialing', 'past_due']);
 const RESYNC_MS = 6 * 60 * 60 * 1000;
+const ORPHAN_CHECK_MS = 2 * 60 * 1000;
 
 let stripeClient: Stripe | null = null;
 export function stripe(): Stripe | null {
@@ -109,6 +110,27 @@ export async function getPlan(userId: string, db: SupabaseClient): Promise<PlanS
         row = (fresh as Row | null) ?? row;
       } catch {
         // Stripe unreachable: keep the stored state rather than locking the user out.
+      }
+    }
+  }
+  // Paid but never confirmed (tab closed before Stripe redirected back): ask Stripe directly whether
+  // this customer has a live subscription. Checked at most every few minutes per user.
+  const unconfirmed = row?.stripe_customer_id && !row.stripe_subscription_id && row.plan !== 'founding';
+  if (s && hasServiceRole && unconfirmed) {
+    const recentlyChecked = row!.synced_at && Date.now() - Date.parse(row!.synced_at) < ORPHAN_CHECK_MS;
+    if (!recentlyChecked) {
+      try {
+        const subs = await s.subscriptions.list({ customer: row!.stripe_customer_id!, status: 'all', limit: 5 });
+        const live = subs.data.find((x) => ACTIVE.has(x.status));
+        if (live) {
+          await saveSubscription(userId, live);
+        } else {
+          await supabaseAdmin.from('subscriptions').update({ synced_at: new Date().toISOString() }).eq('owner_id', userId);
+        }
+        const { data: fresh } = await db.from('subscriptions').select('*').eq('owner_id', userId).maybeSingle();
+        row = (fresh as Row | null) ?? row;
+      } catch {
+        // Stripe unreachable: try again on the next check.
       }
     }
   }
