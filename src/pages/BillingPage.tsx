@@ -5,6 +5,7 @@ import { ApiError, confirmCheckout, openBillingPortal, startCheckout } from '@/l
 import { usePlan, invalidatePlan } from '@/components/billing/usePlan';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
 import { PRO_FEATURES } from '@/components/billing/features';
+import { track } from '@/lib/analytics';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,7 +31,8 @@ export default function BillingPage() {
     confirmed.current = true;
     setBusy('confirm');
     confirmCheckout(sessionId)
-      .then(() => {
+      .then((s) => {
+        track('purchase', { currency: 'USD', value: s.interval === 'year' ? 149 : 19, items: [{ item_name: `Pro ${s.interval ?? 'month'}` }] });
         invalidatePlan();
         reload();
         setNotice('Welcome to Pro! Your subscription is active.');
@@ -45,6 +47,7 @@ export default function BillingPage() {
   async function go(kind: 'month' | 'year' | 'portal') {
     setBusy(kind);
     setError(null);
+    if (kind !== 'portal') track('begin_checkout', { currency: 'USD', value: kind === 'year' ? 149 : 19 });
     try {
       const { url } = kind === 'portal' ? await openBillingPortal() : await startCheckout(kind);
       window.location.assign(url);

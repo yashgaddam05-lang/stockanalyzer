@@ -4,6 +4,7 @@ import type { AuthError, Session } from '@supabase/supabase-js';
 import { authClient, readStoredAccessToken, readStoredSession, withTimeout } from '@/lib/auth-client';
 import { setAuthRefresher, setAuthTokenProvider } from '@/lib/api';
 import { landedFromRecoveryLink } from '@/components/auth/auth-redirect';
+import { track } from '@/lib/analytics';
 
 export interface AuthUser {
   id: string;
@@ -236,8 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const verifyEmailCode = useCallback(async (email: string, code: string) => {
     if (!authClient) throw new Error(DISABLED_MESSAGE);
-    const { error } = await authClient.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+    const { data, error } = await authClient.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
     if (error) throw friendlyError(error);
+    // New accounts are created on first code verification; count them as sign-ups in GA4.
+    const created = data.user?.created_at ? Date.parse(data.user.created_at) : 0;
+    track(Date.now() - created < 5 * 60 * 1000 ? 'sign_up' : 'login', { method: 'email_code' });
   }, []);
 
   const signInWithGoogle = useCallback(async (redirectTo: string) => {
