@@ -35,7 +35,7 @@ export type SizeSpec = {
 export const SIZE_SPECS: Record<Size, SizeSpec> = {
   quick: { label: 'Quick', credits: 1, models: [HAIKU, SONNET], effort: 'low', maxTokens: 1500, web: 0, research: 'none', researchTickers: 0, continuations: 0, minLevel: 'free' },
   standard: { label: 'Standard', credits: 3, models: [SONNET, HAIKU], effort: 'low', maxTokens: 6000, web: 0, research: 'cached', researchTickers: 3, continuations: 0, minLevel: 'free' },
-  researched: { label: 'Researched', credits: 10, models: [SONNET, OPUS], effort: 'medium', maxTokens: 16000, web: 0, research: 'fresh', researchTickers: 2, continuations: 1, minLevel: 'free' },
+  researched: { label: 'Researched', credits: 12, models: [SONNET, OPUS], effort: 'medium', maxTokens: 16000, web: 0, research: 'fresh', researchTickers: 2, continuations: 1, minLevel: 'free' },
   deep: { label: 'Deep dive', credits: 40, models: [OPUS, SONNET], effort: 'high', maxTokens: 32000, web: 6, research: 'fresh', researchTickers: 3, continuations: 1, minLevel: 'pro' },
   report: { label: 'Full report', credits: 100, models: [OPUS, SONNET], effort: 'high', maxTokens: 64000, web: 10, research: 'fresh', researchTickers: 5, continuations: 2, minLevel: 'pro_plus' },
 };

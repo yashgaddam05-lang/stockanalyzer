@@ -18,7 +18,7 @@ const MAX_TOKENS = 6000;
 export type Slot = 'premarket' | 'open' | 'close';
 export const SLOTS: Slot[] = ['premarket', 'open', 'close'];
 
-export type Brief = { ticker: string; content: string; created_at: string; sources: Citation[]; price_at: number | null };
+export type Brief = { ticker: string; content: string; created_at: string; sources: Citation[]; price_at: number | null; cost_usd?: number };
 
 const STOCK_PROMPT = `You are the research desk for 3x Hunter. Write a factual research brief on the stock below that
 analysts and the assistant will reuse all day. Search the web now. Facts only: no advice, no buy/sell lean.
@@ -195,7 +195,7 @@ async function runResearch(ticker: string, opts: ResearchOpts): Promise<Brief | 
     cost_usd: Number((usage.costUsd ?? 0).toFixed(6)),
     trigger: opts.trigger,
   };
-  const { data } = await supabaseAdmin.from('market_research').insert(brief).select('ticker, content, created_at, sources, price_at').single();
+  const { data } = await supabaseAdmin.from('market_research').insert(brief).select('ticker, content, created_at, sources, price_at, cost_usd').single();
   return (data as Brief | null) ?? { ...brief, created_at: new Date().toISOString() };
 }
 
@@ -248,19 +248,37 @@ export function activeSlots(paying: number): Slot[] {
   return ['premarket'];
 }
 
-/** How many stocks each run covers: 10 + 2 per paying customer, capped (RESEARCH_MAX_STOCKS, default 40). */
-export function coverage(paying: number): number {
-  const cap = Number(process.env.RESEARCH_MAX_STOCKS ?? 40);
-  return Math.min(cap, 10 + paying * 2);
+/** Average real cost of one brief (measured on staging, Nov 2026: Sonnet 5.5, low effort, 4 web results). */
+const BRIEF_COST = Number(process.env.RESEARCH_BRIEF_COST ?? 0.15);
+const TRADING_DAYS = 22;
+
+/**
+ * Scheduled research is paid for out of revenue: 10% of MRR a month (at least $15, RESEARCH_BUDGET_USD to override),
+ * split across trading days and active slots. Anything not pre-researched is researched on demand by the first person
+ * who asks, inside the credits they pay, and then shared.
+ */
+export function researchBudget(mrr: number): number {
+  const forced = Number(process.env.RESEARCH_BUDGET_USD);
+  return Number.isFinite(forced) && forced > 0 ? forced : Math.max(15, mrr * 0.1);
 }
 
-async function payingCustomers(): Promise<number> {
-  const { count } = await supabaseAdmin
+/** Stocks per run (besides the market brief) that the budget pays for, between 3 and RESEARCH_MAX_STOCKS (100). */
+export function coverage(mrr: number, slots: number): number {
+  const cap = Number(process.env.RESEARCH_MAX_STOCKS ?? 100);
+  const perRun = researchBudget(mrr) / TRADING_DAYS / Math.max(1, slots);
+  return Math.max(3, Math.min(cap, Math.floor(perRun / BRIEF_COST) - 1));
+}
+
+export async function businessSize(): Promise<{ paying: number; mrr: number }> {
+  const { data } = await supabaseAdmin
     .from('subscriptions')
-    .select('owner_id', { count: 'exact', head: true })
+    .select('plan, interval')
     .in('plan', ['pro', 'pro_plus'])
-    .in('status', ['active', 'trialing', 'past_due']);
-  return count ?? 0;
+    .in('status', ['active', 'trialing', 'past_due'])
+    .limit(100000);
+  const rows = (data ?? []) as { plan: string; interval: string | null }[];
+  const mrr = rows.reduce((sum, r) => sum + (r.plan === 'pro_plus' ? (r.interval === 'year' ? 399 / 12 : 49) : r.interval === 'year' ? 149 / 12 : 19), 0);
+  return { paying: rows.length, mrr };
 }
 
 /** Stocks users follow most (watchlists and portfolios), then the highest 3x scores. */
@@ -290,13 +308,14 @@ export async function runScheduledResearch(slot: string, opts: { force?: boolean
   const started = Date.now();
   const deadline = opts.deadlineMs ?? 240_000;
   if (process.env.RESEARCH_ENABLED === '0') return { slot, ran: false, reason: 'disabled', written: 0, skipped: 0, costUsd: 0 };
-  const paying = await payingCustomers();
-  if (!opts.force && !(activeSlots(paying) as string[]).includes(slot)) {
+  const { paying, mrr } = await businessSize();
+  const slots = activeSlots(paying);
+  if (!opts.force && !(slots as string[]).includes(slot)) {
     return { slot, ran: false, reason: `slot inactive at ${paying} paying customers`, paying, written: 0, skipped: 0, costUsd: 0 };
   }
   if ((await spentToday()) >= dailyLimitUsd()) return { slot, ran: false, reason: 'daily AI budget reached', paying, written: 0, skipped: 0, costUsd: 0 };
 
-  const planned = opts.tickers?.length ? opts.tickers : [MARKET, ...(await mostFollowed(opts.limit ?? coverage(paying)))];
+  const planned = opts.tickers?.length ? opts.tickers : [MARKET, ...(await mostFollowed(opts.limit ?? coverage(mrr, slots.length)))];
   // Skip anything researched in the last 2 hours (an earlier batch or an on-demand answer already covered it).
   const recentCut = new Date(Date.now() - 2 * 3_600_000).toISOString();
   const { data: recent } = await supabaseAdmin.from('market_research').select('ticker').in('ticker', planned).gt('created_at', recentCut);
@@ -315,11 +334,12 @@ export async function runScheduledResearch(slot: string, opts: { force?: boolean
       const timer = setTimeout(() => controller.abort(), Math.max(10_000, deadline - (Date.now() - started)));
       const b = await research(t, { trigger: opts.force ? 'admin' : 'schedule', slot, signal: controller.signal, batch: opts.batch });
       clearTimeout(timer);
-      if (b) written++;
+      if (b) {
+        written++;
+        costUsd += Number(b.cost_usd ?? 0);
+      }
     }
   });
   await Promise.all(workers);
-  const { data: costs } = await supabaseAdmin.from('market_research').select('cost_usd').gt('created_at', new Date(started).toISOString());
-  costUsd = ((costs ?? []) as { cost_usd: number | string }[]).reduce((s, r) => s + Number(r.cost_usd || 0), 0);
   return { slot, ran: true, paying, planned: planned.length, written, skipped: queue.length + done.size, costUsd: Number(costUsd.toFixed(4)) };
 }

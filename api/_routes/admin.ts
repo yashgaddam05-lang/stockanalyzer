@@ -6,7 +6,7 @@ import {
   type ApiRequest,
   type ApiResponse,
 } from '../_supabase.js';
-import { runScheduledResearch, activeSlots, coverage } from '../_research.js';
+import { runScheduledResearch, activeSlots, coverage, researchBudget } from '../_research.js';
 import { dailyLimitUsd } from '../_ai.js';
 
 // GET  /api/admin                                           -> headline stats (admins only)
@@ -30,7 +30,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (error) return forbidden();
     const { data: ai } = await auth.db.rpc('admin_ai_stats');
     const paying = Number((data as { paying?: number })?.paying ?? 0);
-    response.status(200).json({ ...(data as object), ai: ai ? { ...(ai as object), daily_limit_usd: dailyLimitUsd(), slots: activeSlots(paying), coverage: coverage(paying) } : null });
+    const mrr = Number((data as { mrr_usd?: number })?.mrr_usd ?? 0);
+    const slots = activeSlots(paying);
+    response.status(200).json({
+      ...(data as object),
+      ai: ai ? { ...(ai as object), daily_limit_usd: dailyLimitUsd(), slots, coverage: coverage(mrr, slots.length), research_budget_usd: researchBudget(mrr) } : null,
+    });
     return;
   }
   const body = readJsonBody(request) ?? {};
