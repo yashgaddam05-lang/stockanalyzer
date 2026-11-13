@@ -12,7 +12,7 @@ export const MARKET = 'MARKET';
 const STALE_MOVE = 0.04;
 const TTL_HOURS = 8;
 const WEEKEND_TTL_HOURS = 60;
-const WEB_RESULTS = 5;
+const WEB_RESULTS = Number(process.env.RESEARCH_WEB_RESULTS ?? 4);
 const MAX_TOKENS = 6000;
 
 export type Slot = 'premarket' | 'open' | 'close';
@@ -127,7 +127,9 @@ export async function cachedBriefs(tickers: string[]): Promise<Map<string, Brief
 const inFlight = new Map<string, Promise<Brief | null>>();
 
 /** Researches one ticker (or MARKET) now, stores it for everyone and records its cost. */
-export function research(ticker: string, opts: { trigger: 'schedule' | 'demand' | 'admin'; slot?: string; ownerId?: string | null; signal?: AbortSignal }): Promise<Brief | null> {
+type ResearchOpts = { trigger: 'schedule' | 'demand' | 'admin'; slot?: string; ownerId?: string | null; signal?: AbortSignal; batch?: boolean };
+
+export function research(ticker: string, opts: ResearchOpts): Promise<Brief | null> {
   const key = ticker.toUpperCase();
   const existing = inFlight.get(key);
   if (existing) return existing;
@@ -136,7 +138,7 @@ export function research(ticker: string, opts: { trigger: 'schedule' | 'demand' 
   return job;
 }
 
-async function runResearch(ticker: string, opts: { trigger: 'schedule' | 'demand' | 'admin'; slot?: string; ownerId?: string | null; signal?: AbortSignal }): Promise<Brief | null> {
+async function runResearch(ticker: string, opts: ResearchOpts): Promise<Brief | null> {
   const isMarket = ticker === MARKET;
   const row = isMarket ? null : (await stockUniverse()).find((r) => r.ticker.toUpperCase() === ticker);
   const prompt = (isMarket ? MARKET_PROMPT : STOCK_PROMPT).replace('{TICKER}', ticker).replace('{timestamp ET}', `${etStamp()} ET`);
@@ -147,7 +149,7 @@ async function runResearch(ticker: string, opts: { trigger: 'schedule' | 'demand
   const sources = new Map<string, string>();
   let usage: Usage = {};
   // Scheduled runs can use OpenRouter's half-price batch variant when RESEARCH_BATCH=1 (slower; fine before the open).
-  const batch = opts.trigger === 'schedule' && process.env.RESEARCH_BATCH === '1';
+  const batch = opts.batch ?? (opts.trigger === 'schedule' && process.env.RESEARCH_BATCH === '1');
   const model = process.env.RESEARCH_MODEL || RESEARCH_MODEL;
   try {
     await streamChat(
@@ -157,7 +159,8 @@ async function runResearch(ticker: string, opts: { trigger: 'schedule' | 'demand
         system: [{ text: prompt, cache: true }],
         messages: [{ role: 'user', content: subject }],
         maxTokens: MAX_TOKENS,
-        effort: 'medium',
+        // Low effort: a brief is gathering and summarizing, not deep reasoning; most of the cost is reading pages.
+        effort: (process.env.RESEARCH_EFFORT as 'low' | 'medium' | 'high') || 'low',
         // 'medium' context: the brief needs facts, not whole pages; this is most of the research cost.
         webSearch: { maxResults: WEB_RESULTS, context: (process.env.RESEARCH_CONTEXT as 'low' | 'medium' | 'high') || 'medium' },
         signal: opts.signal,
@@ -283,7 +286,7 @@ export type RunResult = { slot: string; ran: boolean; reason?: string; paying?: 
  * One scheduled research run: the market brief, then the most-followed stocks that do not already have a fresh brief.
  * Stops before the function's time limit; whatever is left is researched on demand by the first person who asks.
  */
-export async function runScheduledResearch(slot: string, opts: { force?: boolean; deadlineMs?: number; limit?: number } = {}): Promise<RunResult> {
+export async function runScheduledResearch(slot: string, opts: { force?: boolean; deadlineMs?: number; limit?: number; batch?: boolean; tickers?: string[] } = {}): Promise<RunResult> {
   const started = Date.now();
   const deadline = opts.deadlineMs ?? 240_000;
   if (process.env.RESEARCH_ENABLED === '0') return { slot, ran: false, reason: 'disabled', written: 0, skipped: 0, costUsd: 0 };
@@ -293,7 +296,7 @@ export async function runScheduledResearch(slot: string, opts: { force?: boolean
   }
   if ((await spentToday()) >= dailyLimitUsd()) return { slot, ran: false, reason: 'daily AI budget reached', paying, written: 0, skipped: 0, costUsd: 0 };
 
-  const planned = [MARKET, ...(await mostFollowed(opts.limit ?? coverage(paying)))];
+  const planned = opts.tickers?.length ? opts.tickers : [MARKET, ...(await mostFollowed(opts.limit ?? coverage(paying)))];
   // Skip anything researched in the last 2 hours (an earlier batch or an on-demand answer already covered it).
   const recentCut = new Date(Date.now() - 2 * 3_600_000).toISOString();
   const { data: recent } = await supabaseAdmin.from('market_research').select('ticker').in('ticker', planned).gt('created_at', recentCut);
@@ -310,7 +313,7 @@ export async function runScheduledResearch(slot: string, opts: { force?: boolean
       if (!t) return;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(10_000, deadline - (Date.now() - started)));
-      const b = await research(t, { trigger: opts.force ? 'admin' : 'schedule', slot, signal: controller.signal });
+      const b = await research(t, { trigger: opts.force ? 'admin' : 'schedule', slot, signal: controller.signal, batch: opts.batch });
       clearTimeout(timer);
       if (b) written++;
     }

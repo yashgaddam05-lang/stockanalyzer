@@ -39,7 +39,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const { error } = await auth.db.rpc('admin_ai_stats');
     if (error) return forbidden();
     const limit = Math.max(1, Math.min(20, Number(body.limit) || 5));
-    const result = await runScheduledResearch('admin', { force: true, limit, deadlineMs: 240_000 });
+    const tickers = Array.isArray(body.tickers) ? body.tickers.filter((t): t is string => typeof t === 'string' && /^[A-Z.]{1,10}$/.test(t)).slice(0, 10) : undefined;
+    const result = await runScheduledResearch('admin', { force: true, limit, deadlineMs: 240_000, batch: body.batch === true, tickers });
     response.status(200).json({ result });
     return;
   }
