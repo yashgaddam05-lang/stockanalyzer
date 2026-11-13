@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.5
 
 // refresh-filings: SEC EDGAR filing index + Form 4 insider transactions.
 // Free SEC APIs only. Every SEC request goes through secFetch(), which always
-// sends the User-Agent + Accept-Encoding headers and a global rate limit.
+// sends the User-Agent header and a global rate limit.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,11 +17,22 @@ const USER_AGENT = UA_SECRET || FALLBACK_UA;
 
 const RATE_PER_SEC = 8; // SEC fair-access limit is 10/s; stay under 8
 const REQUEST_TIMEOUT_MS = 8000;
-const RUN_BUDGET_MS = 100_000; // stop picking up tickers (Edge wall clock 150s)
-const HARD_STOP_MS = 120_000; // stop Form 4 fetches mid-ticker past this
-const SKIP_WINDOW_MS = 30 * 60_000;
-const WORKERS = 4;
-const FORM4_CAP = 15;
+// Free-tier Edge workers are killed at ~2s of CPU time (HTTP 546 "CPU Time
+// exceeded"), long before the 150s wall clock. Each run therefore does a small,
+// bounded batch (stalest tickers first) and pg_cron calls it every 10 minutes.
+const RUN_BUDGET_MS = 40_000; // stop picking up tickers past this
+const HARD_STOP_MS = 50_000; // stop Form 4 fetches mid-ticker past this
+const SKIP_WINDOW_MS = 8 * 60_000; // under the 10-minute pg_cron interval
+const WORKERS = 2;
+const DEFAULT_BATCH = 15; // 25 measured OK; 15 leaves CPU headroom
+const MAX_BATCH = 25;
+const FORM4_CAP = 4; // Form 4 XMLs parsed per ticker per run
+const FORM4_RUN_CAP = 25; // and per run overall
+// Banks file thousands of 424B2 notes a year (BAC: ~11,000). Upserting them all
+// in one request was the CPU sink, so keep only the newest N per form type.
+const PER_FORM_CAP = 40;
+const FILINGS_CAP = 300; // per ticker per run
+const STALE_RUN_MS = 15 * 60_000; // a 'running' row older than this was killed
 const LOOKUP_CHUNK = 100; // accessions per PostgREST .in() query (URL length)
 // A Form 4 that yields no non-derivative lines (derivative-only grant, no
 // owner, 404, unparseable) is recorded in sec_form4_processed so it is not
@@ -37,7 +48,7 @@ const BASE_FORMS = [
 ];
 const FORMS = new Set(BASE_FORMS.flatMap((f) => [f, `${f}/A`]));
 
-// ?force=1 bypasses the 30-minute guard. verify_jwt is off, so force is honored
+// ?force=1 bypasses the skip-window guard. verify_jwt is off, so force is honored
 // only with the REFRESH_FILINGS_SECRET in x-refresh-secret, or the service role
 // key as the bearer token. Otherwise it is ignored (response force_ignored:true)
 // and the guard applies. Cron/manual callers that need force must send one.
@@ -86,6 +97,8 @@ async function takeToken(): Promise<void> {
 }
 
 let halted: string | null = null;
+let T0 = Date.now();
+const trace = (m: string) => console.log(`t+${Date.now() - T0}ms ${m}`);
 
 async function decodeBody(res: Response): Promise<string> {
   const buf = new Uint8Array(await res.arrayBuffer());
@@ -107,8 +120,9 @@ async function secFetch(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: {
+        // No manual Accept-Encoding: the runtime then negotiates gzip itself and
+        // decompresses natively. Setting it by hand returns the raw gzip bytes.
         "User-Agent": USER_AGENT,
-        "Accept-Encoding": "gzip, deflate",
         "Accept": "application/json, application/xml, text/xml, */*",
       },
       signal: ctrl.signal,
@@ -141,28 +155,23 @@ async function secFetch(url: string): Promise<string | null> {
 const normTicker = (t: string) => t.trim().toUpperCase().replace(/\./g, "-");
 const padCik = (n: number | string) => String(n).replace(/\D/g, "").padStart(10, "0");
 
-let cikMap: Promise<Map<string, string>> | null = null; // cached per invocation (shared by workers)
-function loadCikMap(): Promise<Map<string, string>> {
-  if (!cikMap) {
-    cikMap = (async () => {
-      const text = await secFetch("https://www.sec.gov/files/company_tickers.json");
-      const map = new Map<string, string>();
-      if (!text) return map;
-      const data = JSON.parse(text) as Record<string, { cik_str: number; ticker: string }>;
-      for (const row of Object.values(data)) {
-        if (!row?.ticker || row.cik_str == null) continue;
-        const k = normTicker(row.ticker);
-        if (!map.has(k)) map.set(k, padCik(row.cik_str));
-      }
-      return map;
-    })();
-    // Do not cache a failed load; the next ticker retries it.
-    cikMap.catch(() => { cikMap = null; });
+// CIKs come from sec_sync_state (cached from an earlier run) or the app's own
+// public.securities master, queried only for this batch. Never download SEC's
+// full company_tickers.json: parsing it alone burned most of the CPU budget.
+async function loadBatchCiks(sb: SupabaseClient, tickers: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!tickers.length) return map;
+  const variants = [...new Set(tickers.flatMap((t) => [t, t.replace(/-/g, "."), t.replace(/\./g, "-")]))];
+  const { data, error } = await sb.from("securities").select("ticker,cik").in("ticker", variants).not("cik", "is", null);
+  if (error) throw new Error(`securities lookup: ${error.message}`);
+  for (const row of (data ?? []) as { ticker: string; cik: number | string }[]) {
+    const k = normTicker(row.ticker);
+    if (!map.has(k)) map.set(k, padCik(row.cik));
   }
-  return cikMap;
+  return map;
 }
 
-// ---------- Form 4 XML extraction (regex, tolerant of missing nodes) ----------
+// ---------- Form 4 XML extraction (indexOf scan, tolerant of missing nodes) ----------
 
 function codePoint(n: number, fallback: string): string {
   return Number.isInteger(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : fallback;
@@ -179,14 +188,38 @@ function decodeEntities(s: string): string {
     .trim();
 }
 
-function tagAll(xml: string, name: string): string[] {
-  const re = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "g");
+// indexOf scanning (no regex backtracking over the whole document). Matches
+// <name> or <name attr...>, not <nameSuffix>. limit stops after the first hit.
+function tagAll(xml: string, name: string, limit = Infinity): string[] {
   const out: string[] = [];
-  for (const m of xml.matchAll(re)) out.push(m[1]);
+  const open = `<${name}`;
+  const close = `</${name}>`;
+  let pos = 0;
+  while (out.length < limit) {
+    const i = xml.indexOf(open, pos);
+    if (i < 0) break;
+    const after = xml.charCodeAt(i + open.length);
+    // '>' or whitespace ends the tag name; anything else is a longer tag name.
+    if (after !== 62 && after !== 32 && after !== 9 && after !== 10 && after !== 13) {
+      pos = i + open.length;
+      continue;
+    }
+    const gt = xml.indexOf(">", i + open.length);
+    if (gt < 0) break;
+    if (xml.charCodeAt(gt - 1) === 47) { // self-closing <name/>
+      out.push("");
+      pos = gt + 1;
+      continue;
+    }
+    const j = xml.indexOf(close, gt + 1);
+    if (j < 0) break;
+    out.push(xml.slice(gt + 1, j));
+    pos = j + close.length;
+  }
   return out;
 }
 const tag = (xml: string | null | undefined, name: string): string | null =>
-  xml ? (tagAll(xml, name)[0] ?? null) : null;
+  xml ? (tagAll(xml, name, 1)[0] ?? null) : null;
 function text(xml: string | null | undefined, name: string): string | null {
   const inner = tag(xml, name);
   if (inner == null) return null;
@@ -293,6 +326,7 @@ async function processTicker(
   knownCik: string | null,
   runStart: number,
   stats: Stats,
+  budget: { form4Left: number },
 ): Promise<void> {
   const now = new Date().toISOString();
   const setState = async (cik: string | null, err: string | null) => {
@@ -305,7 +339,6 @@ async function processTicker(
 
   let cik = knownCik;
   try {
-    if (!cik) cik = (await loadCikMap()).get(normTicker(ticker)) ?? null;
     if (!cik) {
       await setState(null, "no_cik");
       stats.tickers_processed++;
@@ -319,7 +352,7 @@ async function processTicker(
       stats.errors++;
       return;
     }
-    const recent = (JSON.parse(body)?.filings?.recent ?? null) as Recent | null;
+    const recent = (JSON.parse(body)?.filings?.recent ?? null) as Recent | null; // body dropped after parse
     if (!recent || !Array.isArray(recent.accessionNumber)) throw new Error("no_recent_filings");
 
     const cikNum = String(Number(cik));
@@ -328,12 +361,18 @@ async function processTicker(
     const filings: Record<string, unknown>[] = [];
     const form4s: { accession: string; doc: string; url: string; filed: string }[] = [];
     const seen = new Set<string>();
+    const perForm = new Map<string, number>();
 
     for (let i = 0; i < recent.accessionNumber.length; i++) {
       const accession = recent.accessionNumber[i];
       const form = (recent.form[i] ?? "").trim();
       const filed = recent.filingDate[i];
       if (!accession || !filed || filed < filingCutoff || !FORMS.has(form) || seen.has(accession)) continue;
+      // recent[] is newest first, so the caps keep the latest filings.
+      const n = perForm.get(form) ?? 0;
+      if (n >= PER_FORM_CAP) continue;
+      if (filings.length >= FILINGS_CAP) break;
+      perForm.set(form, n + 1);
       seen.add(accession);
       const doc = recent.primaryDocument?.[i] ?? "";
       const url = doc
@@ -354,6 +393,7 @@ async function processTicker(
       }
     }
 
+    trace(`parsed ${ticker} filings=${filings.length} form4=${form4s.length}`);
     if (filings.length) {
       const { error } = await sb.from("sec_filings").upsert(filings, { onConflict: "ticker,accession_no" });
       if (error) throw new Error(`sec_filings upsert: ${error.message}`);
@@ -382,7 +422,8 @@ async function processTicker(
       pending = pending
         .filter((f) => !have.has(f.accession))
         .sort((a, b) => b.filed.localeCompare(a.filed))
-        .slice(0, FORM4_CAP);
+        .slice(0, Math.min(FORM4_CAP, Math.max(0, budget.form4Left)));
+      budget.form4Left -= pending.length;
     }
 
     let form4Errors = 0;
@@ -425,6 +466,7 @@ async function processTicker(
     }
 
     await setState(cik, form4Errors ? `form4_errors:${form4Errors}` : null);
+    trace(`done ${ticker}`);
     if (form4Errors) stats.errors++;
     stats.tickers_processed++;
   } catch (e) {
@@ -447,9 +489,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
   const runStart = Date.now();
+  T0 = runStart;
   const startedAt = new Date(runStart).toISOString();
   halted = null;
-  cikMap = null;
   let sb: SupabaseClient | null = null;
   let runId: string | null = null;
 
@@ -470,7 +512,7 @@ Deno.serve(async (req: Request) => {
       if (recentRuns && recentRuns.length) {
         return json({
           skipped: true,
-          reason: "ran_within_30_minutes",
+          reason: "ran_within_skip_window",
           last_started_at: recentRuns[0].started_at,
           force_ignored: forceRequested,
         });
@@ -488,6 +530,17 @@ Deno.serve(async (req: Request) => {
     if (startErr) console.error(`refresh_runs start insert: ${startErr.message}`);
     runId = (runRow as { id: string } | null)?.id ?? null;
 
+    // Rows left 'running' by a worker that was killed (546) never finish;
+    // close them out so they do not look like a run still in progress.
+    await sb.from("refresh_runs")
+      .update({ status: "failed", finished_at: startedAt, stats: { error: "worker_killed_before_finish" } })
+      .eq("job", JOB)
+      .eq("stats->>running", "true")
+      .lt("started_at", new Date(runStart - STALE_RUN_MS).toISOString());
+
+    const batchParam = Number(new URL(req.url).searchParams.get("batch"));
+    const batchSize = Number.isInteger(batchParam) && batchParam > 0 ? Math.min(batchParam, MAX_BATCH) : DEFAULT_BATCH;
+
     const { data: stocks, error: stocksErr } = await sb.from("stocks").select("ticker").eq("is_active", true);
     if (stocksErr) throw new Error(`stocks: ${stocksErr.message}`);
     const { data: states, error: stateErr } = await sb.from("sec_sync_state").select("ticker,cik,last_synced_at");
@@ -495,14 +548,34 @@ Deno.serve(async (req: Request) => {
 
     const stateBy = new Map<string, { cik: string | null; last_synced_at: string | null }>();
     for (const s of states ?? []) stateBy.set(s.ticker, s);
-    const queue = [...new Set((stocks ?? []).map((s: { ticker: string }) => s.ticker).filter(Boolean))]
+    const active = [...new Set((stocks ?? []).map((s: { ticker: string }) => s.ticker).filter(Boolean))];
+
+    // Every active stock gets a sec_sync_state row (never-synced sorts first).
+    const missing = active.filter((t) => !stateBy.has(t));
+    if (missing.length) {
+      const { error } = await sb.from("sec_sync_state").upsert(
+        missing.map((ticker) => ({ ticker, cik: null, last_synced_at: null, last_error: null })),
+        { onConflict: "ticker", ignoreDuplicates: true },
+      );
+      if (error) console.error(`sec_sync_state seed: ${error.message}`);
+    }
+
+    const queue = active
       .map((t) => ({ ticker: t, cik: stateBy.get(t)?.cik ?? null, last: stateBy.get(t)?.last_synced_at ?? null }))
       .sort((a, b) => {
         if (a.last === b.last) return a.ticker.localeCompare(b.ticker);
         if (a.last === null) return -1; // nulls first
         if (b.last === null) return 1;
         return a.last.localeCompare(b.last);
-      });
+      })
+      .slice(0, batchSize);
+
+    trace(`queue ready ${queue.map((q) => q.ticker).join(",")}`);
+    const needCik = queue.filter((q) => !q.cik).map((q) => q.ticker);
+    if (needCik.length) {
+      const ciks = await loadBatchCiks(sb, needCik);
+      for (const q of queue) if (!q.cik) q.cik = ciks.get(normTicker(q.ticker)) ?? null;
+    }
 
     const stats: Stats = {
       tickers_processed: 0,
@@ -512,11 +585,12 @@ Deno.serve(async (req: Request) => {
       form4_no_lines: 0,
       errors: 0,
     };
+    const budget = { form4Left: FORM4_RUN_CAP };
     let idx = 0;
     const worker = async () => {
       while (idx < queue.length && !halted && Date.now() - runStart < RUN_BUDGET_MS) {
         const item = queue[idx++];
-        await processTicker(sb!, item.ticker, item.cik, runStart, stats);
+        await processTicker(sb!, item.ticker, item.cik, runStart, stats, budget);
       }
     };
     await Promise.all(Array.from({ length: WORKERS }, worker));
@@ -527,7 +601,7 @@ Deno.serve(async (req: Request) => {
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       status,
-      stats: { ...stats, halted, remaining: Math.max(0, queue.length - idx), forced: force },
+      stats: { ...stats, halted, batch: batchSize, remaining: Math.max(0, queue.length - idx), seeded: missing.length, forced: force },
     };
     const { error: runErr } = runId
       ? await sb.from("refresh_runs").update(final).eq("id", runId)
