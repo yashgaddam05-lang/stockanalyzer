@@ -39,7 +39,7 @@ const PLUS_FEATURES: Feature[] = [
 
 const SIZES = [
   { name: 'Quick', credits: 1, what: 'App help, definitions, quick concepts' },
-  { name: 'Standard', credits: 3, what: "Focused answers from 3x Hunter data and today's shared research" },
+  { name: 'Standard', credits: 4, what: "Focused answers from 3x Hunter data and today's shared research" },
   { name: 'Researched', credits: 12, what: 'Live research on the stocks you ask about, full structure' },
   { name: 'Deep dive', credits: 40, what: 'Analyst depth: scenarios, odds, dollar outcomes, ideas (Pro)' },
   { name: 'Full report', credits: 100, what: 'Everything, cross-checked, for saving or printing (Pro+)' },
@@ -52,7 +52,7 @@ const FAQ = [
   },
   {
     q: 'How do AI credits work?',
-    a: 'Each answer uses credits by its size: Quick 1, Standard 3, Researched 12, Deep dive 40, Full report 100. Auto picks the right size for each question, and you can always choose. Monthly credits refresh on the 1st; credits from packs never expire.',
+    a: 'Each answer uses credits by its size: Quick 1, Standard 4, Researched 12, Deep dive 40, Full report 100. Auto picks the right size for each question, and you can always choose. Monthly credits refresh on the 1st; credits from packs never expire.',
   },
   {
     q: 'Why do some answers come back so fast?',

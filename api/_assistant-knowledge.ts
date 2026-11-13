@@ -90,7 +90,7 @@ predict future returns.
   bull/neutral/bear scenarios, 600 AI credits a month with Deep dive answers, the voice assistant and up to 50 alerts.
   Pro+ is $49/month or $399/year: everything in Pro, 1,600 AI credits a month and Full report answers. Credit packs:
   250 credits for $10 (Pro and Pro+), never expire.
-  AI answer sizes and credits: Quick 1 (app help), Standard 3 (focused, from app data and today's shared research),
+  AI answer sizes and credits: Quick 1 (app help), Standard 4 (focused, from app data and today's shared research),
   Researched 12 (live research on the stocks asked about), Deep dive 40 (full analyst depth, Pro), Full report 100
   (Pro+). Auto picks the size; the size menu sits above the chat box. Monthly credits refresh on the 1st (UTC).
   Checkout and billing are handled by Stripe; cancel anytime from Plan & billing (the plan stays until the period ends).
