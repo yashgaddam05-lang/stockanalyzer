@@ -19,8 +19,8 @@ const PLAN_INFO: Record<PaidPlan, { name: string; month: number; year: number; b
   pro_plus: { name: 'Pro+', month: 49, year: 399, blurb: 'For daily, deep AI research.', features: PLUS_FEATURES },
 };
 
-const fmtDate = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+const fmtDate = (iso: string | null | undefined, utc = false) =>
+  iso ? new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric', ...(utc ? { timeZone: 'UTC' } : {}) }) : '';
 
 export default function BillingPage() {
   useDocumentTitle('Plan & billing · 3x Hunter');
@@ -125,7 +125,9 @@ export default function BillingPage() {
                   ? plan?.cancelAtPeriodEnd
                     ? `Cancels on ${fmtDate(plan.currentPeriodEnd)}. You keep it until then.`
                     : `Renews on ${fmtDate(plan?.currentPeriodEnd)}.${plan?.status === 'past_due' ? ' Your last payment failed; update your card to keep it.' : ''}`
-                  : isFounding
+                  : tier === 'admin'
+                    ? 'Admins have every feature and unlimited AI credits. Usage is still recorded on the admin page.'
+                    : isFounding
                     ? `Thanks for being early. Pro is free for you until ${fmtDate(plan?.currentPeriodEnd)}. Subscribe anytime to keep it after that.`
                     : 'Scores, watchlists, portfolios and the market view are free forever.'}
               </p>
@@ -154,7 +156,7 @@ export default function BillingPage() {
                       <div className={cn('h-full rounded-full', pct < 15 ? 'bg-amber-500' : 'bg-neutral-900')} style={{ width: `${pct}%` }} />
                     </div>
                   )}
-                  <p className="text-[12px] text-neutral-500">Monthly credits refresh on {fmtDate(ai.credits.resets_at)}. Pack credits never expire.</p>
+                  <p className="text-[12px] text-neutral-500">Monthly credits refresh on {fmtDate(ai.credits.resets_at, true)}. Pack credits never expire.</p>
                 </>
               ) : (
                 <p className="text-[13px] text-neutral-600">Credits show here once you are signed in.</p>
