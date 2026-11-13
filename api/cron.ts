@@ -10,11 +10,12 @@ import {
   type ApiResponse,
 } from './_supabase.js';
 import { logRefreshRun, runStockRefresh } from './_refresh-core.js';
+import { runScheduledResearch } from './_research.js';
 
-const JOBS = ['market', 'stocks', 'filings', 'smart-money'] as const;
+const JOBS = ['market', 'stocks', 'filings', 'smart-money', 'research'] as const;
 type CronJob = (typeof JOBS)[number];
 
-const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks'>, string> = {
+const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks' | 'research'>, string> = {
   market: 'refresh-market',
   filings: 'refresh-filings',
   'smart-money': 'refresh-smart-money',
@@ -42,7 +43,7 @@ function anonKey(): string | undefined {
 
 type EdgeOutcome = { ok: boolean; result: unknown };
 
-async function callEdgeFunction(job: Exclude<CronJob, 'stocks'>): Promise<EdgeOutcome> {
+async function callEdgeFunction(job: Exclude<CronJob, 'stocks' | 'research'>): Promise<EdgeOutcome> {
   const startedAt = new Date();
   const name = EDGE_FUNCTIONS[job];
   const controller = new AbortController();
@@ -109,6 +110,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         ok: result.ok,
         result: result.ok ? result.data : { error: result.error },
       });
+      return;
+    }
+    if (job === 'research') {
+      // Shared research briefs; the slot only runs when the business is big enough for it (see activeSlots).
+      const slot = getQueryValue(request, 'slot') ?? 'premarket';
+      const result = await runScheduledResearch(slot, { deadlineMs: 270_000 });
+      response.status(200).json({ job, ok: true, result });
       return;
     }
     const outcome = await callEdgeFunction(job);

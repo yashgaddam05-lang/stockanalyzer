@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingRelation } from './_supabase.js';
 import { completeChat } from './_llm.js';
+import { SUMMARY_MODEL, recordUsage } from './_ai.js';
 
 // Per-account context for the research assistant: the signed-in user's profile, portfolio and summaries of their
 // earlier chats. Every query runs on the caller's RLS-scoped client and is also filtered by owner, so nothing here can
@@ -82,6 +83,8 @@ export async function summarizeFinishedSessions(
       try {
         const summary = await completeChat({
           tier: 'member',
+          models: [SUMMARY_MODEL, 'anthropic/claude-sonnet-5.5'],
+          onUsage: (u) => void recordUsage({ owner_id: userId, kind: 'summary' }, u),
           system: [{ text: SUMMARY_PROMPT }],
           messages: [{ role: 'user', content: `Chat from ${row.started_at.slice(0, 10)}:\n\n${text}` }],
           maxTokens: 1000,

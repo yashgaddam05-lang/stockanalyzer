@@ -9,6 +9,7 @@ import {
   type ApiResponse,
 } from '../_supabase.js';
 import { completeChat } from '../_llm.js';
+import { SUMMARY_MODEL, recordUsage } from '../_ai.js';
 import { visitorHash } from '../_visitor.js';
 import { getPlan } from '../_plan.js';
 
@@ -118,7 +119,7 @@ async function speak(request: ApiRequest, rawResponse: ApiResponse, body: Record
     // Long reports become a short spoken briefing; reading tables and charts aloud helps nobody.
     try {
       text = toPlainSpeech(
-        await completeChat({ tier: 'guest', system: [{ text: SPOKEN_PROMPT }], messages: [{ role: 'user', content: source.slice(0, 30000) }], maxTokens: 2000, effort: 'low' })
+        await completeChat({ tier: 'guest', models: [SUMMARY_MODEL, 'anthropic/claude-sonnet-5.5'], onUsage: (u) => void recordUsage({ kind: 'voice' }, u), system: [{ text: SPOKEN_PROMPT }], messages: [{ role: 'user', content: source.slice(0, 30000) }], maxTokens: 2000, effort: 'low' })
       ) || text;
     } catch (error) {
       console.error('voice summary failed', (error as Error)?.message ?? error);

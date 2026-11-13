@@ -2,13 +2,16 @@
 import Stripe from 'stripe';
 import { supabaseAdmin, hasServiceRole } from './_supabase.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { CREDIT_PACK, type Level } from './_ai.js';
 
 export type Plan = 'free' | 'pro';
 
 export interface PlanState {
   plan: Plan;
-  /** free | pro | founding */
+  /** free | pro | pro_plus | founding | admin */
   tier: string;
+  /** AI budget level: free, pro (Pro and founding members) or pro_plus (Pro+ and admins). */
+  level: Level;
   status: string;
   interval: 'month' | 'year' | null;
   currentPeriodEnd: string | null;
@@ -17,10 +20,25 @@ export interface PlanState {
   isAdmin: boolean;
 }
 
-export const PRICES = {
-  month: { lookupKey: '3xh_pro_monthly', amount: 1900, label: '$19 / month' },
-  year: { lookupKey: '3xh_pro_annual', amount: 14900, label: '$149 / year' },
+export type PaidPlan = 'pro' | 'pro_plus';
+
+export const PLAN_PRICES = {
+  pro: {
+    month: { lookupKey: '3xh_pro_monthly', amount: 1900, label: '$19 / month' },
+    year: { lookupKey: '3xh_pro_annual', amount: 14900, label: '$149 / year' },
+  },
+  pro_plus: {
+    month: { lookupKey: '3xh_plus_monthly', amount: 4900, label: '$49 / month' },
+    year: { lookupKey: '3xh_plus_annual', amount: 39900, label: '$399 / year' },
+  },
 } as const;
+/** Pro prices (kept for existing callers). */
+export const PRICES = PLAN_PRICES.pro;
+
+const PRODUCTS: Record<PaidPlan, { app: string; name: string; description: string }> = {
+  pro: { app: '3xhunter-pro', name: '3x Hunter Pro', description: 'Full 3x score breakdowns, the AI research assistant with deep dives, voice and alerts.' },
+  pro_plus: { app: '3xhunter-pro-plus', name: '3x Hunter Pro+', description: 'Everything in Pro with nearly 3x the AI research budget and full research reports.' },
+};
 
 /** Per-plan daily limits, enforced server-side. */
 export const LIMITS = {
@@ -54,12 +72,13 @@ type Row = {
 };
 
 function toState(row: Row | null): PlanState {
-  if (!row) return { plan: 'free', tier: 'free', status: 'none', interval: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, hasCustomer: false, isAdmin: false };
+  if (!row) return { plan: 'free', tier: 'free', level: 'free', status: 'none', interval: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, hasCustomer: false, isAdmin: false };
   const notExpired = !row.current_period_end || Date.parse(row.current_period_end) > Date.now();
-  const pro = (row.plan === 'pro' || row.plan === 'founding') && ACTIVE.has(row.status) && notExpired;
+  const pro = (row.plan === 'pro' || row.plan === 'pro_plus' || row.plan === 'founding') && ACTIVE.has(row.status) && notExpired;
   return {
     plan: pro ? 'pro' : 'free',
     tier: pro ? row.plan : 'free',
+    level: !pro ? 'free' : row.plan === 'pro_plus' ? 'pro_plus' : 'pro',
     status: row.status,
     interval: row.interval,
     currentPeriodEnd: row.current_period_end,
@@ -72,12 +91,14 @@ function toState(row: Row | null): PlanState {
 /** Writes a Stripe subscription onto the user's row (server only). */
 export async function saveSubscription(userId: string, sub: Stripe.Subscription): Promise<void> {
   const item = sub.items.data[0];
+  const lookup = item?.price?.lookup_key ?? '';
+  const plan: PaidPlan = lookup.startsWith('3xh_plus') ? 'pro_plus' : 'pro';
   const periodEnd = (item as unknown as { current_period_end?: number })?.current_period_end
     ?? (sub as unknown as { current_period_end?: number }).current_period_end;
   await supabaseAdmin.from('subscriptions').upsert(
     {
       owner_id: userId,
-      plan: 'pro',
+      plan,
       status: sub.status,
       interval: item?.price?.recurring?.interval === 'year' ? 'year' : 'month',
       stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
@@ -99,7 +120,7 @@ export async function getPlan(userId: string, db: SupabaseClient): Promise<PlanS
   const { data } = await db.from('subscriptions').select('*').eq('owner_id', userId).maybeSingle();
   let row = (data as Row | null) ?? null;
   const s = stripe();
-  if (s && hasServiceRole && row?.plan === 'pro' && row.stripe_subscription_id) {
+  if (s && hasServiceRole && (row?.plan === 'pro' || row?.plan === 'pro_plus') && row.stripe_subscription_id) {
     const stale = !row.synced_at || Date.now() - Date.parse(row.synced_at) > RESYNC_MS;
     const ended = row.current_period_end && Date.parse(row.current_period_end) < Date.now();
     if (stale || ended) {
@@ -137,7 +158,7 @@ export async function getPlan(userId: string, db: SupabaseClient): Promise<PlanS
   const state = toState(row);
   // Admins have every feature, whatever their billing row says.
   const { data: admin } = await db.rpc('is_app_admin');
-  if (admin === true) return { ...state, plan: 'pro', tier: state.tier === 'pro' ? 'pro' : 'admin', isAdmin: true };
+  if (admin === true) return { ...state, plan: 'pro', level: 'pro_plus', tier: state.tier === 'pro' || state.tier === 'pro_plus' ? state.tier : 'admin', isAdmin: true };
   return state;
 }
 
@@ -146,18 +167,20 @@ export async function getStoredCustomerId(userId: string): Promise<string | null
   return (data?.stripe_customer_id as string | null) ?? null;
 }
 
-/** Finds or creates the Pro product's two prices by lookup key, so no dashboard setup is needed. */
-export async function ensurePrice(interval: 'month' | 'year'): Promise<string> {
+async function ensureProduct(app: string, name: string, description: string): Promise<string> {
   const s = stripe()!;
-  const def = PRICES[interval];
+  const products = await s.products.search({ query: `metadata['app']:'${app}'`, limit: 1 });
+  return (products.data[0] ?? (await s.products.create({ name, description, metadata: { app } }))).id;
+}
+
+/** Finds or creates a plan's price by lookup key, so no dashboard setup is needed. */
+export async function ensurePrice(interval: 'month' | 'year', plan: PaidPlan = 'pro'): Promise<string> {
+  const s = stripe()!;
+  const def = PLAN_PRICES[plan][interval];
   const found = await s.prices.list({ lookup_keys: [def.lookupKey], active: true, limit: 1 });
   if (found.data[0]) return found.data[0].id;
-  const products = await s.products.search({ query: "metadata['app']:'3xhunter-pro'", limit: 1 });
-  const product = products.data[0] ?? (await s.products.create({
-    name: '3x Hunter Pro',
-    description: 'Full 3x score breakdowns, the AI research assistant, voice and alerts.',
-    metadata: { app: '3xhunter-pro' },
-  }));
+  const p = PRODUCTS[plan];
+  const product = { id: await ensureProduct(p.app, p.name, p.description) };
   const price = await s.prices.create({
     product: product.id,
     currency: 'usd',
@@ -165,5 +188,15 @@ export async function ensurePrice(interval: 'month' | 'year'): Promise<string> {
     recurring: { interval },
     lookup_key: def.lookupKey,
   });
+  return price.id;
+}
+
+/** One-time price for the credit pack. */
+export async function ensureCreditPackPrice(): Promise<string> {
+  const s = stripe()!;
+  const found = await s.prices.list({ lookup_keys: [CREDIT_PACK.lookupKey], active: true, limit: 1 });
+  if (found.data[0]) return found.data[0].id;
+  const product = await ensureProduct('3xhunter-credits', '3x Hunter AI credits', `${CREDIT_PACK.credits} extra AI research credits. Never expire.`);
+  const price = await s.prices.create({ product, currency: 'usd', unit_amount: CREDIT_PACK.amount, lookup_key: CREDIT_PACK.lookupKey });
   return price.id;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, ShieldCheck, Wrench } from 'lucide-react';
-import { ApiError, getAdminStats, getSiteStatus, setMaintenance } from '@/lib/api';
+import { Loader2, ShieldCheck, Wrench, Zap } from 'lucide-react';
+import { ApiError, getAdminStats, getSiteStatus, runResearchNow, setMaintenance } from '@/lib/api';
 import type { AdminStats } from '@/lib/api';
 import { usePlan } from '@/components/billing/usePlan';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
@@ -18,6 +18,8 @@ export default function AdminPage() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [researching, setResearching] = useState(false);
+  const [researchNote, setResearchNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!plan?.isAdmin) return;
@@ -48,13 +50,31 @@ export default function AdminPage() {
     }
   }
 
+  async function research() {
+    setResearching(true);
+    setResearchNote(null);
+    try {
+      const { result } = await runResearchNow(5);
+      setResearchNote(result.ran ? `Wrote ${result.written} briefs for $${result.costUsd.toFixed(2)}.` : `Did not run: ${result.reason ?? 'unknown'}.`);
+      setStats(await getAdminStats());
+    } catch (e) {
+      setResearchNote(e instanceof ApiError ? e.message : 'Research run failed.');
+    } finally {
+      setResearching(false);
+    }
+  }
+
+  const ai = stats?.ai ?? null;
+  const usd = (n: number) => `$${Number(n).toFixed(Number(n) < 10 ? 2 : 0)}`;
+  const aiShare = ai && stats && stats.mrr_usd > 0 ? Math.round((ai.cost_month / stats.mrr_usd) * 100) : null;
+
   const tiles: [string, string | number][] = stats
     ? [
         ['Accounts', stats.users],
         ['New in 7 days', stats.new_7d],
         ['Active in 7 days', stats.active_7d],
         ['Active in 30 days', stats.active_30d],
-        ['Paying Pro', stats.paying],
+        ['Paying (Pro + Pro+)', `${stats.paying}${stats.paying_plus ? ` (${stats.paying_plus} Pro+)` : ''}`],
         ['MRR', `$${Math.round(stats.mrr_usd)}`],
         ['Founding members', stats.founding],
         ['AI questions today', stats.assistant_today],
@@ -82,6 +102,77 @@ export default function AdminPage() {
             ))
           : Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
       </div>
+
+      {ai && (
+        <Card className="space-y-4 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-neutral-900">
+                <Zap className="h-5 w-5" aria-hidden="true" />
+                AI costs
+              </h2>
+              <p className="text-[13px] text-neutral-600">
+                Real model spend from every call. Target: AI under 30% of MRR. Daily breaker at {usd(ai.daily_limit_usd)}: past it, answers drop to
+                Standard and research pauses until midnight UTC.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" disabled={researching} onClick={() => void research()} className="gap-1.5">
+              {researching && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              Run research now (5 stocks)
+            </Button>
+          </div>
+          {researchNote && <p className="text-[12px] text-neutral-700">{researchNote}</p>}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {(
+              [
+                ['Spend today', usd(ai.cost_today)],
+                ['Spend this month', usd(ai.cost_month)],
+                ['AI as % of MRR', aiShare === null ? '--' : `${aiShare}%`],
+                ['Research this month', usd(ai.research_cost_month)],
+                ['Answers today', ai.answers_today],
+                ['Credits used this month', ai.credits_month],
+                ['Briefs written today', ai.research_briefs_today],
+                ['Research schedule', `${ai.slots.join(' + ')}, ${ai.coverage} stocks`],
+              ] as [string, string | number][]
+            ).map(([k, v]) => (
+              <div key={k} className="rounded-lg border border-border p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">{k}</p>
+                <p className="text-lg font-bold tabular-nums text-neutral-900">{v}</p>
+              </div>
+            ))}
+          </div>
+          {ai.by_size.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead className="border-y border-border bg-neutral-50 text-left text-[11px] uppercase tracking-wider text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Size (this month)</th>
+                    <th className="px-3 py-2 font-medium">Answers</th>
+                    <th className="px-3 py-2 font-medium">Avg real cost</th>
+                    <th className="px-3 py-2 font-medium">Credits charged</th>
+                    <th className="px-3 py-2 font-medium">Cost vs credit value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ai.by_size.map((r) => (
+                    <tr key={r.size} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2 capitalize">{r.size}</td>
+                      <td className="px-3 py-2 tabular-nums">{r.answers}</td>
+                      <td className="px-3 py-2 tabular-nums">${Number(r.avg_cost).toFixed(4)}</td>
+                      <td className="px-3 py-2 tabular-nums">{r.credits}</td>
+                      <td className="px-3 py-2 tabular-nums">{r.credits ? `${Math.round((Number(r.cost) / (r.credits / 100)) * 100)}%` : '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-[11px] text-neutral-500">
+                Cost vs credit value: real cost divided by the credits charged at 1¢ each. Under 100% means the size is priced right; over 100%
+                means raise its credits.
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="space-y-3 p-5">
         <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-neutral-900">

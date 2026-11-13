@@ -402,6 +402,11 @@ export interface AssistantStreamResult {
   completed: boolean;
   /** True when the answer hit the length limit even after the server continued it. */
   truncated: boolean;
+  /** Answer size the server used (auto picks one) and its label. */
+  size: string | null;
+  label: string | null;
+  /** AI credits left after this answer, and what it cost. */
+  credits: { monthly_left: number; pack_left: number; charged: number } | null;
 }
 
 /**
@@ -410,10 +415,10 @@ export interface AssistantStreamResult {
  * summarizes the session into the account once it ends), the answer's sources and whether it finished.
  */
 export async function streamAssistant(
-  input: { messages: AssistantTurn[]; context?: string; session_id?: string | null },
+  input: { messages: AssistantTurn[]; context?: string; session_id?: string | null; size?: string },
   onText: (text: string) => void,
   signal?: AbortSignal,
-  onWorking?: (seconds: number) => void
+  onWorking?: (seconds: number, step?: string) => void
 ): Promise<AssistantStreamResult> {
   const response = await fetch('/api/assistant', {
     method: 'POST',
@@ -435,7 +440,7 @@ export async function streamAssistant(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  const result: AssistantStreamResult = { remaining: null, sessionId: null, sources: [], completed: false, truncated: false };
+  const result: AssistantStreamResult = { remaining: null, sessionId: null, sources: [], completed: false, truncated: false, size: null, label: null, credits: null };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -455,13 +460,20 @@ export async function streamAssistant(
         seconds?: number;
         sources?: AssistantSource[];
         truncated?: boolean;
+        step?: string;
+        size?: string;
+        label?: string;
+        credits?: { monthly_left: number; pack_left: number; charged: number };
       };
       if (event === 'delta' && payload.text) onText(payload.text);
-      else if (event === 'status') onWorking?.(payload.seconds ?? 0);
+      else if (event === 'status') onWorking?.(payload.seconds ?? 0, payload.step);
       else if (event === 'sources' && Array.isArray(payload.sources)) result.sources = payload.sources.filter((x) => /^https?:\/\//.test(x?.url ?? ''));
       else if (event === 'meta') {
         if (typeof payload.remaining === 'number') result.remaining = payload.remaining;
         if (typeof payload.session_id === 'string') result.sessionId = payload.session_id;
+        if (payload.size) result.size = payload.size;
+        if (payload.label) result.label = payload.label;
+        if (payload.credits) result.credits = payload.credits;
       } else if (event === 'done') {
         result.completed = true;
         result.truncated = Boolean(payload.truncated);
@@ -515,10 +527,21 @@ export async function speakText(text: string, signal?: AbortSignal): Promise<Blo
 
 // ---------- billing ----------
 
+export type AnswerSize = 'quick' | 'standard' | 'researched' | 'deep' | 'report';
+export type AiLevel = 'free' | 'pro' | 'pro_plus';
+
+export interface AiState {
+  credits: { monthly_left: number; pack_left: number; allowance: number; resets_at: string } | null;
+  levels: Record<AiLevel, { credits: number; label: string }>;
+  sizes: { size: AnswerSize; label: string; credits: number; minLevel: AiLevel; allowed: boolean }[];
+  creditPack: { credits: number; label: string };
+}
+
 export interface BillingState {
   plan: 'free' | 'pro';
-  /** free | pro | founding */
+  /** free | pro | pro_plus | founding | admin */
   tier: string;
+  level: AiLevel;
   status: string;
   interval: 'month' | 'year' | null;
   currentPeriodEnd: string | null;
@@ -527,14 +550,24 @@ export interface BillingState {
   isAdmin: boolean;
   billingAvailable: boolean;
   prices: { month: string; year: string };
+  planPrices?: Record<'pro' | 'pro_plus', { month: string; year: string }>;
+  ai?: AiState;
 }
 
 export function getBilling(): Promise<BillingState> {
   return request<BillingState>('/api/billing');
 }
 
-export function startCheckout(interval: 'month' | 'year'): Promise<{ url: string }> {
-  return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'checkout', interval }) });
+export function startCheckout(interval: 'month' | 'year', plan: 'pro' | 'pro_plus' = 'pro'): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'checkout', interval, plan }) });
+}
+
+export function changePlan(plan: 'pro' | 'pro_plus'): Promise<BillingState> {
+  return request<BillingState>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'change_plan', plan }) });
+}
+
+export function buyCredits(): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/billing', { method: 'POST', body: JSON.stringify({ action: 'credits' }) });
 }
 
 export function confirmCheckout(sessionId: string): Promise<BillingState> {
@@ -563,12 +596,32 @@ export interface AdminStats {
   active_7d: number;
   active_30d: number;
   paying: number;
+  paying_plus?: number;
   founding: number;
   mrr_usd: number;
   assistant_today: number;
   portfolios: number;
   watchlist_items: number;
   recent_users: { email: string; created_at: string; last_sign_in_at: string | null; plan: string }[];
+  ai: AdminAiStats | null;
+}
+
+export interface AdminAiStats {
+  cost_today: number;
+  cost_month: number;
+  research_cost_month: number;
+  answers_today: number;
+  credits_month: number;
+  research_briefs_today: number;
+  daily_limit_usd: number;
+  slots: string[];
+  coverage: number;
+  by_size: { size: string; answers: number; avg_cost: number; cost: number; credits: number }[];
+  by_kind: { kind: string; calls: number; cost: number }[];
+}
+
+export function runResearchNow(limit: number): Promise<{ result: { ran: boolean; written: number; costUsd: number; reason?: string } }> {
+  return request('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'research', limit }) });
 }
 
 export function getAdminStats(): Promise<AdminStats> {

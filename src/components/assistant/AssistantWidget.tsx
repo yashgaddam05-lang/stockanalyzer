@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Download, Headphones, Loader2, Maximize2, MessageCircle, Mic, Minimize2, RotateCcw, Send, Sparkles, Square, Volume2, X } from 'lucide-react';
 import { ApiError, speakText, streamAssistant, transcribeSpeech } from '@/lib/api';
-import type { AssistantSource, AssistantTurn } from '@/lib/api';
+import type { AnswerSize, AssistantSource, AssistantTurn } from '@/lib/api';
+import { usePlan } from '@/components/billing/usePlan';
 import { useOptionalStocks } from '@/components/data/StocksProvider';
 import { useAssistant } from '@/components/assistant/AssistantProvider';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -12,7 +13,17 @@ import { offlineAnswer } from '@/components/assistant/offlineHelp';
 import { ChatChart } from '@/components/assistant/ChatChart';
 import type { HelpLink } from '@/components/assistant/offlineHelp';
 
-type ChatTurn = AssistantTurn & { links?: HelpLink[]; sources?: AssistantSource[]; cut?: boolean };
+type ChatTurn = AssistantTurn & { links?: HelpLink[]; sources?: AssistantSource[]; cut?: boolean; sizeLabel?: string; charged?: number };
+
+const SIZE_HINTS: Record<AnswerSize | 'auto', string> = {
+  auto: 'Picks the right size for each question',
+  quick: 'App help and definitions',
+  standard: 'Focused answer from 3x Hunter data and today\'s research',
+  researched: 'Live research on the stocks you ask about',
+  deep: 'Full analyst-depth deep dive',
+  report: 'The most thorough report, for saving or printing',
+};
+const SIZE_KEY = '3xh:answer-size';
 
 const CONTINUE_QUESTION = 'Continue exactly where you stopped.';
 
@@ -241,6 +252,29 @@ export function AssistantWidget() {
   const [offline, setOffline] = useState(false);
   /** Seconds the model has been searching or thinking on the current answer; null when idle. */
   const [working, setWorking] = useState<number | null>(null);
+  /** What the server is doing right now ("Researching NVDA"), when it says. */
+  const [step, setStep] = useState<string | null>(null);
+  const { plan } = usePlan();
+  const [size, setSize] = useState<AnswerSize | 'auto'>(() => {
+    try {
+      return (localStorage.getItem(SIZE_KEY) as AnswerSize | 'auto' | null) ?? 'auto';
+    } catch {
+      return 'auto';
+    }
+  });
+  const [credits, setCredits] = useState<number | null>(null);
+  const sizes = plan?.ai?.sizes ?? [];
+  const chooseSize = (next: AnswerSize | 'auto') => {
+    setSize(next);
+    try {
+      localStorage.setItem(SIZE_KEY, next);
+    } catch {
+      // Private mode: the choice lasts this visit.
+    }
+  };
+  // A remembered size the current plan cannot use falls back to Auto.
+  const activeSize = size !== 'auto' && sizes.length && !sizes.find((x) => x.size === size)?.allowed ? 'auto' : size;
+  const creditsLeft = credits ?? (plan?.ai?.credits ? plan.ai.credits.monthly_left + plan.ai.credits.pack_left : null);
   // Voice (ElevenLabs): mic input, read-aloud answers, and a hands-free mode for people who find typing or reading hard.
   const [voiceOn, setVoiceOn] = useState(true);
   const [voiceMode, setVoiceMode] = useState(() => {
@@ -368,7 +402,7 @@ export function AssistantWidget() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  // Daily message caps are generous anti-abuse limits now; the footer shows AI credits instead.
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -398,7 +432,7 @@ export function AssistantWidget() {
   // A different account signing in starts from a clean slate in this tab.
   useEffect(() => {
     newChat();
-    setRemaining(null);
+    setCredits(null);
   }, [userId, newChat]);
 
   const open = assistant?.open ?? false;
@@ -434,7 +468,7 @@ export function AssistantWidget() {
       try {
         let full = '';
         const result = await streamAssistant(
-          { messages: history, context: screen.text(), session_id: sessionRef.current },
+          { messages: history, context: screen.text(), session_id: sessionRef.current, ...(activeSize !== 'auto' && !guest ? { size: activeSize } : {}) },
           (text) => {
             full += text;
             setTurns((cur) => {
@@ -445,15 +479,19 @@ export function AssistantWidget() {
             });
           },
           controller.signal,
-          (seconds) => setWorking(seconds)
+          (seconds, label) => {
+            setWorking(seconds);
+            if (label) setStep(label);
+          }
         );
         setTurns((cur) => {
           const next = [...cur];
           const last = next[next.length - 1];
-          if (last?.role === 'assistant') next[next.length - 1] = { ...last, sources: result.sources, cut: !result.completed || result.truncated };
+          if (last?.role === 'assistant')
+            next[next.length - 1] = { ...last, sources: result.sources, cut: !result.completed || result.truncated, sizeLabel: result.label ?? undefined, charged: result.credits?.charged };
           return next;
         });
-        if (result.remaining !== null) setRemaining(result.remaining);
+        if (result.credits) setCredits(result.credits.monthly_left + result.credits.pack_left);
         if (result.sessionId) sessionRef.current = result.sessionId;
         // Hands-free: read the finished answer aloud (the reply is the second turn added by this send).
         if (voiceModeRef.current && full.trim() && result.completed) void speakReply(turns.length + 1, full);
@@ -480,11 +518,12 @@ export function AssistantWidget() {
       } finally {
         clearTimeout(timer);
         setWorking(null);
+        setStep(null);
         setBusy(false);
         abortRef.current = null;
       }
     },
-    [busy, turns, screen, offline, speakReply]
+    [busy, turns, screen, offline, speakReply, activeSize, guest]
   );
 
   useEffect(() => {
@@ -640,6 +679,11 @@ export function AssistantWidget() {
                     <>
                       <div data-reply={i}>
                         <Reply text={t.content} />
+                        {t.sizeLabel && !(busy && i === turns.length - 1) && (
+                          <p className="mt-2 text-[10px] uppercase tracking-wider text-neutral-400">
+                            {t.sizeLabel} answer{t.charged ? ` · ${t.charged} credit${t.charged === 1 ? '' : 's'}` : ''}
+                          </p>
+                        )}
                         {t.sources && t.sources.length > 0 && (
                           <div className="mt-3 border-t border-neutral-200 pt-2 text-[11px] text-neutral-600">
                             <p className="mb-1 font-semibold text-neutral-800">Sources from live search</p>
@@ -658,7 +702,7 @@ export function AssistantWidget() {
                       </div>
                       {busy && i === turns.length - 1 && working !== null && (
                         <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-neutral-500">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Still working... {working}s
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> {step ?? 'Still working'}... {working}s
                         </p>
                       )}
                       {!(busy && i === turns.length - 1) && !offline && (
@@ -725,7 +769,7 @@ export function AssistantWidget() {
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-neutral-500">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                      {working !== null ? `Researching live data and thinking... ${working}s` : 'Thinking...'}
+                      {step ? `${step}... ${working ?? 0}s` : working !== null ? `Researching live data and thinking... ${working}s` : 'Thinking...'}
                     </span>
                   )}
                 </div>
@@ -734,11 +778,11 @@ export function AssistantWidget() {
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-800">
                 {error}
-                {/upgrade|Pro\b/.test(error) && (
+                {/upgrade|Pro\b|credit/i.test(error) && (
                   <>
                     {' '}
                     <Link to="/app/billing" className="font-semibold underline underline-offset-2">
-                      See Pro
+                      Plans &amp; credits
                     </Link>
                   </>
                 )}
@@ -769,6 +813,30 @@ export function AssistantWidget() {
                   </>
                 )}
               </p>
+            )}
+            {!guest && !offline && sizes.length > 0 && (
+              <div className="mb-2 flex items-center gap-2 text-[12px]">
+                <label htmlFor="answer-size" className="font-medium text-neutral-600">
+                  Answer
+                </label>
+                <select
+                  id="answer-size"
+                  value={activeSize}
+                  onChange={(e) => chooseSize(e.target.value as AnswerSize | 'auto')}
+                  disabled={busy}
+                  title={SIZE_HINTS[activeSize]}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                >
+                  <option value="auto">Auto (recommended)</option>
+                  {sizes.map((x) => (
+                    <option key={x.size} value={x.size} disabled={!x.allowed}>
+                      {x.label} · {x.credits} credit{x.credits === 1 ? '' : 's'}
+                      {x.allowed ? '' : x.minLevel === 'pro_plus' ? ' (Pro+)' : ' (Pro)'}
+                    </option>
+                  ))}
+                </select>
+                <span className="hidden truncate text-neutral-500 sm:inline">{SIZE_HINTS[activeSize]}</span>
+              </div>
             )}
             <div className="flex items-end gap-2">
               {voiceOn && !offline && (
@@ -824,7 +892,16 @@ export function AssistantWidget() {
               </p>
             ) : (
               <p className="mt-1.5 text-[10px] text-neutral-400">
-                Educational research, not investment advice.{!offline && remaining !== null ? ` ${remaining} messages left today.` : ''}
+                Educational research, not investment advice.
+                {!offline && creditsLeft !== null && (
+                  <>
+                    {' '}
+                    <Link to="/app/billing" className="underline underline-offset-2">
+                      {creditsLeft} AI credits left
+                    </Link>
+                    .
+                  </>
+                )}
               </p>
             )}
           </form>

@@ -9,9 +9,27 @@ import {
 } from '../_supabase.js';
 import { ASSISTANT_KNOWLEDGE } from '../_assistant-knowledge.js';
 import { ASSISTANT_EXAMPLE } from '../_assistant-example.js';
-import { LlmError, llmConfigured, shouldUseFree, streamChat } from '../_llm.js';
+import { LlmError, completeChat, llmConfigured, shouldUseFree, streamChat } from '../_llm.js';
+import {
+  GUEST_MODEL,
+  LEVELS,
+  ROUTER_MODEL,
+  SIZES,
+  SIZE_SPECS,
+  addUsage,
+  charge,
+  dailyLimitUsd,
+  levelAllows,
+  recordUsage,
+  settleCharge,
+  spentToday,
+  type Level,
+  type Size,
+  type Usage,
+} from '../_ai.js';
+import { briefsBlock, briefsFor, detectTickers } from '../_research.js';
 import { visitorHash } from '../_visitor.js';
-import { LIMITS, getPlan } from '../_plan.js';
+import { getPlan } from '../_plan.js';
 import { accountContext, openSession, saveTranscript, summarizeFinishedSessions, type Turn } from '../_assistant-account.js';
 
 // POST /api/assistant { messages: [{role, content}], context?: string, session_id?: string }
@@ -20,15 +38,10 @@ import { accountContext, openSession, saveTranscript, summarizeFinishedSessions,
 // summaries) through their RLS-scoped client; the assistant keeps no memory of its own.
 // Signed out: a product guide that explains 3x Hunter and invites sign-up, limited per visitor IP and globally.
 
-const DAILY_LIMIT = 40;
 const MAX_TURNS = 20;
 const MAX_CHARS = 2000;
 const MAX_ASSISTANT_CHARS = 12000;
 const MAX_CONTEXT_CHARS = 2500;
-const WEB_RESULTS = 10;
-// OpenRouter counts reasoning inside max_tokens, so leave room for a full report after the model thinks.
-const MEMBER_MAX_TOKENS = 64000;
-const MAX_CONTINUATIONS = 2;
 // Vercel stops the function at 300s; only start a continuation with enough time left to finish it.
 const CONTINUE_BEFORE_MS = 200_000;
 const CONTINUE_PROMPT = 'Your answer was cut off. Continue exactly where you stopped, without repeating anything or restarting.';
@@ -117,8 +130,9 @@ const GUEST_RULES = `You are the 3x Hunter guide, talking with a visitor who is 
 genuinely helpful, like the best salesperson for a product you believe in, and stay truthful: describe only features
 in the product knowledge above, never invent any.
 - Explain what 3x Hunter does, what every page is for, how the 3x score, risk score, bots, catalysts, track record and
-  portfolio import work, and the plans: a free account with no credit card, or Pro at $19/month or $149/year for the
-  full score breakdown, scenarios, more assistant questions, voice and more alerts.
+  portfolio import work, and the plans: a free account with no credit card (100 AI credits a month), Pro at $19/month
+  or $149/year (full score breakdown, scenarios, 600 credits and Deep dive answers, voice, more alerts), or Pro+ at
+  $49/month for heavy research (1,600 credits and Full reports).
 - Stock questions: give a short teaser, 2-3 sentences of general, well-known context about the company, with no live
   prices, no price targets, no scenarios or odds and no buy/sell lean. Then say what the free account adds: a full
   report with live price and earnings, dated catalysts, bull/base/bear scenarios with odds and dollar outcomes, a clear
@@ -154,10 +168,21 @@ async function handleGuest(request: ApiRequest, response: StreamResponse, messag
   const system = [{ text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${GUEST_RULES}`, cache: true }];
   if (context) system.push({ text: `<screen_context>\n${context}\n</screen_context>`, cache: false });
   try {
+    let usage: Usage = {};
     const finish = await streamChat(
-      { tier: 'guest', system, messages, maxTokens: GUEST_MAX_TOKENS, effort: 'low' },
+      {
+        tier: 'guest',
+        models: [process.env.ASSISTANT_GUEST_MODEL || GUEST_MODEL],
+        system,
+        messages,
+        maxTokens: GUEST_MAX_TOKENS,
+        effort: 'low',
+        onUsage: (u) => {
+          usage = addUsage(usage, u);
+        },
+      },
       { onText: (text) => send('delta', { text }) }
-    );
+    ).finally(() => recordUsage({ kind: 'guest' }, usage));
     send('done', { stop_reason: finish });
   } catch (error) {
     console.error('assistant guest error', (error as LlmError)?.status ?? '', (error as Error)?.message ?? error);
@@ -219,26 +244,60 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     return;
   }
 
+
   const plan = await getPlan(auth.userId, auth.db);
-  const dailyLimit = Math.min(DAILY_LIMIT, LIMITS[plan.plan].assistantPerDay);
-  const { data: remaining, error: quotaError } = await auth.db.rpc('assistant_consume', { p_limit: dailyLimit });
+  const level: Level = plan.level;
+  const { data: remaining, error: quotaError } = await auth.db.rpc('assistant_consume', { p_limit: LEVELS[level].perDay });
   if (quotaError) {
     response.status(503).json({ error: 'The assistant is temporarily unavailable.' });
     return;
   }
   if (typeof remaining !== 'number' || remaining < 0) {
-    response.status(429).json(
-      plan.plan === 'pro'
-        ? { error: `You have used today's ${dailyLimit} assistant messages. Try again tomorrow.` }
-        : { error: `You have used today's ${dailyLimit} free assistant messages. Upgrade to Pro for ${LIMITS.pro.assistantPerDay} a day.`, upgrade: true }
-    );
+    response.status(429).json({ error: `You have reached today's ${LEVELS[level].perDay} questions. Try again tomorrow.` });
     return;
   }
+
+  const question = messages[messages.length - 1].content;
+  const requested = typeof body.size === 'string' && (SIZES as string[]).includes(body.size) ? (body.size as Size) : null;
+  if (requested && !levelAllows(level, requested)) {
+    const need = SIZE_SPECS[requested].minLevel === 'pro_plus' ? 'Pro+' : 'Pro';
+    response.status(402).json({ error: `${SIZE_SPECS[requested].label} answers are part of ${need}. Choose a smaller size or upgrade.`, upgrade: true });
+    return;
+  }
+  // Circuit breaker: past today's AI budget, answers stay on the cheap sizes until midnight UTC (admins exempt).
+  const overBudget = !plan.isAdmin && (await spentToday()) >= dailyLimitUsd();
+  let size: Size = requested ?? (await routeSize(question, level, auth.userId));
+  if (overBudget && SIZE_SPECS[size].credits > SIZE_SPECS.standard.credits) size = 'standard';
+
+  // Charge up front (atomic). Auto-sized answers step down to a size that fits the balance.
+  const allowance = plan.isAdmin ? 1_000_000 : LEVELS[level].credits;
+  let charged = await charge(auth.userId, plan.isAdmin ? 'pro_plus' : level, size, allowance);
+  while (charged && !charged.ok && !requested && smaller(size)) {
+    size = smaller(size)!;
+    charged = await charge(auth.userId, plan.isAdmin ? 'pro_plus' : level, size, allowance);
+  }
+  if (!charged) {
+    response.status(503).json({ error: 'The assistant is temporarily unavailable.' });
+    return;
+  }
+  if (!charged.ok || !charged.id) {
+    const left = charged.monthly_left + charged.pack_left;
+    response.status(402).json({
+      error: left > 0
+        ? `That ${SIZE_SPECS[size].label} answer needs ${SIZE_SPECS[size].credits} credits and you have ${left} left this month. Choose a smaller size${level === 'free' ? ' or upgrade to Pro' : ' or add a credit pack'}.`
+        : `You have used this month's AI credits. They refresh on ${new Date(charged.resets_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.${level === 'free' ? ' Upgrade to Pro for 6x more.' : ' Add a credit pack to keep going.'}`,
+      upgrade: true,
+      credits: { monthly_left: charged.monthly_left, pack_left: charged.pack_left },
+    });
+    return;
+  }
+  const chargeId = charged.id;
+  const spec = SIZE_SPECS[size];
 
   const session = await openSession(auth.db, auth.userId, body.session_id);
   // A new session means the previous ones are over: fold them into summaries before loading this account's history.
   if (session?.isNew) await summarizeFinishedSessions(auth.db, auth.userId, session.id);
-  const account = await accountContext(auth.db, auth.userId, session?.id ?? '');
+  const account = size === 'quick' ? '' : await accountContext(auth.db, auth.userId, session?.id ?? '');
 
   response.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -246,61 +305,92 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     Connection: 'keep-alive',
   });
   const send = (event: string, data: unknown) => response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  send('meta', { remaining, session_id: session?.id ?? null });
-
-  // The knowledge and rules block is identical for every request, so it is cached; the account block is per user.
-  const system = [
-    { text: `${ASSISTANT_KNOWLEDGE}\n\n---\n${RULES}\n\n<example_answer>\n${ASSISTANT_EXAMPLE}\n</example_answer>`, cache: true },
-    { text: account, cache: false },
-  ];
-  if (context) system.push({ text: `<screen_context>\n${context}\n</screen_context>`, cache: false });
+  const credits = { monthly_left: charged.monthly_left, pack_left: charged.pack_left, charged: spec.credits };
+  send('meta', { remaining, session_id: session?.id ?? null, size, label: spec.label, credits, over_budget: overBudget });
 
   let reply = '';
+  let usage: Usage = {};
+  let researchHits = 0;
   const started = Date.now();
   const sources = new Map<string, string>();
   let lastPing = 0;
-  const handlers = {
-    onText: (text: string) => {
-      reply += text;
-      send('delta', { text });
-    },
-    // Tell the browser the model is still working (searching or thinking) at most every few seconds.
-    onWorking: () => {
-      if (Date.now() - lastPing < 3000) return;
-      lastPing = Date.now();
-      send('status', { working: true, seconds: Math.round((Date.now() - started) / 1000) });
-    },
-    onCitation: (c: { url: string; title: string }) => {
-      if (!sources.has(c.url) && sources.size < 20) sources.set(c.url, c.title);
-    },
+  const onUsage = (u: Usage) => {
+    usage = addUsage(usage, u);
   };
+
   try {
+    // Shared research: reuse today's briefs; Researched and up research missing tickers now and save them for everyone.
+    let research = '';
+    let web = spec.web;
+    if (spec.research !== 'none') {
+      const tickers = await detectTickers(`${question}\n${context}`, spec.researchTickers);
+      const includeMarket = !tickers.length || MARKET_WORDS.test(question);
+      if (spec.research === 'fresh' && tickers.length) send('status', { working: true, seconds: 0, step: `Researching ${tickers.join(', ')}` });
+      const { briefs, hits, researched } = await briefsFor(tickers, { fresh: spec.research === 'fresh' && !overBudget, includeMarket, ownerId: auth.userId });
+      researchHits = hits;
+      research = briefsBlock(briefs);
+      for (const b of briefs) for (const src of b.sources) if (!sources.has(src.url) && sources.size < 20) sources.set(src.url, src.title);
+      // A Researched answer about no particular stock (themes, ideas) still needs live results of its own.
+      if (size === 'researched' && !tickers.length) web = 5;
+      if (researched) send('status', { working: true, seconds: Math.round((Date.now() - started) / 1000), step: 'Writing the answer' });
+    }
+
+    // The knowledge and rules block is identical per size, so it is cached; account and research blocks vary.
+    const system = [
+      { text: systemFor(size), cache: true },
+      ...(account ? [{ text: account, cache: false }] : []),
+      ...(research ? [{ text: research, cache: false }] : []),
+      { text: depthNote(size, web > 0, Boolean(research)), cache: false },
+    ];
+    if (context) system.push({ text: `<screen_context>\n${context}\n</screen_context>`, cache: false });
+
+    const handlers = {
+      onText: (text: string) => {
+        reply += text;
+        send('delta', { text });
+      },
+      // Tell the browser the model is still working (searching or thinking) at most every few seconds.
+      onWorking: () => {
+        if (Date.now() - lastPing < 3000) return;
+        lastPing = Date.now();
+        send('status', { working: true, seconds: Math.round((Date.now() - started) / 1000) });
+      },
+      onCitation: (c: { url: string; title: string }) => {
+        if (!sources.has(c.url) && sources.size < 20) sources.set(c.url, c.title);
+      },
+    };
+    const base = {
+      tier: 'member' as const,
+      models: spec.models,
+      system,
+      maxTokens: spec.maxTokens,
+      effort: spec.effort,
+      onUsage,
+    };
     let turn = messages.map((m) => ({ role: m.role, content: m.content }));
     let finish: string | null;
     try {
-      finish = await streamChat(
-        { tier: 'member', system, messages: turn, maxTokens: MEMBER_MAX_TOKENS, effort: 'high', webSearch: { maxResults: WEB_RESULTS } },
-        handlers
-      );
+      finish = await streamChat({ ...base, messages: turn, ...(web > 0 ? { webSearch: { maxResults: web } } : {}) }, handlers);
     } catch (error) {
       // The paid model failed mid-answer: finish the same answer on the free models from where it stopped.
       if (!reply || !shouldUseFree(error)) throw error;
       console.warn('assistant paid model failed mid-answer, finishing on free models', (error as LlmError).status);
       turn = [...turn, { role: 'assistant', content: reply }, { role: 'user', content: CONTINUE_PROMPT }];
-      finish = await streamChat({ tier: 'member', system, messages: turn, maxTokens: MEMBER_MAX_TOKENS, effort: 'medium', free: true }, handlers);
+      finish = await streamChat({ ...base, messages: turn, effort: 'medium', free: true }, handlers);
     }
     // Hit the output limit: continue where it stopped, while there is time left in this request.
-    for (let i = 0; finish === 'length' && i < MAX_CONTINUATIONS && Date.now() - started < CONTINUE_BEFORE_MS; i++) {
+    for (let i = 0; finish === 'length' && i < spec.continuations && Date.now() - started < CONTINUE_BEFORE_MS; i++) {
       turn = [...turn.filter((m, j) => j < messages.length), { role: 'assistant', content: reply }, { role: 'user', content: CONTINUE_PROMPT }];
-      finish = await streamChat({ tier: 'member', system, messages: turn, maxTokens: MEMBER_MAX_TOKENS, effort: 'medium' }, handlers);
+      finish = await streamChat({ ...base, messages: turn, effort: 'medium' }, handlers);
     }
     if (sources.size) send('sources', { sources: [...sources].map(([url, title]) => ({ url, title })) });
     if (finish === 'content_filter') send('error', { error: 'The assistant cannot help with that request.' });
-    else send('done', { stop_reason: finish, truncated: finish === 'length' });
+    else send('done', { stop_reason: finish, truncated: finish === 'length', size, credits });
   } catch (error) {
     console.error('assistant error', (error as LlmError)?.status ?? '', (error as Error)?.message ?? error);
     send('error', { error: errorText(error) });
   } finally {
+    await settleCharge(chargeId, { usage, researchHits, answered: reply.trim().length > 0, size });
     if (session && reply.trim()) {
       await saveTranscript(auth.db, auth.userId, session.id, [...messages, { role: 'assistant', content: reply }]).catch((error) =>
         console.error('assistant transcript save failed', (error as Error)?.message ?? error)
@@ -308,4 +398,81 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     }
     response.end();
   }
+}
+
+const MARKET_WORDS = /\b(market|markets|s&p|nasdaq|dow|index|indices|fed|rates?|inflation|economy|today|this week|sector|sectors|news)\b/i;
+
+const smaller = (size: Size): Size | null => {
+  const i = SIZES.indexOf(size);
+  return i > 0 ? SIZES[i - 1] : null;
+};
+
+const QUICK_RULES = `You are the 3x Hunter assistant answering a quick question. Answer in under 120 words, plain English.
+For how the app works, answer from the product knowledge above and point to the exact page or control. For a simple
+definition or concept, explain it briefly with one example. Never state live prices, targets or news (you have no live
+data in this mode); if the user needs that, say a Researched answer will look it up. Never place trades or give
+personal financial advice.`;
+
+/** Cached system prompt per size: the full analyst rules and example only where the answer is meant to go deep. */
+function systemFor(size: Size): string {
+  if (size === 'quick') return `${ASSISTANT_KNOWLEDGE}\n\n---\n${QUICK_RULES}`;
+  if (size === 'standard') return `${ASSISTANT_KNOWLEDGE}\n\n---\n${RULES}`;
+  return `${ASSISTANT_KNOWLEDGE}\n\n---\n${RULES}\n\n<example_answer>\n${ASSISTANT_EXAMPLE}\n</example_answer>`;
+}
+
+/** Per-answer depth and data instructions; these override the depth rules above for this answer only. */
+function depthNote(size: Size, web: boolean, research: boolean): string {
+  const data = web
+    ? 'You have live web search for this answer.'
+    : research
+      ? 'You have no live web search for this answer. The <research> briefs are this turn\'s web results: use them for every live figure and name them as the source. For anything they do not cover, say "not in today\'s research" and suggest a Researched or Deep dive answer.'
+      : 'You have no live web search and no research briefs for this answer. Use only the app data blocks; label every price as "3x Hunter data, may be delayed". For live figures, suggest a Researched answer.';
+  const depth: Record<Size, string> = {
+    quick: '',
+    standard: 'Answer size: Standard. Be focused: 200-450 words, the key numbers in one small table, at most one chart, a clear lean where asked, and the disclaimer for stock or portfolio analysis. Skip the full scenario section and the ideas list unless asked.',
+    researched: 'Answer size: Researched. Full single-stock or portfolio structure, but tight: keep each section short, 2-3 charts, 3-4 ideas.',
+    deep: 'Answer size: Deep dive. Go to full depth as in the example answer, with every section, charts and ideas. Cross-check the briefs against your own live search and flag any differences.',
+    report: 'Answer size: Full report. The most thorough version: every section at full depth, all charts, 5-6 ideas, and a 90-day catalyst calendar. Cross-check the briefs against your own live search.',
+  };
+  return `<answer_mode>\n${depth[size]}\n${data}\n</answer_mode>`;
+}
+
+const ROUTER_PROMPT = `Pick the answer size for a stock research app's assistant. Reply with exactly one word.
+quick: how the app works, definitions, greetings, thanks, simple yes/no about the app.
+standard: general investing questions, follow-ups that build on the previous answer, explaining a score or concept
+  with the user's own data, anything that does not need today's prices or news.
+researched: a specific stock or ETF (price, news, earnings, "should I buy", "what about X"), comparing a few stocks,
+  a portfolio review, today's market.
+deep: only when the user explicitly asks for a deep dive, full analysis, everything, or a thorough comparison.`;
+
+/** Auto size: a cheap Haiku call picks the size; falls back to simple rules. Never picks a size the plan lacks. */
+async function routeSize(question: string, level: Level, userId: string): Promise<Size> {
+  let pick: Size | null = null;
+  let usage: Usage = {};
+  try {
+    const word = await completeChat({
+      tier: 'member',
+      models: [ROUTER_MODEL],
+      system: [{ text: ROUTER_PROMPT, cache: true }],
+      messages: [{ role: 'user', content: question.slice(0, 1500) }],
+      maxTokens: 5,
+      effort: 'low',
+      onUsage: (u) => {
+        usage = addUsage(usage, u);
+      },
+    });
+    const w = word.toLowerCase().match(/quick|standard|researched|deep/)?.[0] as Size | undefined;
+    pick = w ?? null;
+  } catch {
+    // Router unavailable: rules below.
+  }
+  void recordUsage({ owner_id: userId, kind: 'router' }, usage);
+  if (!pick) {
+    if (/\b(deep dive|full analysis|everything about|thorough)\b/i.test(question)) pick = 'deep';
+    else if (/\$?[A-Z]{2,5}\b|\b(stock|buy|sell|earnings|price|portfolio|market)\b/i.test(question)) pick = 'researched';
+    else if (question.length < 80) pick = 'quick';
+    else pick = 'standard';
+  }
+  while (!levelAllows(level, pick) && smaller(pick)) pick = smaller(pick)!;
+  return pick;
 }

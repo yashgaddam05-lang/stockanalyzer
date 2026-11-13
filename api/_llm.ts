@@ -60,16 +60,31 @@ export type ChatRequest = {
   signal?: AbortSignal;
   /** Run on the free models (set internally on fallback, or by a caller continuing after a mid-answer failure). */
   free?: boolean;
+  /** Models to try in order, overriding the tier default (answer sizes pick their own). */
+  models?: string[];
+  /** Real tokens and cost of this call, as reported by OpenRouter. */
+  onUsage?: (usage: Usage) => void;
 };
 
+export type Usage = { model?: string; inputTokens?: number; outputTokens?: number; costUsd?: number };
+
+type RawUsage = { prompt_tokens?: number; completion_tokens?: number; cost?: number } | undefined;
+const toUsage = (model: string | undefined, u: RawUsage): Usage => ({
+  model,
+  inputTokens: u?.prompt_tokens,
+  outputTokens: u?.completion_tokens,
+  costUsd: typeof u?.cost === 'number' ? u.cost : undefined,
+});
+
 function body(req: ChatRequest, stream: boolean) {
-  const [model, ...fallbacks] = req.free ? freeModels() : modelsFor(req.tier);
+  const [model, ...fallbacks] = req.free ? freeModels() : req.models?.length ? req.models : modelsFor(req.tier);
   // Free models get no web plugin (it is billed) and a note so they stay grounded in the data they do have.
   const system = req.free ? [...req.system, { text: FREE_NOTE }] : req.system;
   return JSON.stringify({
     model,
     ...(fallbacks.length ? { models: [model, ...fallbacks] } : {}),
     stream,
+    usage: { include: true },
     max_tokens: req.free ? Math.min(req.maxTokens, FREE_MAX_TOKENS) : req.maxTokens,
     reasoning: { effort: req.free && req.effort === 'high' ? 'medium' : req.effort, exclude: true },
     ...(req.webSearch && !req.free ? { plugins: [{ id: 'web', max_results: req.webSearch.maxResults }], web_search_options: { search_context_size: 'high' } } : {}),
@@ -148,6 +163,15 @@ async function streamOnce(req: ChatRequest, handlers: StreamHandlers): Promise<s
   const decoder = new TextDecoder();
   let buffer = '';
   let finish: string | null = null;
+  let model: string | undefined;
+  let usage: RawUsage;
+  const report = () => req.onUsage?.(toUsage(model, usage));
+  try {
+    return await readStream();
+  } finally {
+    report();
+  }
+  async function readStream(): Promise<string | null> {
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -165,6 +189,8 @@ async function streamOnce(req: ChatRequest, handlers: StreamHandlers): Promise<s
       const data = line.slice(5).trim();
       if (data === '[DONE]') return finish;
       let chunk: {
+        model?: string;
+        usage?: RawUsage;
         error?: { message?: string; code?: number };
         choices?: {
           delta?: { content?: string | null; reasoning?: string | null; annotations?: { type?: string; url_citation?: { url?: string; title?: string } }[] };
@@ -176,6 +202,8 @@ async function streamOnce(req: ChatRequest, handlers: StreamHandlers): Promise<s
       } catch {
         continue;
       }
+      if (chunk.model) model = chunk.model;
+      if (chunk.usage) usage = chunk.usage;
       if (chunk.error) throw new LlmError(chunk.error.message ?? 'Model error', chunk.error.code ?? 502);
       const choice = chunk.choices?.[0];
       if (choice?.delta?.content) handlers.onText(choice.delta.content);
@@ -188,6 +216,7 @@ async function streamOnce(req: ChatRequest, handlers: StreamHandlers): Promise<s
     }
   }
   return finish;
+  }
 }
 
 /** One-shot completion (summaries). */
@@ -199,6 +228,7 @@ export async function completeChat(req: ChatRequest): Promise<string> {
     if (req.free || !shouldUseFree(error)) throw error;
     response = await post({ ...req, free: true }, false);
   }
-  const json = (await response.json()) as { choices?: { message?: { content?: string | null } }[] };
+  const json = (await response.json()) as { model?: string; usage?: RawUsage; choices?: { message?: { content?: string | null } }[] };
+  req.onUsage?.(toUsage(json.model, json.usage));
   return json.choices?.[0]?.message?.content?.trim() ?? '';
 }

@@ -85,6 +85,21 @@ predict future returns.
 # Public pages (no account needed)
 - Home (/): what 3x Hunter does, the features, how it works, and sign-up. "Find stocks with room to run. See exactly why."
 - Pricing (/pricing): Free plan forever: 3x and risk scores on every stock, dashboard, Explore, watchlists, simulated
+  portfolios and brokerage import, portfolio score and tips, bots, track record, catalysts, market regime, 100 AI
+  credits a month and 1 alert. Pro is $19/month or $149/year: full 3x score breakdown with all factors,
+  bull/neutral/bear scenarios, 600 AI credits a month with Deep dive answers, the voice assistant and up to 50 alerts.
+  Pro+ is $49/month or $399/year: everything in Pro, 1,600 AI credits a month and Full report answers. Credit packs:
+  250 credits for $10 (Pro and Pro+), never expire.
+  AI answer sizes and credits: Quick 1 (app help), Standard 3 (focused, from app data and today's shared research),
+  Researched 10 (live research on the stocks asked about), Deep dive 40 (full analyst depth, Pro), Full report 100
+  (Pro+). Auto picks the size; the size menu sits above the chat box. Monthly credits refresh on the 1st (UTC).
+  Checkout and billing are handled by Stripe; cancel anytime from Plan & billing (the plan stays until the period ends).
+  Accounts created before paid plans launched are founding members with Pro free until January 31, 2027.
+- Methodology (/methodology) explains all of the above in full.
+
+# Public pages (no account needed)
+- Home (/): what 3x Hunter does, the features, how it works, and sign-up. "Find stocks with room to run. See exactly why."
+- Pricing (/pricing): Free plan forever: 3x and risk scores on every stock, dashboard, Explore, watchlists, simulated
   portfolios and brokerage import, portfolio score and tips, bots, track record, catalysts, market regime, 5 AI
   assistant questions a day and 1 alert. Pro is $19/month or $149/year (save 35%): full 3x score breakdown with all
   factors, bull/neutral/bear scenarios, 40 assistant questions a day, the voice assistant and up to 50 alerts.
