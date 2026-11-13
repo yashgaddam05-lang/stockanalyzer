@@ -56,7 +56,7 @@ export type ChatRequest = {
   maxTokens: number;
   effort: 'low' | 'medium' | 'high';
   /** Live web results for this turn (OpenRouter web plugin). */
-  webSearch?: { maxResults: number };
+  webSearch?: { maxResults: number; context?: 'low' | 'medium' | 'high' };
   signal?: AbortSignal;
   /** Run on the free models (set internally on fallback, or by a caller continuing after a mid-answer failure). */
   free?: boolean;
@@ -87,7 +87,7 @@ function body(req: ChatRequest, stream: boolean) {
     usage: { include: true },
     max_tokens: req.free ? Math.min(req.maxTokens, FREE_MAX_TOKENS) : req.maxTokens,
     reasoning: { effort: req.free && req.effort === 'high' ? 'medium' : req.effort, exclude: true },
-    ...(req.webSearch && !req.free ? { plugins: [{ id: 'web', max_results: req.webSearch.maxResults }], web_search_options: { search_context_size: 'high' } } : {}),
+    ...(req.webSearch && !req.free ? { plugins: [{ id: 'web', max_results: req.webSearch.maxResults }], web_search_options: { search_context_size: req.webSearch.context ?? 'high' } } : {}),
     messages: [
       {
         role: 'system',

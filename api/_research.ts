@@ -158,7 +158,8 @@ async function runResearch(ticker: string, opts: { trigger: 'schedule' | 'demand
         messages: [{ role: 'user', content: subject }],
         maxTokens: MAX_TOKENS,
         effort: 'medium',
-        webSearch: { maxResults: WEB_RESULTS },
+        // 'medium' context: the brief needs facts, not whole pages; this is most of the research cost.
+        webSearch: { maxResults: WEB_RESULTS, context: (process.env.RESEARCH_CONTEXT as 'low' | 'medium' | 'high') || 'medium' },
         signal: opts.signal,
         onUsage: (u) => {
           usage = addUsage(usage, u);
@@ -201,13 +202,14 @@ async function runResearch(ticker: string, opts: { trigger: 'schedule' | 'demand
  */
 export async function briefsFor(
   tickers: string[],
-  opts: { fresh: boolean; includeMarket: boolean; ownerId: string; signal?: AbortSignal }
+  opts: { fresh: boolean; includeMarket: boolean; ownerId: string; signal?: AbortSignal; onResearch?: (tickers: string[]) => void }
 ): Promise<{ briefs: Brief[]; hits: number; researched: number }> {
   const wanted = opts.includeMarket ? [MARKET, ...tickers] : tickers;
   const cached = await cachedBriefs(wanted);
   const missing = wanted.filter((t) => !cached.has(t));
   let researched = 0;
   if (opts.fresh && missing.length) {
+    opts.onResearch?.(missing.map((t) => (t === MARKET ? 'the market' : t)));
     const results = await Promise.all(missing.map((t) => research(t, { trigger: 'demand', ownerId: opts.ownerId, signal: opts.signal })));
     for (const b of results) {
       if (b) {

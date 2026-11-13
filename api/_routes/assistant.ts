@@ -325,14 +325,22 @@ export default async function handler(request: ApiRequest, rawResponse: ApiRespo
     if (spec.research !== 'none') {
       const tickers = await detectTickers(`${question}\n${context}`, spec.researchTickers);
       const includeMarket = !tickers.length || MARKET_WORDS.test(question);
-      if (spec.research === 'fresh' && tickers.length) send('status', { working: true, seconds: 0, step: `Researching ${tickers.join(', ')}` });
-      const { briefs, hits, researched } = await briefsFor(tickers, { fresh: spec.research === 'fresh' && !overBudget, includeMarket, ownerId: auth.userId });
+      const { briefs, hits, researched } = await briefsFor(tickers, {
+        fresh: spec.research === 'fresh' && !overBudget,
+        includeMarket,
+        ownerId: auth.userId,
+        onResearch: (names) => send('status', { working: true, seconds: Math.round((Date.now() - started) / 1000), step: `Researching ${names.join(', ')} live` }),
+      });
       researchHits = hits;
       research = briefsBlock(briefs);
       for (const b of briefs) for (const src of b.sources) if (!sources.has(src.url) && sources.size < 20) sources.set(src.url, src.title);
       // A Researched answer about no particular stock (themes, ideas) still needs live results of its own.
       if (size === 'researched' && !tickers.length) web = 5;
-      if (researched) send('status', { working: true, seconds: Math.round((Date.now() - started) / 1000), step: 'Writing the answer' });
+      send('status', {
+        working: true,
+        seconds: Math.round((Date.now() - started) / 1000),
+        step: researched ? 'Writing the answer' : briefs.length ? "Writing the answer from today's research" : 'Writing the answer',
+      });
     }
 
     // The knowledge and rules block is identical per size, so it is cached; account and research blocks vary.
