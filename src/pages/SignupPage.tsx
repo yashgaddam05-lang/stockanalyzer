@@ -122,7 +122,7 @@ export default function SignupPage() {
             className="flex items-start gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-700"
           >
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>You'll be on the Pro waitlist. We will email you when Pro opens.</span>
+            <span>Create your free account first. You can upgrade to Pro ($19/month or $149/year) right after.</span>
           </div>
         )}
 

@@ -84,9 +84,12 @@ predict future returns.
 
 # Public pages (no account needed)
 - Home (/): what 3x Hunter does, the features, how it works, and sign-up. "Find stocks with room to run. See exactly why."
-- Pricing (/pricing): everything is free during the beta, no credit card. A future Pro plan (not available yet) may add
-  deeper data and broader coverage; there is a waitlist and no payment details are collected. Features in use today
-  will not disappear without notice.
+- Pricing (/pricing): Free plan forever: 3x and risk scores on every stock, dashboard, Explore, watchlists, simulated
+  portfolios and brokerage import, portfolio score and tips, bots, track record, catalysts, market regime, 5 AI
+  assistant questions a day and 1 alert. Pro is $19/month or $149/year (save 35%): full 3x score breakdown with all
+  factors, bull/neutral/bear scenarios, 40 assistant questions a day, the voice assistant and up to 50 alerts.
+  Checkout and billing are handled by Stripe; cancel anytime from Plan & billing (Pro stays until the period ends).
+  Accounts created before paid plans launched are founding members with Pro free until January 31, 2027.
 - Methodology (/methodology): every weight, input and threshold of the 3x score and risk score. No black box.
 - Track record (/track-record): what following the 3x score every quarter since 2016 would have done, rebuilt from data
   available at the time (point-in-time S&P 500 members), compared with holding the S&P 500.

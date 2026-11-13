@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 export type LegalDoc = 'disclaimer' | 'terms' | 'privacy';
 
-const CONTACT_EMAIL = 'legal@example.com';
-const LAST_UPDATED = 'October 16, 2026';
+const CONTACT_EMAIL = 'customercare@3xhunter.com';
+const LAST_UPDATED = 'November 13, 2026';
 
 interface Section {
   heading: string;
@@ -114,7 +114,10 @@ const DOCS: Record<LegalDoc, DocContent> = {
           'Account information: your email address and a securely hashed password, handled by Supabase Auth. Your email is used for authentication and essential account messages (such as confirmation and password reset) only.',
           'Content you create: watchlists, notes, tags and catalyst entries, stored so the service can show them back to you.',
           'Alerts and simulated portfolios: the alert rules you set, the in-app alert notifications they generate, and the positions you enter in simulated portfolios. These are stored per account, visible only to you, and deleted when your account is deleted.',
-          'Basic technical data: standard server logs (such as IP address and request time) kept by our hosting providers for security and reliability.',
+          'Payment information: if you subscribe to Pro, Stripe collects and stores your card details. We never see or store your full card number; we keep your Stripe customer ID, plan, and renewal date.',
+          'AI assistant conversations: questions you ask the assistant, and the portfolio and watchlist details needed to answer them, are sent to our AI model providers to generate a reply. Voice questions are converted to text and back by our voice provider.',
+          'Usage analytics: pages visited, device and browser type, approximate location and events such as sign-up or upgrade, collected by Google Analytics to understand how the product is used.',
+          'Basic technical data: standard server logs (such as IP address and request time) kept by our hosting providers for security and reliability. Signed-out assistant limits use a salted, daily-rotating hash of your IP address, never the raw IP.',
         ],
       },
       {
@@ -126,13 +129,13 @@ const DOCS: Record<LegalDoc, DocContent> = {
       {
         heading: 'Service providers',
         body: [
-          'We rely on a small number of processors to run the service, including Supabase (authentication and database) and Vercel (hosting). They process data on our behalf under their own security and privacy commitments.',
+          'We rely on a small number of processors to run the service: Supabase (authentication and database), Vercel (hosting), Stripe (payments and billing), Google Analytics (usage analytics), OpenRouter and the AI model providers it routes to (assistant answers), and ElevenLabs (voice). Market data comes from Yahoo Finance and SEC EDGAR; we do not send them your personal data. Each processor handles data on our behalf under its own security and privacy commitments.',
         ],
       },
       {
         heading: 'Cookies and local storage',
         body: [
-          'We use browser storage to keep you signed in. We do not use third-party advertising cookies.',
+          'We use browser storage to keep you signed in and to cache stock data for speed. Google Analytics sets first-party analytics cookies. We do not use third-party advertising cookies. You can block analytics cookies in your browser without losing any feature.',
         ],
       },
       {
