@@ -32,6 +32,7 @@ const FORM4_RUN_CAP = 25; // and per run overall
 // in one request was the CPU sink, so keep only the newest N per form type.
 const PER_FORM_CAP = 40;
 const FILINGS_CAP = 300; // per ticker per run
+const FOLLOWED_STALE_MS = 12 * 3_600_000; // watched/held stocks re-sync after 12h
 const STALE_RUN_MS = 15 * 60_000; // a 'running' row older than this was killed
 const LOOKUP_CHUNK = 100; // accessions per PostgREST .in() query (URL length)
 // A Form 4 that yields no non-derivative lines (derivative-only grant, no
@@ -560,9 +561,23 @@ Deno.serve(async (req: Request) => {
       if (error) console.error(`sec_sync_state seed: ${error.message}`);
     }
 
+    // Stocks someone watches or holds jump the queue once they are FOLLOWED_STALE_MS
+    // old, so they stay fresh every day; the rest rotate stalest-first.
+    const followed = new Set<string>();
+    for (const table of ["watchlist_items", "positions"]) {
+      const { data, error } = await sb.from(table).select("ticker").limit(20000);
+      if (error) console.error(`${table} lookup: ${error.message}`);
+      for (const r of (data ?? []) as { ticker: string | null }[]) if (r.ticker) followed.add(r.ticker.toUpperCase());
+    }
+    const followedCutoff = new Date(runStart - FOLLOWED_STALE_MS).toISOString();
+    const urgent = (t: string, last: string | null) =>
+      followed.has(t.toUpperCase()) && (last === null || last < followedCutoff);
+
     const queue = active
       .map((t) => ({ ticker: t, cik: stateBy.get(t)?.cik ?? null, last: stateBy.get(t)?.last_synced_at ?? null }))
       .sort((a, b) => {
+        const ua = urgent(a.ticker, a.last), ub = urgent(b.ticker, b.last);
+        if (ua !== ub) return ua ? -1 : 1;
         if (a.last === b.last) return a.ticker.localeCompare(b.ticker);
         if (a.last === null) return -1; // nulls first
         if (b.last === null) return 1;
@@ -601,7 +616,7 @@ Deno.serve(async (req: Request) => {
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       status,
-      stats: { ...stats, halted, batch: batchSize, remaining: Math.max(0, queue.length - idx), seeded: missing.length, forced: force },
+      stats: { ...stats, halted, batch: batchSize, remaining: Math.max(0, queue.length - idx), seeded: missing.length, followed_first: queue.filter((q) => urgent(q.ticker, q.last)).length, forced: force },
     };
     const { error: runErr } = runId
       ? await sb.from("refresh_runs").update(final).eq("id", runId)

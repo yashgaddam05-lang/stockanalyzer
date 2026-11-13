@@ -16,6 +16,15 @@ const SUMMARY_WINDOW_DAYS = 90;
 const SUMMARY_ROW_LIMIT = 2000;
 
 const FILING_COLUMNS = 'id, ticker, cik, accession_no, form, filed_at, report_date, primary_doc_url, description';
+type FilingRow = { filed_at: string | null; accession_no: string };
+
+/** Newest first; ties keep a stable order by accession number. */
+function mergeFilings(a: FilingRow[] | null, b: FilingRow[] | null): FilingRow[] {
+  return [...(a ?? []), ...(b ?? [])].sort(
+    (x, y) => (y.filed_at ?? '').localeCompare(x.filed_at ?? '') || y.accession_no.localeCompare(x.accession_no),
+  );
+}
+
 const INSIDER_COLUMNS =
   'id, ticker, accession_no, line_no, owner_name, owner_relationship, transaction_date, transaction_code, '
   + 'acquired_disposed, shares, price, value, shares_owned_after, filing_url';
@@ -83,11 +92,21 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
-    const [filings, insider, summaryRows, sync] = await Promise.all([
+    // Banks file dozens of 424B notes a week; fetched apart so they cannot crowd
+    // 10-K/10-Q/8-K/Form 4 off the list. Merged newest-first below.
+    const [mainFilings, noteFilings, insider, summaryRows, sync] = await Promise.all([
       supabase
         .from('sec_filings')
         .select(FILING_COLUMNS)
         .eq('ticker', ticker)
+        .not('form', 'like', '424B%')
+        .order('filed_at', { ascending: false })
+        .limit(FILINGS_LIMIT),
+      supabase
+        .from('sec_filings')
+        .select(FILING_COLUMNS)
+        .eq('ticker', ticker)
+        .like('form', '424B%')
         .order('filed_at', { ascending: false })
         .limit(FILINGS_LIMIT),
       supabase
@@ -106,7 +125,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       supabase.from('sec_sync_state').select('last_synced_at').eq('ticker', ticker).limit(1),
     ]);
 
-    const errors = [filings.error, insider.error, summaryRows.error, sync.error];
+    const errors = [mainFilings.error, noteFilings.error, insider.error, summaryRows.error, sync.error];
     if (errors.some((e) => e && !isMissingRelation(e))) {
       sendServerError(response);
       return;
@@ -139,7 +158,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     response.status(200).json({
       ticker,
       available: true,
-      filings: filings.data ?? [],
+      filings: mergeFilings(mainFilings.data, noteFilings.data),
       insider: insiderRows,
       insider_summary: summarize((summaryRows.data ?? []) as SummaryRow[]),
       last_synced_at: syncRow?.last_synced_at ?? null,
