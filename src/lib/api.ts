@@ -367,6 +367,7 @@ export function savePreferences(input: {
   goal?: InvestGoal | null;
   experience?: Experience | null;
   risk?: RiskAppetite | null;
+  temperament?: { score: number; bot: string; tolerance: number; answers: Record<string, number> } | null;
   onboarded?: boolean;
 }): Promise<UserPreferences> {
   return request<UserPreferences>('/api/preferences', { method: 'PUT', body: JSON.stringify(input) });

@@ -25,6 +25,7 @@ const PRIMARY_ITEMS: NavItem[] = [
 // Grouped under "More" on desktop to avoid overflow.
 const MORE_ITEMS: NavItem[] = [
   { to: '/app/market', label: 'Market', end: false },
+  { to: '/app/temperament', label: 'Investor temperament', end: false },
   { to: '/app/bots', label: '3x Bots', end: false },
   { to: '/app/track-record', label: 'Track record', end: false },
   { to: '/app/backtest', label: 'Backtest', end: false },

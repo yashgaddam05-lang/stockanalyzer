@@ -14,13 +14,14 @@ import {
 
 const SCOPES = ['mine', 'sp500', 'all'] as const;
 type Scope = (typeof SCOPES)[number];
-const COLUMNS = 'dashboard_scope, sectors, goal, experience, risk, onboarded_at, updated_at';
+const COLUMNS = 'dashboard_scope, sectors, goal, experience, risk, temperament, onboarded_at, updated_at';
 const DEFAULTS = {
   dashboard_scope: 'mine' as Scope,
   sectors: [] as string[],
   goal: null,
   experience: null,
   risk: null,
+  temperament: null,
   onboarded_at: null,
   updated_at: null,
 };
@@ -79,6 +80,24 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
     patch[field] = value;
+  }
+  if (body.temperament !== undefined) {
+    // Quiz result only; validated so the column cannot be used as free-form storage.
+    const t = body.temperament as Record<string, unknown> | null;
+    const BOTS = ['steady', 'balanced', 'growth', 'moonshot'];
+    const answers = t && typeof t.answers === 'object' && t.answers !== null ? (t.answers as Record<string, unknown>) : null;
+    const valid = t === null || (
+      typeof t.score === 'number' && t.score >= 0 && t.score <= 100
+      && typeof t.bot === 'string' && BOTS.includes(t.bot)
+      && typeof t.tolerance === 'number' && t.tolerance > 0 && t.tolerance <= 100
+      && answers !== null && Object.keys(answers).length <= 20
+      && Object.entries(answers).every(([k, v]) => /^[a-z_]{1,20}$/.test(k) && Number.isInteger(v) && (v as number) >= 0 && (v as number) < 10)
+    );
+    if (!valid) {
+      sendBadRequest(response, 'temperament must be a quiz result.');
+      return;
+    }
+    patch.temperament = t === null ? null : { score: t!.score, bot: t!.bot, tolerance: t!.tolerance, answers, at: new Date().toISOString() };
   }
   if (body.onboarded === true) patch.onboarded_at = new Date().toISOString();
 
