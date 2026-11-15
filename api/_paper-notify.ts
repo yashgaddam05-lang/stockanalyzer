@@ -25,7 +25,7 @@ async function loadAll(): Promise<{ rows: Row[]; valued: Valued[]; standard: Val
 }
 
 /** The checks behind each alert. Triggers start a review; they never change the account. */
-function checks(v: Valued): { kind: string; message: string }[] {
+export function checks(v: Valued): { kind: string; message: string }[] {
   if (v.status !== 'live' || (v.daysTracked ?? 0) < 5) return [];
   const out: { kind: string; message: string }[] = [];
   const d = v.drift!;
