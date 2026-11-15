@@ -137,8 +137,9 @@ function Results({ result, onRetake }: { result: TemperamentResult; onRetake: ()
                           {usd(r.y10.low)} to {usd(r.y10.high)}
                         </span>
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right tabular-nums', tooRough ? 'font-semibold text-red-700' : 'text-neutral-700')}>
-                        -{r.drop}%{tooRough && <span className="block text-[11px] font-normal">beyond your limit</span>}
+                      <td className={cn('px-3 py-2.5 text-right tabular-nums', tooRough && !isMine ? 'font-semibold text-red-700' : 'text-neutral-700')}>
+                        -{r.drop}%
+                        {tooRough && <span className="block text-[11px] font-normal">{isMine ? 'about your limit' : 'beyond your limit'}</span>}
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums">{usd(r.held)}</td>
                       <td className={cn('px-3 py-2.5 text-right tabular-nums', r.panic.bailouts > 0 && 'text-amber-800')}>
@@ -224,7 +225,7 @@ function Results({ result, onRetake }: { result: TemperamentResult; onRetake: ()
         <p>
           Educational, not investment advice. The quiz is a self-assessment, and dollar figures are hypothetical: they replay each bot&apos;s
           reconstructed history since {data ? year(data.start) : '2016'} (a mostly rising market, and somewhat flattered because companies that
-          left the index are missing). The &ldquo;sold at your limit&rdquo; column assumes you sell after a drop of that size and buy back 6 months
+          left the index are missing). Drops are measured on month-end values, so the worst intra-month dips were deeper. The &ldquo;sold at your limit&rdquo; column assumes you sell after a drop of that size and buy back 6 months
           later; real investors who sell often wait longer. Past results do not predict future returns.
         </p>
       </div>
