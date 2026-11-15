@@ -27,6 +27,8 @@ interface Row {
   cagr: number;
   monthly: number[];
   botId?: string;
+  /** Share in stocks, 0-1: the weaker-decade haircut applies to stocks only. */
+  stockShare: number;
 }
 
 function Tag({ children }: { children: string }) {
@@ -78,12 +80,13 @@ export default function GoalPage() {
       drop: -l.summary.maxDrawdown,
       cagr: l.summary.cagr / 100,
       monthly: l.monthly,
+      stockShare: l.stocks / 100,
     }));
     const bots: Row[] = BOTS.map((b) => {
       const s = data.bots.find((x) => x.id === b.id)!;
-      return { key: b.id, group: '3x Bot', name: `${b.name} Bot`, detail: b.riskLabel, color: b.color, drop: -s.summary.maxDrawdown, cagr: s.summary.cagr / 100, monthly: s.monthly, botId: b.id };
+      return { key: b.id, group: '3x Bot', name: `${b.name} Bot`, detail: b.riskLabel, color: b.color, drop: -s.summary.maxDrawdown, cagr: s.summary.cagr / 100, monthly: s.monthly, botId: b.id, stockShare: 1 };
     });
-    const spy: Row = { key: 'spy', group: 'Index', name: 'S&P 500 (SPY)', detail: 'Buy the whole market', drop: -data.spy.summary.maxDrawdown, cagr: data.spy.summary.cagr / 100, monthly: data.spy.monthly };
+    const spy: Row = { key: 'spy', group: 'Index', name: 'S&P 500 (SPY)', detail: 'Buy the whole market', drop: -data.spy.summary.maxDrawdown, cagr: data.spy.summary.cagr / 100, monthly: data.spy.monthly, stockShare: 1 };
     return [...mixes, ...bots, spy];
   }, [data]);
 
@@ -91,8 +94,8 @@ export default function GoalPage() {
     () =>
       rows.map((r) => ({
         ...r,
-        sim: simulate(r.monthly, { years, start, target, deposit, drag, paths: 1500 }),
-        assumed: (1 + r.cagr) * (1 - drag) - 1,
+        sim: simulate(r.monthly, { years, start, target, deposit, drag: drag * r.stockShare, paths: 1500 }),
+        assumed: r.cagr - drag * r.stockShare,
       })),
     [rows, years, start, target, deposit, drag]
   );
@@ -157,7 +160,7 @@ export default function GoalPage() {
           <label className="flex items-start gap-2 text-[13px] text-neutral-700">
             <input type="checkbox" checked={weaker} onChange={(e) => setWeaker(e.target.checked)} className="mt-0.5 accent-neutral-900" />
             <span>
-              Assume the next decade is weaker than 2016–2026 (3% a year less).{' '}
+              Assume the next decade is weaker than 2016–2026 (stocks earn 3% a year less).{' '}
               <span className="text-neutral-500">Recommended: that decade was unusually strong.</span>
             </span>
           </label>
@@ -228,7 +231,7 @@ export default function GoalPage() {
         </div>
         <p className="text-[12px] text-muted-foreground">
           Return and worst drop are month-end backtests from {data ? `${year(data.start)} to ${year(data.end)}` : '2016'}. Odds and outcomes come from
-          1,500 simulated futures built from each strategy&apos;s own monthly history{weaker ? ', 3% a year weaker' : ''}. Hypothetical, before taxes.
+          1,500 simulated futures built from each strategy&apos;s own monthly history{weaker ? ', with stocks 3% a year weaker' : ''}. Hypothetical, before taxes.
         </p>
         {failed ? (
           <p className="text-[13px] text-red-600">Could not load strategy history. Refresh to try again.</p>
@@ -249,7 +252,7 @@ export default function GoalPage() {
               </thead>
               <tbody>
                 {results.map((r) => {
-                  const isMine = temperament?.bot === r.botId;
+                  const isMine = Boolean(r.botId) && temperament?.bot === r.botId;
                   const rough = tolerance !== null && r.drop > tolerance + 0.5;
                   const yrs = yearsToMultiple(r.assumed, multiple);
                   return (
