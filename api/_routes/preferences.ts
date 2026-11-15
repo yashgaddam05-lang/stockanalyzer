@@ -14,7 +14,7 @@ import {
 
 const SCOPES = ['mine', 'sp500', 'all'] as const;
 type Scope = (typeof SCOPES)[number];
-const COLUMNS = 'dashboard_scope, sectors, goal, experience, risk, temperament, onboarded_at, updated_at';
+const COLUMNS = 'dashboard_scope, sectors, goal, experience, risk, temperament, weekly_email, onboarded_at, updated_at';
 const DEFAULTS = {
   dashboard_scope: 'mine' as Scope,
   sectors: [] as string[],
@@ -22,6 +22,7 @@ const DEFAULTS = {
   experience: null,
   risk: null,
   temperament: null,
+  weekly_email: true,
   onboarded_at: null,
   updated_at: null,
 };
@@ -99,6 +100,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
     patch.temperament = t === null ? null : { score: t!.score, bot: t!.bot, tolerance: t!.tolerance, answers, at: new Date().toISOString() };
   }
+  if (typeof body.weekly_email === 'boolean') patch.weekly_email = body.weekly_email;
   if (body.onboarded === true) patch.onboarded_at = new Date().toISOString();
 
   const { data, error } = await auth.db

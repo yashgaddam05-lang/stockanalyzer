@@ -440,6 +440,7 @@ export interface UserPreferences {
   experience?: Experience | null;
   risk?: RiskAppetite | null;
   temperament?: { score: number; bot: string; tolerance: number; answers: Record<string, number>; at?: string } | null;
+  weekly_email?: boolean;
   /** Null until the user finishes first-login onboarding. */
   onboarded_at: string | null;
   updated_at: string | null;

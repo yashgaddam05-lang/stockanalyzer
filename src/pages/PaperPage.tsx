@@ -396,6 +396,7 @@ export default function PaperPage() {
           </Card>
 
           <NewAccount onCreated={load} disabled={limitMsg} />
+          <Updates plan={data.plan} hasExperiment={mine.length > 0} />
 
           <p className="text-[11px] text-neutral-500">
             Benchmark: the same bond and cash mix with the stock part in 70% VTI / 30% VXUS, so &quot;vs benchmark&quot; shows whether 3x picks added
@@ -404,6 +405,28 @@ export default function PaperPage() {
         </>
       )}
     </div>
+  );
+}
+
+function Updates({ plan, hasExperiment }: { plan: 'free' | 'pro'; hasExperiment: boolean }) {
+  const { prefs, update } = usePreferences();
+  const on = prefs?.weekly_email !== false;
+  if (!hasExperiment) return null;
+  return (
+    <Card className="flex flex-col gap-3 p-4 text-[13px] sm:flex-row sm:items-center sm:justify-between">
+      <label className="flex items-center gap-2 text-neutral-800">
+        <input type="checkbox" checked={on} onChange={(e) => void update({ weekly_email: e.target.checked }).catch(() => undefined)} className="accent-neutral-900" />
+        Send me a weekly progress update on my experiments (Saturday morning)
+      </label>
+      {plan === 'pro' ? (
+        <span className="text-neutral-500">Pro alerts are on: drift, behind plan, and trailing the benchmark.</span>
+      ) : (
+        <span className="text-neutral-600">
+          Get alerted when an experiment drifts, falls behind plan or trails its benchmark.{' '}
+          <Link to="/app/billing" className="font-medium text-neutral-900 underline underline-offset-2">Pro</Link>
+        </span>
+      )}
+    </Card>
   );
 }
 

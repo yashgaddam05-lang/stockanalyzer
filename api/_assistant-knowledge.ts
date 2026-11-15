@@ -77,6 +77,10 @@ predict future returns.
 - Explore (/app/explore): filter/sort the universe and run preset screens.
 - Stock page (/app/stock/TICKER): score breakdown by dimension, risk panel, scenarios, score history, price chart,
   filings, scenario calculator, set alerts, add to watchlist.
+- 3x Goal Planner (/app/goal): the return a target needs (3x in 10 years = 11.6%/yr), and each mix, bot and the S&P 500's
+  historical return, worst drop and simulated odds of reaching it. Paper accounts (/app/paper): 8 standard virtual $100,000 accounts
+  (V01 all cash to V08 all stocks) tracked daily from Nov 16 2026 vs a plain index benchmark, plus user experiments; weekly progress update.
+  The temperament quiz now scores risk tolerance and risk capacity (savings, debt, income) separately; the lower one sets the style.
 - Watchlists (/app/watchlists), Alerts (/app/alerts), Portfolios (/app/portfolios), Catalysts (/app/catalysts),
   Market regime (/app/market), Backtest, Data health, Account (/app/account). "Personalize" in the account menu reruns
   the onboarding setup (goal, experience, risk, stocks).
@@ -87,7 +91,8 @@ predict future returns.
 - Pricing (/pricing): Free plan forever: 3x and risk scores on every stock, dashboard, Explore, watchlists, simulated
   portfolios and brokerage import, portfolio score and tips, bots, track record, catalysts, market regime, 100 AI
   credits a month and 1 alert. Pro is $19/month or $149/year: full 3x score breakdown with all factors,
-  bull/neutral/bear scenarios, 600 AI credits a month with Deep dive answers, the voice assistant and up to 50 alerts.
+  bull/neutral/bear scenarios, 600 AI credits a month with Deep dive answers, the voice assistant, up to 50 alerts, and 10 paper
+  experiments (free: 1) with drift, behind-plan and benchmark alerts.
   Pro+ is $49/month or $399/year: everything in Pro, 1,600 AI credits a month and Full report answers. Credit packs:
   250 credits for $10 (Pro and Pro+), never expire.
   AI answer sizes and credits: Quick 1 (app help), Standard 4 (focused, from app data and today's shared research),

@@ -84,7 +84,7 @@ export function NotificationsFeed({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <Link
-                      to={`/app/stock/${encodeURIComponent(ev.ticker)}`}
+                      to={ev.kind.startsWith('paper_') ? '/app/paper' : `/app/stock/${encodeURIComponent(ev.ticker)}`}
                       className="font-mono text-sm font-semibold text-neutral-900 hover:underline"
                     >
                       {ev.ticker}

@@ -130,7 +130,7 @@ export function NotificationBell() {
               events.map((ev) => (
                 <li key={ev.id} className="border-b border-neutral-100 last:border-0">
                   <Link
-                    to={`/app/stock/${encodeURIComponent(ev.ticker)}`}
+                    to={ev.kind.startsWith('paper_') ? '/app/paper' : `/app/stock/${encodeURIComponent(ev.ticker)}`}
                     onClick={() => setOpen(false)}
                     className="block px-4 py-3 hover:bg-neutral-50 focus-visible:bg-neutral-50 focus-visible:outline-none"
                   >

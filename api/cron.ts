@@ -12,11 +12,12 @@ import {
 import { logRefreshRun, runStockRefresh } from './_refresh-core.js';
 import { runScheduledResearch } from './_research.js';
 import { refreshPaperPrices } from './_paper.js';
+import { runPaperAlerts, runWeeklyDigest } from './_paper-notify.js';
 
-const JOBS = ['market', 'stocks', 'filings', 'smart-money', 'research', 'paper'] as const;
+const JOBS = ['market', 'stocks', 'filings', 'smart-money', 'research', 'paper', 'paper-weekly'] as const;
 type CronJob = (typeof JOBS)[number];
 
-const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks' | 'research' | 'paper'>, string> = {
+const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly'>, string> = {
   market: 'refresh-market',
   filings: 'refresh-filings',
   'smart-money': 'refresh-smart-money',
@@ -44,7 +45,7 @@ function anonKey(): string | undefined {
 
 type EdgeOutcome = { ok: boolean; result: unknown };
 
-async function callEdgeFunction(job: Exclude<CronJob, 'stocks' | 'research' | 'paper'>): Promise<EdgeOutcome> {
+async function callEdgeFunction(job: Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly'>): Promise<EdgeOutcome> {
   const startedAt = new Date();
   const name = EDGE_FUNCTIONS[job];
   const controller = new AbortController();
@@ -115,7 +116,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
     if (job === 'paper') {
       const result = await refreshPaperPrices();
-      response.status(200).json({ job, ok: result.failed.length === 0, result });
+      const alerts = await runPaperAlerts().catch(() => null);
+      response.status(200).json({ job, ok: result.failed.length === 0, result: { ...result, alerts } });
+      return;
+    }
+    if (job === 'paper-weekly') {
+      const result = await runWeeklyDigest();
+      response.status(200).json({ job, ok: true, result });
       return;
     }
     if (job === 'research') {

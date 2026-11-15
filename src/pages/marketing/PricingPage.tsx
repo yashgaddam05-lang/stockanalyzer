@@ -15,12 +15,15 @@ const FREE_FEATURES: Feature[] = [
   { label: 'Watchlists, simulated portfolios and brokerage import' },
   { label: 'Portfolio score, holding report and improvement tips' },
   { label: '3x Bots and the 2016 track record' },
+  { label: '3x Goal Planner and investor temperament quiz', isNew: true },
+  { label: '8 virtual $100,000 paper accounts plus 1 experiment of your own, with a weekly progress update', isNew: true },
   { label: 'Catalyst calendar, market regime and SEC filings' },
   { label: 'AI assistant: 100 credits a month (Quick, Standard and Researched answers)' },
   { label: '1 alert' },
 ];
 
 const PRO_FEATURES: Feature[] = [
+  { label: '10 live $100,000 paper experiments with drift, behind-plan and benchmark alerts', isNew: true },
   { label: 'Full 3x score breakdown: all 8 factors and their drivers' },
   { label: 'Bull, neutral and bear scenarios for every stock' },
   { label: 'AI research assistant: 600 credits a month, 6x Free', isNew: true },
@@ -48,7 +51,7 @@ const SIZES = [
 const FAQ = [
   {
     q: 'What stays free?',
-    a: 'Scores, the dashboard, Explore, watchlists, simulated portfolios, the portfolio report, bots and the track record stay free. Pro adds the full score breakdown, scenarios, 6x the AI research credits, deep dives, voice and more alerts. Pro+ adds 16x the credits and full reports.',
+    a: 'Scores, the dashboard, Explore, watchlists, simulated portfolios, the portfolio report, bots, the goal planner, the standard paper accounts and the track record stay free. Pro adds 10 paper experiments with alerts, the full score breakdown, scenarios, 6x the AI research credits, deep dives, voice and more alerts. Pro+ adds 16x the credits and full reports.',
   },
   {
     q: 'How do AI credits work?',
