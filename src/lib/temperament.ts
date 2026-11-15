@@ -1,5 +1,6 @@
-// Investor temperament quiz: behavior-first questions map to one of the four 3x Bots, plus the
-// biggest drop the investor is likely to sit through. Pure and deterministic.
+// Investor temperament quiz: behavior-first questions (risk tolerance) and money questions (risk
+// capacity) map to one of the four 3x Bots, plus the biggest drop the investor is likely to sit
+// through. Pure and deterministic.
 import type { BotId } from '@/lib/bots';
 
 export interface QuizOption {
@@ -71,6 +72,7 @@ export const QUESTIONS: QuizQuestion[] = [
   {
     id: 'cushion',
     title: 'If this money went down 50%, how would your life change?',
+    subtitle: 'The last few questions are about what you can afford, not how you feel.',
     options: [
       { label: 'A lot: it is most of my savings', points: 0 },
       { label: 'Noticeably, but I would be fine', points: 2 },
@@ -87,13 +89,53 @@ export const QUESTIONS: QuizQuestion[] = [
       { label: 'Yes, and I bought more', points: 4 },
     ],
   },
+  {
+    id: 'emergency',
+    title: 'Outside this money, how many months of expenses do you have in savings?',
+    options: [
+      { label: 'None', points: 0 },
+      { label: 'Less than 3 months', points: 1 },
+      { label: '3 to 6 months', points: 3 },
+      { label: 'More than 6 months', points: 4 },
+    ],
+  },
+  {
+    id: 'debt',
+    title: 'Do you carry high-interest debt?',
+    subtitle: 'Credit cards or loans charging more than about 10%.',
+    options: [
+      { label: 'Yes, a balance I carry month to month', points: 0 },
+      { label: 'Some, and I am paying it down', points: 2 },
+      { label: 'No', points: 4 },
+    ],
+  },
+  {
+    id: 'income',
+    title: 'How steady is your income?',
+    options: [
+      { label: 'Irregular, or I could lose it soon', points: 0 },
+      { label: 'Mostly steady', points: 2 },
+      { label: 'Very steady', points: 4 },
+    ],
+  },
 ];
+
+// Risk capacity: what the investor can afford to lose. Kept apart from risk tolerance (how they feel
+// about losing), and whichever is lower sets the style. An ambitious goal never overrides capacity.
+const CAPACITY = new Set(['horizon', 'cushion', 'emergency', 'debt', 'income']);
 
 const WEIGHT: Record<string, number> = { drop: 2, experience: 2 };
 
 export interface TemperamentResult {
-  /** 0-100, higher = more aggressive temperament */
+  /** 0-100 risk tolerance, higher = more aggressive temperament */
   score: number;
+  /** 0-100 risk capacity: savings cushion, debt, income, horizon */
+  capacity: number;
+  capacityLabel: string;
+  /** Which side capped the style; null when both agree. */
+  limitedBy: 'tolerance' | 'capacity' | null;
+  /** Things to fix before investing more aggressively. */
+  firstSteps: string[];
   bot: BotId;
   label: string;
   summary: string;
@@ -132,24 +174,51 @@ const BANDS: { max: number; bot: BotId; label: string; summary: string; toleranc
   },
 ];
 
-export function scoreTemperament(answers: Record<string, number>): TemperamentResult {
+function part(answers: Record<string, number>, ids: (id: string) => boolean): number {
   let got = 0;
   let max = 0;
   for (const q of QUESTIONS) {
+    if (!ids(q.id)) continue;
     const w = WEIGHT[q.id] ?? 1;
-    const top = Math.max(...q.options.map((o) => o.points));
-    max += top * w;
+    max += Math.max(...q.options.map((o) => o.points)) * w;
     const idx = answers[q.id];
     const opt = typeof idx === 'number' ? q.options[idx] : undefined;
     got += (opt?.points ?? 0) * w;
   }
-  const score = Math.round((got / max) * 100);
+  return max ? Math.round((got / max) * 100) : 0;
+}
+
+const pts = (answers: Record<string, number>, id: string) =>
+  QUESTIONS.find((q) => q.id === id)!.options[answers[id] ?? 0]?.points ?? 0;
+
+export function scoreTemperament(answers: Record<string, number>): TemperamentResult {
+  const score = part(answers, (id) => !CAPACITY.has(id));
+  const capacity = part(answers, (id) => CAPACITY.has(id));
+  const bandOf = (x: number) => BANDS.findIndex((b) => x <= b.max);
+  const tol = bandOf(score);
+  let cap = bandOf(capacity);
   // A near-term need for the money caps the style, whatever the other answers say.
-  const horizonPts = QUESTIONS.find((q) => q.id === 'horizon')!.options[answers.horizon ?? 0]?.points ?? 0;
-  let band = BANDS.find((b) => score <= b.max) ?? BANDS[BANDS.length - 1];
-  if (horizonPts === 0 && band.bot !== 'steady') band = BANDS[0];
-  else if (horizonPts === 1 && (band.bot === 'growth' || band.bot === 'moonshot')) band = BANDS[1];
-  return { score, bot: band.bot, label: band.label, summary: band.summary, tolerance: band.tolerance };
+  const horizonPts = pts(answers, 'horizon');
+  if (horizonPts === 0) cap = 0;
+  else if (horizonPts === 1) cap = Math.min(cap, 1);
+  const idx = Math.min(tol, cap);
+  const band = BANDS[idx];
+  const firstSteps: string[] = [];
+  if (pts(answers, 'emergency') <= 1) firstSteps.push('Build 3 to 6 months of expenses in savings before putting this money at risk, so a surprise bill never forces you to sell in a drop.');
+  if (pts(answers, 'debt') === 0) firstSteps.push('Pay off debt charging more than about 10% first. Clearing it is a guaranteed return the stock market cannot promise.');
+  if (pts(answers, 'income') === 0) firstSteps.push('Keep extra cash on the side: an income dip often arrives at the same time as a market drop.');
+  if (horizonPts === 0) firstSteps.push('Money you need within 2 years belongs mostly in cash or short-term Treasuries, not stocks.');
+  return {
+    score,
+    capacity,
+    capacityLabel: BANDS[cap].label,
+    limitedBy: tol === cap ? null : tol < cap ? 'tolerance' : 'capacity',
+    firstSteps,
+    bot: band.bot,
+    label: band.label,
+    summary: band.summary,
+    tolerance: band.tolerance,
+  };
 }
 
 export interface Curve {

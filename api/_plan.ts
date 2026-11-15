@@ -42,8 +42,8 @@ const PRODUCTS: Record<PaidPlan, { app: string; name: string; description: strin
 
 /** Per-plan daily limits, enforced server-side. */
 export const LIMITS = {
-  free: { assistantPerDay: 5, voice: false, maxAlerts: 1 },
-  pro: { assistantPerDay: 40, voice: true, maxAlerts: 50 },
+  free: { assistantPerDay: 5, voice: false, maxAlerts: 1, maxPaperAccounts: 1 },
+  pro: { assistantPerDay: 40, voice: true, maxAlerts: 50, maxPaperAccounts: 10 },
 } as const;
 
 const ACTIVE = new Set(['active', 'trialing', 'past_due']);

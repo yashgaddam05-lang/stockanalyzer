@@ -39,6 +39,8 @@ const BacktestPage = lazy(() => import('@/pages/BacktestPage'));
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'));
 const BotsPage = lazy(() => import('@/pages/BotsPage'));
 const TemperamentPage = lazy(() => import('@/pages/TemperamentPage'));
+const GoalPage = lazy(() => import('@/pages/GoalPage'));
+const PaperPage = lazy(() => import('@/pages/PaperPage'));
 const BillingPage = lazy(() => import('@/pages/BillingPage'));
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
 
@@ -142,6 +144,8 @@ export default function App() {
             <Route path="track-record" element={<TrackRecordPage />} />
             <Route path="bots" element={<BotsPage />} />
             <Route path="temperament" element={<TemperamentPage />} />
+            <Route path="goal" element={<GoalPage />} />
+            <Route path="paper" element={<PaperPage />} />
             <Route path="billing" element={<BillingPage />} />
             <Route path="admin" element={<AdminPage />} />
             <Route path="*" element={<NotFoundPage homeHref="/app" homeLabel="Back to dashboard" />} />

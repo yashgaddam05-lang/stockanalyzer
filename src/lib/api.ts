@@ -632,3 +632,66 @@ export function getAdminStats(): Promise<AdminStats> {
 export function setMaintenance(enabled: boolean, message: string): Promise<SiteStatus> {
   return request<SiteStatus>('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'maintenance', enabled, message }) });
 }
+
+// ---------- Paper accounts (virtual money) ----------
+
+export interface PaperPoint { d: string; v: number }
+export interface PaperAccount {
+  id: string;
+  code: string | null;
+  name: string;
+  mine: boolean;
+  mix: { stocks: number; bonds: number; cash: number };
+  sleeve: string;
+  holdings: { symbol: string; weight: number }[];
+  startValue: number;
+  target: number;
+  targetMultiple: number;
+  horizonYears: number;
+  assumptions: Record<string, string>;
+  version: number;
+  createdAt: string;
+  inception: string | null;
+  asOf: string | null;
+  status: 'pending' | 'live';
+  value?: number;
+  gain?: number;
+  totalReturn?: number;
+  annualized?: number | null;
+  maxDrawdown?: number;
+  volatility?: number | null;
+  benchmarkReturn?: number;
+  vsBenchmark?: number;
+  toTarget?: number;
+  remainingRequired?: number | null;
+  requiredAtStart?: number;
+  drift?: { stocks: number; bonds: number; cash: number };
+  daysTracked?: number;
+  stale?: string[];
+  series?: PaperPoint[];
+  benchmarkSeries?: PaperPoint[];
+}
+export interface PaperResponse { accounts: PaperAccount[]; limit: number; plan: 'free' | 'pro' }
+export interface NewPaperAccount {
+  name: string;
+  stocks: number;
+  bonds: number;
+  cash: number;
+  sleeve: 'market' | 'mix' | 'picks';
+  bot?: string;
+  picks: string[];
+  targetMultiple: number;
+  horizonYears: number;
+}
+
+export function getPaperAccounts(): Promise<PaperResponse> {
+  return request<PaperResponse>('/api/paper');
+}
+
+export function createPaperAccount(input: NewPaperAccount): Promise<{ id: string }> {
+  return request<{ id: string }>('/api/paper', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function deletePaperAccount(id: string): Promise<void> {
+  return request<void>(`/api/paper?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

@@ -25,3 +25,4 @@ dist-ssr
 *.local.*
 scripts/track-record/data/
 scripts/smart-money/data/
+scripts/allocations/data/

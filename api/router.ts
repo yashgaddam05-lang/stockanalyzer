@@ -39,6 +39,7 @@ const ROUTES: Record<string, Handler> = {
   'filings': filings,
   'market-regime': marketRegime,
   'portfolio-import': portfolioImport,
+  'paper': async (req, res) => (await import('./_routes/paper.js')).default(req, res),
   'portfolios': portfolios,
   'positions': positions,
   'preferences': preferences,

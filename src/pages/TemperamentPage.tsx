@@ -77,7 +77,7 @@ function Results({ result, onRetake }: { result: TemperamentResult; onRetake: ()
               <p className="text-[12px] font-medium uppercase tracking-wider text-neutral-500">Your investor temperament</p>
               <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">{result.label}</h2>
               <p className="text-[13px] text-neutral-600">
-                Temperament score {result.score}/100 · you can likely sit through drops of about <strong>{result.tolerance}%</strong>
+                You can likely sit through drops of about <strong>{result.tolerance}%</strong>
               </p>
             </div>
           </div>
@@ -86,6 +86,40 @@ function Results({ result, onRetake }: { result: TemperamentResult; onRetake: ()
           </Button>
         </div>
         <p className="text-[14px] leading-relaxed text-neutral-700">{result.summary}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Risk tolerance · how drops feel</p>
+            <p className="text-[15px] font-semibold text-neutral-900">{result.score}/100</p>
+          </div>
+          <div className="rounded-xl border border-border p-3">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Risk capacity · what you can afford to lose</p>
+            <p className="text-[15px] font-semibold text-neutral-900">
+              {result.capacity}/100 <span className="text-[12px] font-normal text-neutral-500">fits {result.capacityLabel}</span>
+            </p>
+          </div>
+        </div>
+        {result.limitedBy && (
+          <p className="text-[13px] text-neutral-600">
+            {result.limitedBy === 'capacity'
+              ? `Your nerves could handle more, but your finances set the limit, so we matched you to ${result.label}. The lower of the two always wins.`
+              : `Your finances could absorb more risk, but how you react to drops sets the limit, so we matched you to ${result.label}. Selling in a panic costs more than a calmer strategy.`}
+          </p>
+        )}
+        {result.firstSteps.length > 0 && (
+          <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="flex items-center gap-1.5 text-[13px] font-semibold text-amber-900">
+              <ShieldAlert className="h-4 w-4" aria-hidden="true" /> Before you invest more
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-[13px] text-amber-900">
+              {result.firstSteps.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <Link to="/app/goal" className="inline-flex items-center gap-1 text-[13px] font-medium text-neutral-900 underline underline-offset-2">
+          See how long tripling your money takes with your style <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
       </Card>
 
       {/* What it means in dollars */}
@@ -278,7 +312,7 @@ export default function TemperamentPage() {
         <p className="max-w-2xl text-sm text-muted-foreground">
           {result
             ? 'Your style, the portfolio that fits it, and what going safer or more aggressive would really mean for you.'
-            : 'Seven quick questions about how you actually react to money moving. We match you to a strategy, build the portfolio, and show what going more aggressive would really mean for you.'}
+            : 'Ten quick questions: how you react to money moving, and what you can afford to lose. We match you to a strategy, build the portfolio, and show what going more aggressive would really mean for you.'}
         </p>
       </div>
 
