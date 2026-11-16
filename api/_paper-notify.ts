@@ -151,3 +151,16 @@ export async function runWeeklyDigest(): Promise<{ users: number; emailed: numbe
   }
   return { users: byUser.size, emailed, emailConfigured };
 }
+
+/** Admin check of the email setup: sends a sample digest (standard accounts) to the caller only. */
+export async function sendTestDigest(userId: string): Promise<{ configured: boolean; sent: boolean; to: string | null }> {
+  const configured = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const email = data?.user?.email ?? null;
+  const masked = email ? email.replace(/^(.).*(@.*)$/, '$1***$2') : null;
+  if (!configured || !email) return { configured, sent: false, to: masked };
+  const { standard } = await loadAll();
+  const sample = standard.filter((v) => ['V04', 'V06', 'V08'].includes(v.code ?? ''));
+  const sent = await sendEmail(email, 'Test: your weekly 3x progress', emailHtml('there', sample, sample.at(-1)));
+  return { configured, sent, to: masked };
+}

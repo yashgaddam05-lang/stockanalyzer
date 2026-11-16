@@ -626,6 +626,10 @@ export function runResearchNow(limit: number): Promise<{ result: { ran: boolean;
   return request('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'research', limit }) });
 }
 
+export function sendTestEmail(): Promise<{ configured: boolean; sent: boolean; to: string | null }> {
+  return request('/api/admin', { method: 'POST', body: JSON.stringify({ action: 'test-email' }) });
+}
+
 export function getAdminStats(): Promise<AdminStats> {
   return request<AdminStats>('/api/admin');
 }

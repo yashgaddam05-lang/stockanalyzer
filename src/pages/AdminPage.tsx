@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, ShieldCheck, Wrench, Zap } from 'lucide-react';
-import { ApiError, getAdminStats, getSiteStatus, runResearchNow, setMaintenance } from '@/lib/api';
+import { ApiError, getAdminStats, getSiteStatus, runResearchNow, sendTestEmail, setMaintenance } from '@/lib/api';
 import type { AdminStats } from '@/lib/api';
 import { usePlan } from '@/components/billing/usePlan';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
@@ -64,6 +64,16 @@ export default function AdminPage() {
     }
   }
 
+  async function testEmail() {
+    setResearchNote('Sending test email…');
+    try {
+      const r = await sendTestEmail();
+      setResearchNote(!r.configured ? 'Email is not configured: RESEND_API_KEY or EMAIL_FROM is missing in Vercel production.' : r.sent ? `Test email sent to ${r.to}. Check your inbox (and spam).` : `Resend refused the email to ${r.to}. Check the domain is verified in Resend.`);
+    } catch (e) {
+      setResearchNote(e instanceof ApiError ? e.message : 'Test email failed.');
+    }
+  }
+
   const ai = stats?.ai ?? null;
   const usd = (n: number) => `$${Number(n).toFixed(Number(n) < 10 ? 2 : 0)}`;
   const aiShare = ai && stats && stats.mrr_usd > 0 ? Math.round((ai.cost_month / stats.mrr_usd) * 100) : null;
@@ -119,6 +129,9 @@ export default function AdminPage() {
             <Button size="sm" variant="outline" disabled={researching} onClick={() => void research()} className="gap-1.5">
               {researching && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
               Run research now (5 stocks)
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void testEmail()}>
+              Send me a test email
             </Button>
           </div>
           {researchNote && <p className="text-[12px] text-neutral-700">{researchNote}</p>}

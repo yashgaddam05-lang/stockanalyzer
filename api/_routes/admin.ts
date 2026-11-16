@@ -8,10 +8,12 @@ import {
 } from '../_supabase.js';
 import { runScheduledResearch, activeSlots, coverage, researchBudget } from '../_research.js';
 import { dailyLimitUsd } from '../_ai.js';
+import { sendTestDigest } from '../_paper-notify.js';
 
 // GET  /api/admin                                           -> headline stats (admins only)
 // POST /api/admin { action: 'maintenance', enabled, message } -> flip the production maintenance page
 // POST /api/admin { action: 'research', limit? }             -> run a research batch now (admins; checked in the DB)
+// POST /api/admin { action: 'test-email' }                   -> send a sample weekly digest to the calling admin
 // Authorization is enforced inside the database functions (app_admins membership), not just here.
 export default async function handler(request: ApiRequest, response: ApiResponse): Promise<void> {
   if (request.method !== 'GET' && request.method !== 'POST') {
@@ -47,6 +49,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const tickers = Array.isArray(body.tickers) ? body.tickers.filter((t): t is string => typeof t === 'string' && /^[A-Z.]{1,10}$/.test(t)).slice(0, 10) : undefined;
     const result = await runScheduledResearch('admin', { force: true, limit, deadlineMs: 240_000, batch: body.batch === true, tickers });
     response.status(200).json({ result });
+    return;
+  }
+  if (body.action === 'test-email') {
+    const { error } = await auth.db.rpc('admin_ai_stats');
+    if (error) return forbidden();
+    response.status(200).json(await sendTestDigest(auth.userId));
     return;
   }
   if (body.action !== 'maintenance') {
