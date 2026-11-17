@@ -257,6 +257,10 @@ export interface Portfolio {
   name: string;
   created_at: string;
   updated_at: string;
+  /** 'brokerage' portfolios are synced read-only from a connected account. */
+  source?: 'manual' | 'brokerage';
+  institution?: string | null;
+  synced_at?: string | null;
 }
 
 export interface Position {

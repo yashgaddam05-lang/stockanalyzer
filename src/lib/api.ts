@@ -700,3 +700,30 @@ export function createPaperAccount(input: NewPaperAccount): Promise<{ id: string
 export function deletePaperAccount(id: string): Promise<void> {
   return request<void>(`/api/paper?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+// ---------- brokerage (read-only, SnapTrade) ----------
+
+export interface BrokerageStatus {
+  available: boolean;
+  allowed: boolean;
+  connected: boolean;
+  status: 'none' | 'pending' | 'connected' | 'error';
+  lastSyncedAt: string | null;
+  lastError: string | null;
+}
+
+export function getBrokerageStatus(): Promise<BrokerageStatus> {
+  return request<BrokerageStatus>('/api/brokerage');
+}
+
+export function connectBrokerage(): Promise<{ url: string }> {
+  return request<{ url: string }>('/api/brokerage', { method: 'POST', body: JSON.stringify({ action: 'connect' }) });
+}
+
+export function syncBrokerage(): Promise<{ accounts?: number; positions?: number; skipped?: number | boolean; lastSyncedAt?: string }> {
+  return request('/api/brokerage', { method: 'POST', body: JSON.stringify({ action: 'sync' }) });
+}
+
+export function disconnectBrokerage(): Promise<{ disconnected: boolean }> {
+  return request<{ disconnected: boolean }>('/api/brokerage', { method: 'POST', body: JSON.stringify({ action: 'disconnect' }) });
+}

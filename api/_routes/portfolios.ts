@@ -18,11 +18,11 @@ import {
 
 const ALLOWED = ['GET', 'POST', 'PATCH', 'DELETE'];
 const MAX_PORTFOLIOS = 10;
-const PORTFOLIO_COLUMNS = 'id, name, created_at, updated_at';
+const PORTFOLIO_COLUMNS = 'id, name, created_at, updated_at, source, institution, synced_at';
 const POSITION_COLUMNS = 'id, portfolio_id, ticker, shares, cost_basis, opened_at, notes, created_at, updated_at';
 const UNAVAILABLE_MESSAGE = 'Portfolios require the latest database migration.';
 
-type PortfolioRow = { id: string; name: string; created_at: string; updated_at: string };
+type PortfolioRow = { id: string; name: string; created_at: string; updated_at: string; source?: string; institution?: string | null; synced_at?: string | null };
 type PositionRow = {
   id: string;
   portfolio_id: string;
@@ -36,7 +36,15 @@ type PositionRow = {
 };
 
 function toPortfolio(row: PortfolioRow) {
-  return { id: row.id, name: row.name, created_at: row.created_at, updated_at: row.updated_at };
+  return {
+    id: row.id,
+    name: row.name,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    source: row.source === 'brokerage' ? 'brokerage' : 'manual',
+    institution: row.institution ?? null,
+    synced_at: row.synced_at ?? null,
+  };
 }
 
 function toPosition(row: PositionRow) {

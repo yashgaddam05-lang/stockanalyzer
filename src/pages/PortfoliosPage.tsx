@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PortfolioDisclaimer } from '@/components/portfolio/PortfolioDisclaimer';
+import { BrokerageConnect } from '@/components/portfolio/BrokerageConnect';
 import { PortfolioTabs } from '@/components/portfolio/PortfolioTabs';
 import { PortfolioSummary } from '@/components/portfolio/PortfolioSummary';
 import { PositionsTable } from '@/components/portfolio/PositionsTable';
@@ -217,6 +218,8 @@ export default function PortfoliosPage() {
 
       <PortfolioDisclaimer />
 
+      {available && <BrokerageConnect onSynced={() => void load({ quiet: true })} />}
+
       {lastRefreshed && (
         <p className="text-xs text-muted-foreground">
           Prices last refreshed {lastRefreshed.toLocaleString()}. Not real-time.
@@ -333,6 +336,7 @@ export default function PortfoliosPage() {
                   pendingIds={pendingIds}
                   onEdit={handleEdit}
                   onRemove={(id) => void handleRemove(id)}
+                  readOnly={active?.source === 'brokerage'}
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

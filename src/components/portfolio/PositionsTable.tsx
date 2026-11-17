@@ -26,12 +26,14 @@ interface PositionsTableProps {
   pendingIds: Set<string>;
   onEdit: (id: string) => void;
   onRemove: (id: string) => void;
+  /** Synced from a brokerage: positions are managed by the broker, so editing is hidden. */
+  readOnly?: boolean;
 }
 
 const TH = 'px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground';
 const THR = `${TH} text-right`;
 
-export function PositionsTable({ positions, meta, pendingIds, onEdit, onRemove }: PositionsTableProps) {
+export function PositionsTable({ positions, meta, pendingIds, onEdit, onRemove, readOnly = false }: PositionsTableProps) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -110,6 +112,10 @@ export function PositionsTable({ positions, meta, pendingIds, onEdit, onRemove }
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex justify-end gap-1">
+                      {readOnly ? (
+                        <span className="text-[11px] text-muted-foreground">Synced</span>
+                      ) : (
+                      <>
                       <Button
                         type="button"
                         variant="ghost"
@@ -132,6 +138,8 @@ export function PositionsTable({ positions, meta, pendingIds, onEdit, onRemove }
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
+                      </>
+                      )}
                     </div>
                   </td>
                 </tr>
