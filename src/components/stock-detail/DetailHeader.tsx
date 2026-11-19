@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AddToListMenu } from '@/components/stock-detail/AddToListMenu';
 import { cn } from '@/lib/utils';
+import type { StockDataQuality } from '@/lib/data-provenance';
+import { DataTrustBadge } from '@/components/stock-detail/DataQualityPanel';
 
 function isNum(v: number | null | undefined): v is number {
   return typeof v === 'number' && Number.isFinite(v);
@@ -52,11 +54,12 @@ function RangeBar({ low, high, price }: { low: number; high: number; price: numb
 
 export interface DetailHeaderProps {
   stock: StockListItem;
+  quality?: StockDataQuality | null;
   watched: boolean;
   onToggleWatch: () => void;
 }
 
-export function DetailHeader({ stock, watched, onToggleWatch }: DetailHeaderProps) {
+export function DetailHeader({ stock, quality, watched, onToggleWatch }: DetailHeaderProps) {
   const price = isNum(stock.current_price) ? stock.current_price : null;
   const low = stock.fifty_two_week_low;
   const high = stock.fifty_two_week_high;
@@ -78,6 +81,7 @@ export function DetailHeader({ stock, watched, onToggleWatch }: DetailHeaderProp
             >
               {isLive ? 'Live' : 'Seed data'}
             </span>
+            {quality && <DataTrustBadge quality={quality} />}
             {refreshed && <span className="text-[11px] text-muted-foreground">Updated {refreshed}</span>}
           </div>
           <p className="text-sm text-neutral-700">{stock.company_name}</p>

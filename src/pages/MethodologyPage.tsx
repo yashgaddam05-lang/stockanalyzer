@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { DimensionTable } from '@/components/methodology/DimensionTable';
 import { Disclaimer } from '@/components/methodology/Disclaimer';
 import { MethodologyToc, type TocItem } from '@/components/methodology/MethodologyToc';
+import { DATA_SOURCES, STOCK_CHECK_LIMITS as LIM } from '@/lib/data-provenance';
 import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type RiskLabel } from '@/lib/scoring';
 
 const SECTIONS: TocItem[] = [
@@ -19,7 +20,9 @@ const SECTIONS: TocItem[] = [
   { id: 'alerts', label: 'Alerts' },
   { id: 'portfolios', label: 'Simulated portfolios' },
   { id: 'sec', label: 'SEC filings' },
-  { id: 'quality-checks', label: 'Data-quality checks' },
+  { id: 'sources', label: 'Where the data comes from' },
+  { id: 'stock-checks', label: 'How we check each stock' },
+  { id: 'quality-checks', label: 'Pipeline checks' },
   { id: 'data', label: 'Data and limitations' },
   { id: 'disclaimer', label: 'Disclaimer' },
 ];
@@ -332,7 +335,74 @@ export default function MethodologyPage() {
             </P>
           </Section>
 
-          <Section id="quality-checks" title="Data-quality checks">
+          <Section id="sources" title="Where the data comes from">
+            <P>
+              Nothing is typed in by hand except catalysts. Our server fetches every figure directly from the sources below,
+              stores when it fetched it, and shows that timestamp on each stock page.
+            </P>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-[13px]">
+                <thead className="border-b border-border bg-neutral-50 text-left text-[11px] uppercase tracking-wider text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Source</th>
+                    <th className="px-3 py-2 font-medium">What it provides</th>
+                    <th className="px-3 py-2 font-medium">How often</th>
+                    <th className="px-3 py-2 font-medium">Why trust it / limit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DATA_SOURCES.map((s) => (
+                    <tr key={s.id} className="border-b border-border align-top last:border-0">
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-neutral-900">{s.name}</p>
+                        <p className="text-[11px] text-neutral-500">{s.publisher}</p>
+                        {s.official && (
+                          <span className="mt-1 inline-block rounded border border-emerald-200 bg-emerald-50 px-1.5 text-[10px] font-medium text-emerald-800">
+                            Official
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-neutral-700">{s.fields.join(', ')}</td>
+                      <td className="px-3 py-2 text-neutral-700">{s.cadence}</td>
+                      <td className="px-3 py-2 text-neutral-700">
+                        {s.trust} <span className="text-amber-800">Limit: {s.limit}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <P>
+              Honest caveat: most market figures come from one vendor, Yahoo Finance, through an unofficial API. That is why
+              every stock is cross-checked against itself (below) and why filings come straight from the SEC. If Yahoo fails,
+              we keep the last good value and show its age rather than inventing a new one.
+            </P>
+          </Section>
+
+          <Section id="stock-checks" title="How we check each stock">
+            <P>
+              Every stock page has a <span className="font-medium text-neutral-900">Data</span> badge and a panel listing
+              these checks with a pass, warning or fail for that stock. The same rules run for every stock:
+            </P>
+            <ul className="list-disc space-y-2 pl-5 text-sm text-neutral-700">
+              <li><span className="font-medium text-neutral-900">Live source:</span> fetched from Yahoo, not a setup placeholder. Placeholder data fails.</li>
+              <li><span className="font-medium text-neutral-900">Freshness:</span> passes within {LIM.staleHours} hours of the last refresh, warns up to {LIM.brokenHours / 24} days, fails after that.</li>
+              <li><span className="font-medium text-neutral-900">Valid price:</span> positive and finite.</li>
+              <li><span className="font-medium text-neutral-900">Cross-check:</span> the price (chart feed) must sit within its 52-week range (fundamentals feed), with {LIM.rangeTolerance * 100}% tolerance. Two separate endpoints have to agree.</li>
+              <li><span className="font-medium text-neutral-900">Analyst targets:</span> low ≤ average ≤ high, or the consensus is flagged.</li>
+              <li><span className="font-medium text-neutral-900">No impossible values:</span> market cap above zero, margins at most 100%, growth within ±{LIM.maxGrowthPct}%, forward P/E under {LIM.maxForwardPe}, volatility under {LIM.maxVolatility}%.</li>
+              <li><span className="font-medium text-neutral-900">Key fields present:</span> at least 9 of 10 key figures; missing ones stay blank and are never estimated.</li>
+              <li><span className="font-medium text-neutral-900">Score confidence:</span> the share of score weight backed by real data (high at 85% or more).</li>
+            </ul>
+            <P>
+              Grades: <span className="font-medium text-emerald-800">Verified</span> (all checks pass, refreshed within{' '}
+              {LIM.freshHours} hours), <span className="font-medium text-sky-800">Good</span> (live, minor notes),{' '}
+              <span className="font-medium text-amber-900">Check before using</span> (a failed check or several warnings), and{' '}
+              <span className="font-medium text-red-800">Unreliable</span> (placeholder or too old to trust).
+            </P>
+          </Section>
+
+          <Section id="quality-checks" title="Pipeline checks">
             <P>
               Automated checks run over the stock universe and the data pipeline, including stale prices, invalid or
               out-of-range values, missing score inputs, daily price coverage, and freshness of the market regime snapshot,
@@ -349,9 +419,9 @@ export default function MethodologyPage() {
                 can change or fail without notice.
               </li>
               <li>
-                <span className="font-medium text-neutral-900">Refresh cadence:</span> stock data and the market regime
-                snapshot refresh after the close on trading days, and filings refresh daily. Data is only as fresh as the
-                last refresh and may be delayed.
+                <span className="font-medium text-neutral-900">Refresh cadence:</span> stock prices and fundamentals
+                refresh continuously in batches (each stock about every 1.5 hours), the market regime snapshot refreshes
+                daily, and filings refresh daily. Prices are delayed, not real-time.
               </li>
               <li>
                 <span className="font-medium text-neutral-900">Seed data:</span> rows not yet refreshed from Yahoo Finance

@@ -5,6 +5,8 @@ import { useStocks } from '@/components/data/StocksProvider';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DataQualityPanel } from '@/components/stock-detail/DataQualityPanel';
+import { checkStock } from '@/lib/data-provenance';
 import { DetailHeader } from '@/components/stock-detail/DetailHeader';
 import { ScoreSummary } from '@/components/stock-detail/ScoreSummary';
 import { RiskPanel } from '@/components/stock-detail/RiskPanel';
@@ -105,6 +107,7 @@ export default function StockDetailPage() {
   }
 
   const analysis = stock ? analyses[stock.ticker] : undefined;
+  const quality = stock ? checkStock(stock, analysis?.confidence) : null;
 
   if (!stock || !analysis) {
     return (
@@ -129,7 +132,7 @@ export default function StockDetailPage() {
   return (
     <div className="space-y-6">
       <BackLink />
-      <DetailHeader stock={stock} watched={watchlist.has(stock.ticker.toUpperCase())} onToggleWatch={() => void toggleWatch(stock.ticker)} />
+      <DetailHeader stock={stock} quality={quality} watched={watchlist.has(stock.ticker.toUpperCase())} onToggleWatch={() => void toggleWatch(stock.ticker)} />
       <div className="-mt-2 flex flex-wrap items-center gap-2" aria-label="Stock actions">
         <CreateAlertButton ticker={stock.ticker} currentPrice={stock.current_price} currentScore={stock.three_x_score} />
         <AddPositionButton ticker={stock.ticker} currentPrice={stock.current_price} />
@@ -167,6 +170,8 @@ export default function StockDetailPage() {
       <SecActivityPanel ticker={stock.ticker} />
 
       <MetricsTable stock={stock} />
+
+      {quality && <DataQualityPanel quality={quality} />}
 
       <ScenarioCalculator stock={stock} />
 
