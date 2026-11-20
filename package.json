@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "vapi:sync": "node scripts/sync-vapi.mjs --push"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.3.1",

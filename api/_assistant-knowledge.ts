@@ -1,5 +1,5 @@
 // Product knowledge for the in-app research assistant (signed in and signed out). Mirrors the Methodology page and app navigation;
-// update both together when the model or the app changes.
+// update both together when the model or the app changes. The Vapi voice agent is built from this too: run `npm run vapi:sync`.
 
 export const ASSISTANT_KNOWLEDGE = `
 # 3x Hunter: what it is
