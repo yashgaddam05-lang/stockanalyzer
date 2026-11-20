@@ -555,11 +555,12 @@ export function AssistantWidget() {
         <button
           type="button"
           onClick={() => assistant.setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-[13px] font-semibold text-white shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2"
-          aria-label="Ask the 3x Hunter assistant"
+          className="fixed bottom-5 right-5 z-40 inline-flex h-9 w-[84px] items-center justify-center gap-1.5 rounded-full bg-neutral-900 text-[12px] font-semibold text-white shadow-lg ring-1 ring-white/20 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2"
+          aria-label="Chat with the 3x Hunter assistant"
+          title="Chat: type a question"
         >
-          <MessageCircle className="h-4 w-4" aria-hidden="true" />
-          Ask a question
+          <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          Chat
         </button>
       )}
 

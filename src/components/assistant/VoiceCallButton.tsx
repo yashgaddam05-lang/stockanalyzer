@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Loader2, Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSiteStatus } from '@/lib/api';
 
@@ -87,18 +87,18 @@ export function VoiceCallButton() {
   if (status === 'live' || status === 'connecting') {
     return (
       <div
-        className="fixed bottom-20 right-5 z-40 flex items-center gap-2 rounded-full bg-emerald-600 py-2 pl-4 pr-2 text-[13px] font-semibold text-white shadow-lg"
+        className="fixed bottom-5 right-[112px] z-40 flex h-9 items-center gap-1.5 rounded-full bg-emerald-600 pl-3 pr-1 text-[12px] font-semibold text-white shadow-lg ring-1 ring-white/20"
         role="status"
         aria-live="polite"
       >
         {status === 'connecting' ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             Connecting…
           </>
         ) : (
           <>
-            <span className={cn('h-2.5 w-2.5 rounded-full bg-white', speaking && 'animate-pulse')} aria-hidden="true" />
+            <span className={cn('h-2 w-2 rounded-full bg-white', speaking && 'animate-pulse')} aria-hidden="true" />
             {speaking ? 'Speaking' : 'Listening'} · {mmss}
           </>
         )}
@@ -106,34 +106,35 @@ export function VoiceCallButton() {
           type="button"
           onClick={toggleMute}
           disabled={status !== 'live'}
-          className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-50"
+          className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 disabled:opacity-50"
           aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
         >
-          {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          {muted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
         </button>
         <button
           type="button"
           onClick={stop}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-red-500 hover:bg-red-600"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-red-500 hover:bg-red-600"
           aria-label="End call"
         >
-          <PhoneOff className="h-4 w-4" />
+          <PhoneOff className="h-3.5 w-3.5" />
         </button>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-20 right-5 z-40 flex flex-col items-end gap-2">
+    <div className="fixed bottom-5 right-[112px] z-40 flex flex-col items-end gap-2">
       {error && <p className="max-w-[260px] rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-800 shadow">{error}</p>}
       <button
         type="button"
         onClick={() => void start()}
-        className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3 text-[13px] font-semibold text-neutral-900 shadow-lg transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
+        className="inline-flex h-9 w-[84px] items-center justify-center gap-1.5 rounded-full bg-emerald-600 text-[12px] font-semibold text-white shadow-lg ring-1 ring-white/20 transition-transform hover:-translate-y-0.5 hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
         aria-label="Talk to the 3x Hunter voice assistant"
+        title="Call: talk out loud with our voice assistant"
       >
-        <Mic className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-        Talk to us
+        <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+        Call
       </button>
     </div>
   );
