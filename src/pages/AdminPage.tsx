@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, ShieldCheck, Wrench, Zap } from 'lucide-react';
-import { ApiError, getAdminStats, getSiteStatus, runResearchNow, sendTestEmail, setMaintenance } from '@/lib/api';
+import { ApiError, getAdminStats, getSiteStatus, runResearchNow, sendTestEmail, setMaintenance, syncVoiceAgent } from '@/lib/api';
 import type { AdminStats } from '@/lib/api';
 import { usePlan } from '@/components/billing/usePlan';
 import { useDocumentTitle } from '@/components/marketing/useDocumentTitle';
@@ -74,6 +74,16 @@ export default function AdminPage() {
     }
   }
 
+  async function voiceSync() {
+    setResearchNote('Syncing the voice agent…');
+    try {
+      const r = await syncVoiceAgent();
+      setResearchNote(!r.configured ? 'Voice agent sync is not configured: add VAPI_API_KEY and VAPI_ASSISTANT_ID in Vercel production.' : r.error ? `Voice sync failed: ${r.error}` : r.changed ? `Voice agent "${r.assistant}" updated with the latest site knowledge.` : `Voice agent "${r.assistant}" is already up to date.`);
+    } catch (e) {
+      setResearchNote(e instanceof ApiError ? e.message : 'Voice sync failed.');
+    }
+  }
+
   const ai = stats?.ai ?? null;
   const usd = (n: number) => `$${Number(n).toFixed(Number(n) < 10 ? 2 : 0)}`;
   const aiShare = ai && stats && stats.mrr_usd > 0 ? Math.round((ai.cost_month / stats.mrr_usd) * 100) : null;
@@ -132,6 +142,9 @@ export default function AdminPage() {
             </Button>
             <Button size="sm" variant="outline" onClick={() => void testEmail()}>
               Send me a test email
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void voiceSync()}>
+              Sync voice agent
             </Button>
           </div>
           {researchNote && <p className="text-[12px] text-neutral-700">{researchNote}</p>}

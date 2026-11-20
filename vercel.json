@@ -25,6 +25,10 @@
   },
   "crons": [
     {
+      "path": "/api/cron?job=vapi",
+      "schedule": "15 9 * * *"
+    },
+    {
       "path": "/api/cron?job=market",
       "schedule": "0 22 * * 1-5"
     },

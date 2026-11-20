@@ -14,11 +14,12 @@ import { runScheduledResearch } from './_research.js';
 import { refreshPaperPrices } from './_paper.js';
 import { runPaperAlerts, runWeeklyDigest } from './_paper-notify.js';
 import { brokerageConfigured, syncStaleLinks } from './_brokerage.js';
+import { syncVapi } from './_vapi.js';
 
-const JOBS = ['market', 'stocks', 'filings', 'smart-money', 'research', 'paper', 'paper-weekly', 'brokerage'] as const;
+const JOBS = ['market', 'stocks', 'filings', 'smart-money', 'research', 'paper', 'paper-weekly', 'brokerage', 'vapi'] as const;
 type CronJob = (typeof JOBS)[number];
 
-const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly' | 'brokerage'>, string> = {
+const EDGE_FUNCTIONS: Record<Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly' | 'brokerage' | 'vapi'>, string> = {
   market: 'refresh-market',
   filings: 'refresh-filings',
   'smart-money': 'refresh-smart-money',
@@ -46,7 +47,7 @@ function anonKey(): string | undefined {
 
 type EdgeOutcome = { ok: boolean; result: unknown };
 
-async function callEdgeFunction(job: Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly' | 'brokerage'>): Promise<EdgeOutcome> {
+async function callEdgeFunction(job: Exclude<CronJob, 'stocks' | 'research' | 'paper' | 'paper-weekly' | 'brokerage' | 'vapi'>): Promise<EdgeOutcome> {
   const startedAt = new Date();
   const name = EDGE_FUNCTIONS[job];
   const controller = new AbortController();
@@ -124,6 +125,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     if (job === 'paper-weekly') {
       const result = await runWeeklyDigest();
       response.status(200).json({ job, ok: true, result });
+      return;
+    }
+    if (job === 'vapi') {
+      // Keeps the Vapi voice agent's prompt in step with the site's product knowledge.
+      const result = await syncVapi();
+      response.status(200).json({ job, ok: !result.error, result });
       return;
     }
     if (job === 'brokerage') {

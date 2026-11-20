@@ -9,6 +9,7 @@ import {
 import { runScheduledResearch, activeSlots, coverage, researchBudget } from '../_research.js';
 import { dailyLimitUsd } from '../_ai.js';
 import { sendTestDigest } from '../_paper-notify.js';
+import { syncVapi } from '../_vapi.js';
 
 // GET  /api/admin                                           -> headline stats (admins only)
 // POST /api/admin { action: 'maintenance', enabled, message } -> flip the production maintenance page
@@ -49,6 +50,12 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     const tickers = Array.isArray(body.tickers) ? body.tickers.filter((t): t is string => typeof t === 'string' && /^[A-Z.]{1,10}$/.test(t)).slice(0, 10) : undefined;
     const result = await runScheduledResearch('admin', { force: true, limit, deadlineMs: 240_000, batch: body.batch === true, tickers });
     response.status(200).json({ result });
+    return;
+  }
+  if (body.action === 'vapi-sync') {
+    const { error } = await auth.db.rpc('admin_ai_stats');
+    if (error) return forbidden();
+    response.status(200).json(await syncVapi());
     return;
   }
   if (body.action === 'test-email') {
