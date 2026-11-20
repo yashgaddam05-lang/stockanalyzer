@@ -1,3 +1,4 @@
+import { VoiceCallButton } from '@/components/assistant/VoiceCallButton';
 import { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <Footer />
       <Suspense fallback={null}>
         <AssistantWidget />
+        <VoiceCallButton />
       </Suspense>
     </div>
     </AssistantProvider>

@@ -1,3 +1,4 @@
+import { VoiceCallButton } from '@/components/assistant/VoiceCallButton';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
@@ -169,6 +170,7 @@ export function MarketingLayout() {
       <MarketingFooter />
       <Suspense fallback={null}>
         <AssistantWidget />
+        <VoiceCallButton />
       </Suspense>
     </div>
     </AssistantProvider>
