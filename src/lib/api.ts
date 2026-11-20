@@ -584,6 +584,7 @@ export function openBillingPortal(): Promise<{ url: string }> {
 
 export interface SiteStatus {
   maintenance: { enabled: boolean; message: string };
+  voice?: { publicKey: string; assistantId: string } | null;
 }
 
 export async function getSiteStatus(): Promise<SiteStatus> {

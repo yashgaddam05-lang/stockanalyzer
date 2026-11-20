@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getSiteStatus } from '@/lib/api';
 
 // Talk to the 3x Hunter voice agent (Vapi) from any page. The public key is a browser key by design;
 // the agent's prompt and live facts live in Vapi and /api/agent-knowledge.
-const PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY as string | undefined;
-const ASSISTANT_ID = (import.meta.env.VITE_VAPI_ASSISTANT_ID as string | undefined) || '63323829-5231-4029-a1ed-2556be4a4483';
 /** Hard cap per call so a forgotten tab can't burn Vapi minutes. */
 const MAX_CALL_SECONDS = 300;
 
@@ -19,6 +18,14 @@ export function VoiceCallButton() {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const vapi = useRef<VapiClient | null>(null);
+  const [config, setConfig] = useState<{ publicKey: string; assistantId: string } | null>(null);
+
+  // Key and assistant come from the server, so they can change in Vercel without a rebuild.
+  useEffect(() => {
+    getSiteStatus()
+      .then((s) => setConfig(s.voice ?? null))
+      .catch(() => setConfig(null));
+  }, []);
 
   useEffect(() => {
     if (status !== 'live') return;
@@ -29,15 +36,17 @@ export function VoiceCallButton() {
 
   useEffect(() => () => void vapi.current?.stop(), []);
 
-  if (!PUBLIC_KEY) return null;
+  if (!config) return null;
 
   async function start() {
+    if (!config) return;
+    const cfg = config;
     setError(null);
     setStatus('connecting');
     try {
       if (!vapi.current) {
         const { default: Vapi } = await import('@vapi-ai/web');
-        const client = new Vapi(PUBLIC_KEY as string, undefined, { avoidEval: true });
+        const client = new Vapi(cfg.publicKey, undefined, { avoidEval: true });
         client.on('call-start', () => setStatus('live'));
         client.on('call-end', () => {
           setStatus('idle');
@@ -53,7 +62,7 @@ export function VoiceCallButton() {
         });
         vapi.current = client;
       }
-      await vapi.current.start(ASSISTANT_ID, { maxDurationSeconds: MAX_CALL_SECONDS });
+      await vapi.current.start(cfg.assistantId, { maxDurationSeconds: MAX_CALL_SECONDS });
     } catch (e) {
       console.error('Voice call failed to start', e);
       setError('Could not start the call. Allow microphone access and try again.');
