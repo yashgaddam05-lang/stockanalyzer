@@ -5,7 +5,7 @@ export const ASSISTANT_KNOWLEDGE = `
 # 3x Hunter: what it is
 3x Hunter is an educational stock research app. It scores US-listed stocks (the S&P 500 plus curated growth names,
 and any Nasdaq/NYSE/Cboe stock a user adds) on how well they fit the profile of companies that have historically had
-room for a large move. It is not investment advice, places no trades, and connects to no brokerage.
+room for a large move. It is not investment advice and never places trades.
 
 # The 3x Opportunity Score (0-100, model v2.2)
 A deterministic heuristic combining 9 weighted dimensions. Each dimension is scored 0-100 from its inputs; the total is
@@ -65,8 +65,12 @@ predict future returns.
   condition clears. Score-change alerts compare consecutive snapshots; catalyst alerts fire once per event.
 - Simulated portfolios are hypothetical: no money, no orders, no fees/taxes/dividends modeled.
 - SEC filings and Form 4 insider trades come from SEC EDGAR, are context only and do not change the score.
-- Data: Yahoo Finance (unofficial endpoints) fetched server-side, refreshed through the trading day in batches;
-  SEC EDGAR daily. Data can be delayed. "Seed" badges mark placeholder values not yet refreshed.
+- Data: Yahoo Finance (unofficial endpoints) fetched server-side, refreshed in batches so each stock updates about
+  every 1.5 hours; SEC EDGAR daily. Prices are delayed, not real-time. "Seed" badges mark placeholder values.
+- Data trust: every stock page has a "Data" badge (Verified, Good, Check before using, Unreliable) and a panel listing
+  8 automatic checks: live source, freshness (36 h), valid price, price inside its 52-week range (cross-checks two
+  separate feeds), analyst targets in order, no impossible values, key fields present, and score confidence. The panel
+  also names the source of every figure. Thresholds are on the Methodology page.
 
 # Using the app (signed-in pages under /app)
 - Dashboard (/app): the user's own stocks table, portfolio snapshot, alerts, upcoming catalysts, then a market view
@@ -101,15 +105,6 @@ predict future returns.
   Checkout and billing are handled by Stripe; cancel anytime from Plan & billing (the plan stays until the period ends).
   Accounts created before paid plans launched are founding members with Pro free until January 31, 2027.
 - Methodology (/methodology) explains all of the above in full.
-
-# Public pages (no account needed)
-- Home (/): what 3x Hunter does, the features, how it works, and sign-up. "Find stocks with room to run. See exactly why."
-- Pricing (/pricing): Free plan forever: 3x and risk scores on every stock, dashboard, Explore, watchlists, simulated
-  portfolios and brokerage import, portfolio score and tips, bots, track record, catalysts, market regime, 5 AI
-  assistant questions a day and 1 alert. Pro is $19/month or $149/year (save 35%): full 3x score breakdown with all
-  factors, bull/neutral/bear scenarios, 40 assistant questions a day, the voice assistant and up to 50 alerts.
-  Checkout and billing are handled by Stripe; cancel anytime from Plan & billing (Pro stays until the period ends).
-  Accounts created before paid plans launched are founding members with Pro free until January 31, 2027.
 - Methodology (/methodology): every weight, input and threshold of the 3x score and risk score. No black box.
 - Track record (/track-record): what following the 3x score every quarter since 2016 would have done, rebuilt from data
   available at the time (point-in-time S&P 500 members), compared with holding the S&P 500.
@@ -125,7 +120,8 @@ predict future returns.
   sector over 40%. "Import holdings" reads a brokerage CSV export: positions files from Fidelity, Schwab, Vanguard,
   E*TRADE, Webull and most others, Robinhood's "Account activity" CSV (replayed with average cost, since Robinhood has
   no positions export), or pasted lines "TICKER SHARES [COST]". The file is parsed in the browser and previewed before
-  anything is saved. There is no live brokerage connection and no trading.
+  anything is saved. Where enabled, Pro members can also connect a brokerage read-only (via SnapTrade) so holdings sync
+  automatically; 3x Hunter can never trade or move money.
 - 3x Bots (/app/bots): four rule-based bots picking from S&P 500 members, from calm to wild: Steady, Balanced, Growth,
   Moonshot. Each shows its history since 2016 vs the S&P 500, 5- and 10-year projections (5,000 random replays of its
   own monthly history; "likely" is the middle outcome, the range the middle 80%) and today's picks. "Follow this bot"

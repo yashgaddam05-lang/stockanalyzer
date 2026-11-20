@@ -30,6 +30,7 @@ const ROUTES: Record<string, Handler> = {
   'alerts': alerts,
   // Loaded on demand so the AI SDK never adds to cold starts of the other routes.
   'admin': async (req, res) => (await import('./_routes/admin.js')).default(req, res),
+  'agent-knowledge': async (req, res) => (await import('./_routes/agent-knowledge.js')).default(req, res),
   'status': async (req, res) => (await import('./_routes/status.js')).default(req, res),
   'brokerage': async (req, res) => (await import('./_routes/brokerage.js')).default(req, res),
   'billing': async (req, res) => (await import('./_routes/billing.js')).default(req, res),
