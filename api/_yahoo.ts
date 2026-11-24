@@ -115,10 +115,18 @@ export async function getProfile(ticker: string): Promise<{ officers: Officer[];
   // officers first, then directors.
   if (officers.length === 0) {
     const titleCase = (n: string) => n.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
+    // SEC style "HUANG JEN-HSUN" / "JONES HARVEY C JR." -> "Jen-Hsun Huang" / "Harvey Jones Jr."
+    const natural = (n: string) => {
+      const parts = n.trim().split(/\s+/);
+      const suffix = parts.length > 2 && /^(jr|sr|ii|iii|iv)\.?$/i.test(parts[parts.length - 1]) ? parts.pop() : null;
+      const [last, ...rest] = parts;
+      const given = rest.filter((t) => !/^[a-z]\.?$/i.test(t));
+      return titleCase([...given, last, ...(suffix ? [suffix] : [])].join(' '));
+    };
     const rank = (r: string) => (/chief executive|ceo|president/i.test(r) ? 0 : /chief|officer|cfo|coo|cto/i.test(r) ? 1 : /director/i.test(r) ? 3 : 2);
     officers = (result?.insiderHolders?.holders ?? [])
       .filter((h) => typeof h.name === 'string')
-      .map((h) => ({ name: titleCase(String(h.name)), title: typeof h.relation === 'string' ? h.relation : 'Insider', age: null, year_born: null, total_pay: null }))
+      .map((h) => ({ name: natural(String(h.name)), title: typeof h.relation === 'string' ? h.relation : 'Insider', age: null, year_born: null, total_pay: null }))
       .sort((a, b) => rank(a.title) - rank(b.title))
       .slice(0, 10);
   }
@@ -134,4 +142,29 @@ export async function getProfile(ticker: string): Promise<{ officers: Officer[];
     website: typeof ap.website === 'string' ? ap.website : null,
     employees: rawNum(ap.fullTimeEmployees as RawValue),
   };
+}
+
+type GdeltArticle = { url?: string; title?: string; seendate?: string; socialimage?: string; domain?: string };
+
+/** Open news index (GDELT DOC 2.0). Used for people, where Yahoo search returns nothing. */
+export async function gdeltNews(query: string, count = 10): Promise<NewsItem[]> {
+  const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`${query} sourcelang:english`)}&mode=artlist&format=json&maxrecords=${count}&timespan=30d&sort=datedesc`;
+  const json = (await fetchJson(url)) as { articles?: GdeltArticle[] } | null;
+  const out: NewsItem[] = [];
+  for (const a of json?.articles ?? []) {
+    if (!a.url || !a.title || !/^https:\/\//.test(a.url)) continue;
+    const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(a.seendate ?? '');
+    const when = m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : new Date().toISOString();
+    out.push({
+      id: a.url,
+      title: a.title.replace(/\s+([,:;.!?%])/g, '$1').replace(/\s{2,}/g, ' ').trim(),
+      publisher: (a.domain ?? 'News').replace(/^www\./, ''),
+      url: a.url,
+      published_at: when,
+      thumbnail: a.socialimage && /^https:\/\//.test(a.socialimage) ? a.socialimage : null,
+      tickers: [],
+      source: 'yahoo',
+    });
+  }
+  return out;
 }

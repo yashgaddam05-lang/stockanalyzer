@@ -1,4 +1,4 @@
-import { searchNews, type NewsItem } from '../_yahoo.js';
+import { gdeltNews, searchNews, type NewsItem } from '../_yahoo.js';
 import {
   getQueryValue,
   normalizeTicker,
@@ -42,9 +42,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
         sendBadRequest(response, 'A valid name is required.');
         return;
       }
+      // Last name + company catches nicknames ("Jensen" vs filed "Jen-Hsun").
       const company = getQueryValue(request, 'company');
-      const q = company && PERSON_RE.test(company) ? `${name} ${company}` : name;
-      const items = dedupe(await searchNews(q, 10)).sort(newest);
+      const parts = name.split(/\s+/).filter((t) => !/^(jr|sr|ii|iii|iv)\.?$/i.test(t));
+      const last = parts[parts.length - 1].replace(/[^A-Za-z'-]/g, '');
+      const firm = company && PERSON_RE.test(company) ? company.split(/\s+/)[0] : null;
+      const q = firm && last.length > 2 ? `"${last}" ${firm}` : `"${name}"`;
+      const items = dedupe(await gdeltNews(q, 10)).sort(newest);
       response.setHeader?.('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
       response.status(200).json({ person: name, items });
       return;
