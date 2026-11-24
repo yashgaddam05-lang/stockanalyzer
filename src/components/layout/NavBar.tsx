@@ -37,7 +37,7 @@ export function NavBar() {
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
       e.preventDefault();
-      if (window.matchMedia('(min-width: 1280px)').matches) desktopSearchRef.current?.focus();
+      if (window.matchMedia('(min-width: 1536px)').matches) desktopSearchRef.current?.focus();
       else setSearchOpen(true);
     };
     document.addEventListener('keydown', onKey);
@@ -75,7 +75,7 @@ export function NavBar() {
   return (
     <header className="nav-dark sticky top-0 z-30 border-b border-[hsl(var(--bronze)/0.35)] bg-[hsl(var(--ink))] text-white">
       <TickerBar />
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
         <Link to="/app" className="flex shrink-0 items-center gap-2" aria-label="3x Hunter dashboard">
           <div className="flex h-8 w-8 items-center justify-center border border-white/80">
             <TrendingUp className="h-4 w-4 text-white" strokeWidth={2.5} />
@@ -86,7 +86,7 @@ export function NavBar() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Your account">
+        <nav className="hidden items-center gap-0.5 xl:flex" aria-label="Your account">
           {PRIVATE_TOP.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
               {item.label}
@@ -112,12 +112,12 @@ export function NavBar() {
             ref={desktopSearchRef}
             compact
             placeholder="Search stocks"
-            className="nav-search hidden w-48 xl:block"
+            className="nav-search hidden w-44 2xl:block"
           />
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 xl:hidden"
+            className="h-8 w-8 p-0 2xl:hidden"
             onClick={() => {
               setSearchOpen((v) => !v);
               setMenuOpen(false);
@@ -140,13 +140,13 @@ export function NavBar() {
             <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             <span className="hidden sm:inline xl:hidden">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
-          <InstallAppButton className="hidden lg:inline-flex" />
+          <InstallAppButton className="hidden 2xl:inline-flex" />
           <NotificationBell />
           <AccountMenu />
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 lg:hidden"
+            className="h-8 w-8 p-0 xl:hidden"
             onClick={() => {
               setMenuOpen((v) => !v);
               setSearchOpen(false);
@@ -161,7 +161,7 @@ export function NavBar() {
       </div>
 
       {searchOpen && (
-        <div id="mobile-search" className="nav-search border-t border-white/10 px-4 py-3 sm:px-8 xl:hidden">
+        <div id="mobile-search" className="nav-search border-t border-white/10 px-4 py-3 sm:px-8 2xl:hidden">
           <div className="mx-auto max-w-6xl">
             <StockSearch autoFocus placeholder="Search any US stock or ETF" onDismiss={() => setSearchOpen(false)} />
           </div>
@@ -169,7 +169,7 @@ export function NavBar() {
       )}
 
       {menuOpen && (
-        <nav id="mobile-nav" className="border-t border-white/10 px-4 py-2 lg:hidden" aria-label="Mobile">
+        <nav id="mobile-nav" className="border-t border-white/10 px-4 py-2 xl:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-1">
             <p className="mega-eyebrow px-3 pt-2 text-[hsl(var(--bronze))]"><Lock className="mr-1 inline h-3 w-3" aria-hidden="true" />Your account</p>
             {NAV_ITEMS.map((item) => (
