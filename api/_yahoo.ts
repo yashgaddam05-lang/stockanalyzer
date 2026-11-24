@@ -2,9 +2,9 @@
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
 const TIMEOUT_MS = 8000;
 
-export async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown | null> {
+export async function fetchJson(url: string, headers: Record<string, string> = {}, timeoutMs = TIMEOUT_MS): Promise<unknown | null> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json', ...headers }, signal: ctrl.signal });
     if (!res.ok) return null;
@@ -152,7 +152,7 @@ type GdeltArticle = { url?: string; title?: string; seendate?: string; socialima
 /** Open news index (GDELT DOC 2.0). Used for people, where Yahoo search returns nothing. */
 export async function gdeltNews(query: string, count = 10): Promise<NewsItem[]> {
   const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`${query} sourcelang:english`)}&mode=artlist&format=json&maxrecords=${count}&timespan=30d&sort=datedesc`;
-  const json = (await fetchJson(url)) as { articles?: GdeltArticle[] } | null;
+  const json = (await fetchJson(url, {}, 4000)) as { articles?: GdeltArticle[] } | null;
   const out: NewsItem[] = [];
   for (const a of json?.articles ?? []) {
     if (!a.url || !a.title || !/^https:\/\//.test(a.url)) continue;
