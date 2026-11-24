@@ -25,7 +25,7 @@ export function TickerBar() {
         <Link key={`s-${s.ticker}`} to={`/app/stock/${s.ticker}`} className="ticker-item">
           <span className="font-bold text-white">{s.ticker}</span>
           <span className="text-neutral-400">${s.current_price.toFixed(2)}</span>
-          <span className="font-bold text-[hsl(var(--gold))]">{Math.round(s.three_x_score)}</span>
+          <span className="font-bold text-[hsl(var(--bronze))]">{Math.round(s.three_x_score)}</span>
         </Link>
       ))}
       {news.map((n) => (

@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Range Rover restraint (ivory, ink, hairlines) + ESPN energy (live red, condensed caps). */
-    --background: 40 20% 97%;
+    --background: 40 33% 96%;
     --foreground: 0 0% 7%;
 
     --card: 0 0% 100%;
@@ -14,27 +14,33 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 7%;
 
-    --primary: 0 0% 6%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 156 48% 17%;
+    --primary-foreground: 40 30% 97%;
 
-    --secondary: 40 12% 93%;
+    --secondary: 40 24% 91%;
     --secondary-foreground: 0 0% 7%;
 
-    --muted: 40 12% 93%;
+    --muted: 40 24% 91%;
     --muted-foreground: 30 4% 42%;
 
-    --accent: 40 12% 93%;
+    --accent: 150 20% 90%;
     --accent-foreground: 0 0% 7%;
 
     --destructive: 357 85% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 40 8% 86%;
+    --border: 40 16% 84%;
     --input: 40 8% 84%;
-    --ring: 0 0% 6%;
+    --ring: 156 48% 17%;
 
+    /* Range Rover: ink (green-black), racing green, bronze. ESPN: live red. */
+    --ink: 160 32% 6%;
+    --racing: 156 48% 17%;
+    --racing-2: 156 40% 24%;
+    --bronze: 36 45% 56%;
+    --ivory: 40 33% 96%;
     --live: 357 88% 46%;
-    --gold: 42 72% 58%;
+    --gold: 40 70% 60%;
 
     --radius: 0.25rem;
   }
@@ -165,8 +171,8 @@
   display: flex;
   align-items: stretch;
   height: 30px;
-  background: #000;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  background: hsl(var(--ink));
+  border-bottom: 1px solid hsl(var(--bronze) / 0.25);
   font-size: 12px;
 }
 .ticker-label {
@@ -205,3 +211,27 @@
   .ticker-track { animation: none; }
   .live-dot { animation: none; }
 }
+
+/* ---------- Colour layer ---------- */
+.mega-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; }
+.mega-private { background: linear-gradient(135deg, hsl(var(--racing)) 0%, hsl(var(--ink)) 100%); color: #fff; }
+.mega-private .mega-eyebrow.border-b { border-color: hsl(var(--bronze) / 0.4); }
+.mega-private .mega-link:hover span:first-child { color: hsl(var(--bronze)); }
+.mega-public { background: hsl(var(--ivory)); color: hsl(var(--ink)); }
+.mega-public .mega-eyebrow.border-b { border-color: hsl(var(--ink) / 0.2); }
+.mega-public .mega-link:hover span:first-child { color: hsl(var(--live)); }
+.mega-footer { border-top: 1px solid rgb(255 255 255 / 0.1); }
+
+.hero-luxe {
+  background:
+    radial-gradient(ellipse 60% 70% at 78% 30%, hsl(var(--bronze) / 0.22), transparent 60%),
+    radial-gradient(ellipse 80% 90% at 10% 100%, hsl(var(--racing-2) / 0.9), transparent 65%),
+    linear-gradient(160deg, hsl(var(--racing)) 0%, hsl(var(--ink)) 70%);
+}
+.band-racing { background: linear-gradient(160deg, hsl(var(--racing)) 0%, hsl(var(--ink)) 100%); color: #fff; }
+.text-bronze { color: hsl(var(--bronze)); }
+.btn-bronze { background: hsl(var(--bronze)); color: hsl(var(--ink)); }
+.btn-bronze:hover { background: hsl(36 50% 64%); }
+.panel-head { background: linear-gradient(90deg, hsl(var(--racing)) 0%, hsl(var(--ink)) 100%); border-bottom: 2px solid hsl(var(--bronze)); }
+.nav-link-active::after { background: hsl(var(--live)); }
+.nav-dark .nav-controls > div > button.rounded-full { background: hsl(var(--bronze)); color: hsl(var(--ink)); }

@@ -13,6 +13,20 @@ export default {
         display: ['"Barlow Condensed"', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        ink: 'hsl(var(--ink))',
+        racing: 'hsl(var(--racing))',
+        bronze: 'hsl(var(--bronze))',
+        live: 'hsl(var(--live))',
+        // Warm, green-tinted darks so every existing neutral-900/950 picks up the racing-green ink.
+        neutral: {
+          50: '#F7F5EF',
+          100: '#EFECE3',
+          200: '#E2DED2',
+          700: '#3B423D',
+          800: '#243029',
+          900: '#14261E',
+          950: '#0A1611',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

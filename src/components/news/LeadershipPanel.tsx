@@ -114,9 +114,9 @@ export function LeadershipPanel({ ticker, company }: { ticker: string; company: 
 
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-border bg-neutral-950 px-5 py-3 text-white">
+      <div className="panel-head px-5 py-3 text-white">
         <h2 className="font-display text-lg uppercase tracking-[0.08em]">Leadership &amp; connections</h2>
-        <p className="text-[11px] text-neutral-400">Who runs {upper}, what they earn, and where else they hold seats.</p>
+        <p className="text-[11px] text-white/60">Who runs {upper}, what they earn, and where else they hold seats.</p>
       </div>
       {data === undefined ? (
         <div className="space-y-3 p-5">

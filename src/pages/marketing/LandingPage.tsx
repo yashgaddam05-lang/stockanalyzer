@@ -162,7 +162,7 @@ function LandingHeadlines() {
   return (
     <section id="markets" className="scroll-mt-16 border-b border-border bg-white">
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-8">
-        <div className="flex items-end justify-between border-b-4 border-neutral-950 pb-3">
+        <div className="flex items-end justify-between border-b-4 border-[hsl(var(--racing))] pb-3">
           <div>
             <p className="eyebrow-label">Market desk</p>
             <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-neutral-950 sm:text-4xl">Right now in the markets</h2>
@@ -216,33 +216,29 @@ export default function LandingPage() {
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-black bg-neutral-950 text-white">
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,0.10),transparent_55%),linear-gradient(to_bottom,transparent_60%,rgba(0,0,0,0.6))]"
-          aria-hidden="true"
-        />
+      <section className="hero-luxe relative overflow-hidden border-b border-black text-white">
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-[hsl(var(--live))]" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-16">
           <div className="animate-slide-up space-y-6">
-            <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+            <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-bronze">
               <span className="live-dot" aria-hidden="true" />
               Live scores · Live headlines · Free to start
             </p>
             <h1 className="font-display text-5xl font-semibold uppercase leading-[0.95] tracking-[0.02em] text-white sm:text-7xl">
-              Find stocks with room to run. <span className="text-neutral-400">See exactly why.</span>
+              Find stocks with room to run. <span className="text-bronze">See exactly why.</span>
             </h1>
-            <p className="max-w-xl text-[17px] leading-relaxed text-neutral-300">
+            <p className="max-w-xl text-[17px] leading-relaxed text-white/75">
               3x Hunter ranks stocks with a transparent 0-100 3x Opportunity Score built from {DIMENSIONS.length}{' '}
               weighted dimensions, paired with an independent risk score. Every number shows its inputs.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild size="lg" className="gap-2 bg-white px-7 text-[13px] font-semibold uppercase tracking-[0.14em] text-neutral-950 hover:bg-neutral-200">
+              <Button asChild size="lg" className="btn-bronze gap-2 px-7 text-[13px] font-semibold uppercase tracking-[0.14em]">
                 <Link to="/signup">
                   Get started
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/40 bg-transparent px-7 text-[13px] font-semibold uppercase tracking-[0.14em] text-white hover:bg-white/10 hover:text-white">
+              <Button asChild size="lg" variant="outline" className="border-[hsl(var(--bronze)/0.6)] bg-transparent px-7 text-[13px] font-semibold uppercase tracking-[0.14em] text-white hover:bg-white/10 hover:text-white">
                 <Link to="/methodology">See methodology</Link>
               </Button>
             </div>
@@ -269,8 +265,8 @@ export default function LandingPage() {
           <div className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <div key={f.title} className="space-y-3 bg-background p-6 transition-colors hover:bg-neutral-50">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-neutral-50">
-                  <f.icon className="h-4 w-4 text-neutral-800" aria-hidden="true" />
+                <span className="flex h-9 w-9 items-center justify-center bg-[hsl(var(--racing))]">
+                  <f.icon className="h-4 w-4 text-bronze" aria-hidden="true" />
                 </span>
                 <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">{f.title}</h3>
                 <p className="text-[13px] leading-relaxed text-neutral-600">{f.body}</p>
@@ -295,18 +291,21 @@ export default function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="scroll-mt-16 border-y border-border bg-neutral-50">
+      <section id="how-it-works" className="band-racing scroll-mt-16 border-y-4 border-[hsl(var(--bronze))]">
         <div className="mx-auto max-w-6xl space-y-12 px-4 py-16 sm:px-8 sm:py-24">
-          <SectionHeading eyebrow="How it works" title="From a long list of tickers to a focused short list" />
+          <div className="max-w-2xl space-y-3">
+            <p className="mega-eyebrow text-bronze">How it works</p>
+            <h2 className="font-display text-3xl font-semibold uppercase leading-[1.02] tracking-[0.03em] text-white sm:text-[42px]">From a long list of tickers to a focused short list</h2>
+          </div>
           <ol className="grid gap-6 md:grid-cols-3">
             {STEPS.map((s, i) => (
               <li key={s.title}>
-                <Card className="h-full space-y-3 p-6">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-[13px] font-semibold tabular-nums text-white">
+                <Card className="h-full space-y-3 border-white/10 bg-white/5 p-6 text-white">
+                  <span className="flex h-9 w-9 items-center justify-center font-display text-xl font-bold tabular-nums text-[hsl(var(--live))] ring-1 ring-[hsl(var(--bronze)/0.6)]">
                     {i + 1}
                   </span>
-                  <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">{s.title}</h3>
-                  <p className="text-[13px] leading-relaxed text-neutral-600">{s.body}</p>
+                  <h3 className="text-[15px] font-semibold tracking-tight text-white">{s.title}</h3>
+                  <p className="text-[13px] leading-relaxed text-white/70">{s.body}</p>
                 </Card>
               </li>
             ))}
@@ -324,7 +323,7 @@ export default function LandingPage() {
           />
           <div className="grid gap-6 md:grid-cols-3">
             {TRUST.map((t) => (
-              <div key={t.title} className="space-y-3 border-l-2 border-neutral-900 pl-5">
+              <div key={t.title} className="space-y-3 border-l-2 border-[hsl(var(--bronze))] pl-5">
                 <t.icon className="h-5 w-5 text-neutral-800" aria-hidden="true" />
                 <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">{t.title}</h3>
                 <p className="text-[13px] leading-relaxed text-neutral-600">{t.body}</p>
@@ -345,7 +344,7 @@ export default function LandingPage() {
 
       {/* Final CTA */}
       <section className="px-4 pb-16 sm:px-8 sm:pb-24">
-        <div className="mx-auto max-w-6xl border-t-4 border-[hsl(var(--live))] bg-neutral-950 px-6 py-12 text-center sm:px-12 sm:py-16">
+        <div className="band-racing mx-auto max-w-6xl border-t-4 border-[hsl(var(--live))] px-6 py-12 text-center sm:px-12 sm:py-16">
           <h2 className="mx-auto max-w-2xl font-display text-3xl font-semibold uppercase leading-tight tracking-[0.04em] text-white sm:text-5xl">
             Start building your short list today
           </h2>
@@ -353,7 +352,7 @@ export default function LandingPage() {
             Free while in beta. Create an account to save watchlists, track catalysts and follow score changes.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg" className="gap-2 bg-white px-6 text-neutral-900 hover:bg-neutral-100">
+            <Button asChild size="lg" className="btn-bronze gap-2 px-6 font-semibold uppercase tracking-[0.12em]">
               <Link to="/signup">
                 Get started
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />

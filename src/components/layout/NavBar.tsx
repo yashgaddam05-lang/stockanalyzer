@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { AlertCircle, Check, ChevronDown, Menu, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
+import { AlertCircle, Check, Globe, Lock, Menu, RefreshCw, Search, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AccountMenu } from '@/components/auth/AccountMenu';
 import { NotificationBell } from '@/components/alerts/NotificationBell';
@@ -10,117 +10,10 @@ import type { StockSearchHandle } from '@/components/search/StockSearch';
 import { cn } from '@/lib/utils';
 import { InstallAppButton } from '@/components/app-install/InstallApp';
 import { TickerBar } from '@/components/layout/TickerBar';
+import { MegaMenu } from '@/components/layout/MegaMenu';
+import { ALL_PRIVATE, PRIVATE_COLUMNS, PRIVATE_TOP, PUBLIC_MARKETS } from '@/components/layout/site-nav';
 
-type NavItem = { to: string; label: string; end: boolean };
-
-// Shown inline on desktop.
-const PRIMARY_ITEMS: NavItem[] = [
-  { to: '/app', label: 'Dashboard', end: true },
-  { to: '/app/explore', label: 'Explore', end: false },
-  { to: '/app/news', label: 'News', end: false },
-  { to: '/app/watchlists', label: 'Watchlists', end: false },
-  { to: '/app/portfolios', label: 'Portfolios', end: false },
-  { to: '/app/alerts', label: 'Alerts', end: false },
-];
-
-// Grouped under "More" on desktop to avoid overflow.
-const MORE_ITEMS: NavItem[] = [
-  { to: '/app/catalysts', label: 'Catalysts', end: false },
-  { to: '/app/market', label: 'Market', end: false },
-  { to: '/app/goal', label: '3x Goal Planner', end: false },
-  { to: '/app/paper', label: 'Paper accounts', end: false },
-  { to: '/app/temperament', label: 'Investor temperament', end: false },
-  { to: '/app/bots', label: '3x Bots', end: false },
-  { to: '/app/track-record', label: 'Track record', end: false },
-  { to: '/app/backtest', label: 'Backtest', end: false },
-  { to: '/app/data-health', label: 'Data health', end: false },
-  // Public page, outside the app shell.
-  { to: '/methodology', label: 'Methodology', end: false },
-];
-
-const NAV_ITEMS: NavItem[] = [...PRIMARY_ITEMS, ...MORE_ITEMS];
-
-function MoreMenu() {
-  const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const location = useLocation();
-  const active = MORE_ITEMS.some((item) => location.pathname.startsWith(item.to));
-
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (e: MouseEvent | TouchEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        buttonRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', onPointer);
-    document.addEventListener('touchstart', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onPointer);
-      document.removeEventListener('touchstart', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  return (
-    <div
-      ref={rootRef}
-      className="relative"
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
-      }}
-    >
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-controls={menuId}
-        className={cn(
-          'nav-link inline-flex items-center gap-1',
-          active && 'nav-link-active'
-        )}
-      >
-        More
-        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} aria-hidden="true" />
-      </button>
-      {open && (
-        <ul
-          id={menuId}
-          className="absolute right-0 top-full z-40 mt-1 min-w-[180px] rounded-lg border border-border bg-background p-1 shadow-lg"
-        >
-          {MORE_ITEMS.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'block rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-                    isActive ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-                  )
-                }
-              >
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+const NAV_ITEMS = ALL_PRIVATE;
 
 type RefreshMsg = { type: 'success' | 'error'; text: string };
 
@@ -180,7 +73,7 @@ export function NavBar() {
     );
 
   return (
-    <header className="nav-dark sticky top-0 z-30 border-b border-black bg-neutral-950 text-white">
+    <header className="nav-dark sticky top-0 z-30 border-b border-[hsl(var(--bronze)/0.35)] bg-[hsl(var(--ink))] text-white">
       <TickerBar />
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
         <Link to="/app" className="flex shrink-0 items-center gap-2" aria-label="3x Hunter dashboard">
@@ -193,13 +86,25 @@ export function NavBar() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
-          {PRIMARY_ITEMS.map((item) => (
+        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Your account">
+          {PRIVATE_TOP.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
               {item.label}
             </NavLink>
           ))}
-          <MoreMenu />
+          <MegaMenu
+            label="My tools"
+            tone="private"
+            active={PRIVATE_COLUMNS.some((c) => c.items.some((i) => i.to !== '/app' && location.pathname.startsWith(i.to))) && !PRIVATE_TOP.some((t) => t.to !== '/app' && location.pathname.startsWith(t.to))}
+            columns={PRIVATE_COLUMNS}
+            intro={{ eyebrow: 'Your account · private', title: 'Your 3x Hunter', body: 'Everything here is tied to your login: lists, portfolios, bots, alerts and billing. Only you can see it.' }}
+          />
+          <MegaMenu
+            label="Public site"
+            tone="public"
+            columns={PUBLIC_MARKETS}
+            intro={{ eyebrow: 'Open to everyone', title: 'The public site', body: 'News, methodology, track record and pricing. No login needed, safe to share.' }}
+          />
         </nav>
 
         <div className="nav-controls flex items-center gap-2">
@@ -266,8 +171,15 @@ export function NavBar() {
       {menuOpen && (
         <nav id="mobile-nav" className="border-t border-white/10 px-4 py-2 lg:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-1">
+            <p className="mega-eyebrow px-3 pt-2 text-[hsl(var(--bronze))]"><Lock className="mr-1 inline h-3 w-3" aria-hidden="true" />Your account</p>
             {NAV_ITEMS.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
+                {item.label}
+              </NavLink>
+            ))}
+            <p className="mega-eyebrow mt-2 border-t border-white/10 px-3 pt-3 text-[hsl(var(--live))]"><Globe className="mr-1 inline h-3 w-3" aria-hidden="true" />Public site</p>
+            {PUBLIC_MARKETS.flatMap((c) => c.items).filter((i) => !i.to.startsWith('/#')).map((item) => (
+              <NavLink key={item.to} to={item.to} className={linkClass}>
                 {item.label}
               </NavLink>
             ))}

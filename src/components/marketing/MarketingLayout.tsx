@@ -9,14 +9,14 @@ import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { cn } from '@/lib/utils';
 import { InstallAppButton } from '@/components/app-install/InstallApp';
 import { AssistantProvider } from '@/components/assistant/AssistantProvider';
+import { MegaMenu } from '@/components/layout/MegaMenu';
+import { PRIVATE_COLUMNS, PUBLIC_MARKETS } from '@/components/layout/site-nav';
 
 // Same chat as in the app; signed out it answers as a guide to 3x Hunter. Loaded after the page.
 const AssistantWidget = lazy(() => import('@/components/assistant/AssistantWidget').then((m) => ({ default: m.AssistantWidget })));
 
 const NAV_LINKS = [
-  { to: '/#features', label: 'Features' },
-  { to: '/#how-it-works', label: 'How it works' },
-  { to: '/#markets', label: 'Markets' },
+  { to: '/news', label: 'News' },
   { to: '/methodology', label: 'Methodology' },
   { to: '/pricing', label: 'Pricing' },
 ];
@@ -79,6 +79,7 @@ function AuthActions({ stacked = false, dark = false }: { stacked?: boolean; dar
 /** Public marketing shell: sticky blurred header, routed page, marketing footer. */
 export function MarketingLayout() {
   const { pathname, hash } = useLocation();
+  const { user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -100,11 +101,17 @@ export function MarketingLayout() {
         Skip to content
       </a>
 
-      <header className="nav-dark sticky top-0 z-30 border-b border-black bg-neutral-950 text-white">
+      <header className="nav-dark sticky top-0 z-30 border-b border-[hsl(var(--bronze)/0.35)] bg-[hsl(var(--ink))] text-white">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-8">
           <Wordmark dark />
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+          <nav className="hidden items-center gap-0.5 md:flex" aria-label="Main">
+            <MegaMenu
+              label="Explore"
+              tone="public"
+              columns={PUBLIC_MARKETS}
+              intro={{ eyebrow: 'Open to everyone', title: 'Markets & research', body: 'Live news, the full methodology and a ten-year track record. No account needed.' }}
+            />
             {NAV_LINKS.map((l) =>
               l.to.startsWith('/#') ? (
                 <Link key={l.to} to={l.to} className={navLinkClass(false)}>
@@ -118,7 +125,24 @@ export function MarketingLayout() {
             )}
           </nav>
 
-          <div className="hidden md:block">
+          <div className="hidden items-center gap-2 md:flex">
+            {user && (
+              <MegaMenu
+                label="Your account"
+                tone="private"
+                columns={PRIVATE_COLUMNS}
+                intro={{
+                  eyebrow: 'Signed in · private',
+                  title: 'Your 3x Hunter',
+                  body: 'Your lists, portfolios, bots, alerts and billing. Only visible to you.',
+                  cta: (
+                    <Link to="/app" className="mt-2 inline-flex items-center gap-1.5 bg-[hsl(var(--bronze))] px-4 py-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[hsl(var(--ink))]">
+                      Open dashboard <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Link>
+                  ),
+                }}
+              />
+            )}
             <AuthActions dark />
           </div>
 
@@ -154,6 +178,16 @@ export function MarketingLayout() {
                       {l.label}
                     </Link>
                   ))}
+                  {user && (
+                    <div className="mt-2 border-t border-border pt-3">
+                      <p className="mega-eyebrow px-3 pb-1 text-[hsl(var(--racing))]">Your account · private</p>
+                      {PRIVATE_COLUMNS[1].items.slice(0, 4).map((l) => (
+                        <Link key={l.to} to={l.to} onClick={() => setMenuOpen(false)} className="block rounded-md px-3 py-2.5 text-[15px] font-medium text-neutral-800 hover:bg-neutral-100">
+                          {l.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-2 border-t border-border pt-4">
                     <AuthActions stacked />
                   </div>

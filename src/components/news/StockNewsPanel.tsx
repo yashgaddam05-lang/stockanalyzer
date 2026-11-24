@@ -24,7 +24,7 @@ export function StockNewsPanel({ ticker }: { ticker: string }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border bg-neutral-950 px-5 py-3 text-white">
+      <div className="flex items-center justify-between panel-head px-5 py-3 text-white">
         <h2 className="font-display text-lg uppercase tracking-[0.08em]">Latest on {upper}</h2>
         <span className="live-pill">Live</span>
       </div>

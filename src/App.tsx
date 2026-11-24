@@ -102,6 +102,7 @@ export default function App() {
         <Route element={<MarketingLayout />}>
           <Route index element={<LandingPage />} />
           <Route path="pricing" element={<Lazy><PricingPage /></Lazy>} />
+          <Route path="news" element={<Lazy><div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><NewsPage publicView /></div></Lazy>} />
           <Route path="methodology" element={<Lazy><div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><MethodologyPage /></div></Lazy>} />
           <Route path="track-record" element={<Lazy><div className="mx-auto max-w-6xl px-4 py-8 sm:px-8"><TrackRecordPage /></div></Lazy>} />
           <Route path="legal/disclaimer" element={<Lazy><LegalPage doc="disclaimer" /></Lazy>} />
