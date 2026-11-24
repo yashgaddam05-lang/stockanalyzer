@@ -94,13 +94,14 @@ const rawNum = (v: RawValue): number | null => {
 export async function getProfile(ticker: string): Promise<{ officers: Officer[]; governance: Governance; website: string | null; employees: number | null } | null> {
   const c = await getCrumb();
   const crumb = c ? `&crumb=${encodeURIComponent(c.crumb)}` : '';
-  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=assetProfile${crumb}`;
+  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=assetProfile,insiderHolders${crumb}`;
   const json = (await fetchJson(url, c ? { Cookie: c.cookie } : {})) as
-    | { quoteSummary?: { result?: { assetProfile?: Record<string, unknown> }[] } }
+    | { quoteSummary?: { result?: { assetProfile?: Record<string, unknown>; insiderHolders?: { holders?: Record<string, unknown>[] } }[] } }
     | null;
-  const ap = json?.quoteSummary?.result?.[0]?.assetProfile;
+  const result = json?.quoteSummary?.result?.[0];
+  const ap = result?.assetProfile;
   if (!ap) return null;
-  const officers = ((ap.companyOfficers as Record<string, unknown>[] | undefined) ?? [])
+  let officers = ((ap.companyOfficers as Record<string, unknown>[] | undefined) ?? [])
     .filter((o) => typeof o.name === 'string')
     .slice(0, 10)
     .map((o) => ({
@@ -110,6 +111,17 @@ export async function getProfile(ticker: string): Promise<{ officers: Officer[];
       year_born: rawNum(o.yearBorn as RawValue),
       total_pay: rawNum(o.totalPay as RawValue),
     }));
+  // Some issuers (e.g. NVDA) publish no officer list; fall back to Yahoo's insider holders,
+  // officers first, then directors.
+  if (officers.length === 0) {
+    const titleCase = (n: string) => n.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
+    const rank = (r: string) => (/chief executive|ceo|president/i.test(r) ? 0 : /chief|officer|cfo|coo|cto/i.test(r) ? 1 : /director/i.test(r) ? 3 : 2);
+    officers = (result?.insiderHolders?.holders ?? [])
+      .filter((h) => typeof h.name === 'string')
+      .map((h) => ({ name: titleCase(String(h.name)), title: typeof h.relation === 'string' ? h.relation : 'Insider', age: null, year_born: null, total_pay: null }))
+      .sort((a, b) => rank(a.title) - rank(b.title))
+      .slice(0, 10);
+  }
   return {
     officers,
     governance: {
