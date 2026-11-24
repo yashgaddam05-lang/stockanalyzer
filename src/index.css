@@ -131,6 +131,7 @@
 /* Dark header */
 .nav-link {
   position: relative;
+  white-space: nowrap;
   padding: 0.6rem 0.7rem;
   font-size: 11.5px;
   font-weight: 600;
