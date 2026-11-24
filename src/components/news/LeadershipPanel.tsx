@@ -31,15 +31,15 @@ function ConnectionChips({ list }: { list: { ticker: string; relationship: strin
   );
 }
 
-function OfficerCard({ officer, company, lead }: { officer: OfficerRow; company: string; lead: boolean }) {
+function OfficerCard({ officer, company, ticker, lead }: { officer: OfficerRow; company: string; ticker: string; lead: boolean }) {
   const [open, setOpen] = useState(false);
   const [news, setNews] = useState<NewsItem[] | null>(null);
   const name = cleanName(officer.name);
 
   useEffect(() => {
     if (!open || news) return;
-    getPersonNews(name, company).then((r) => setNews(r.items)).catch(() => setNews([]));
-  }, [open, news, name, company]);
+    getPersonNews(name, company, ticker).then((r) => setNews(r.items)).catch(() => setNews([]));
+  }, [open, news, name, company, ticker]);
 
   return (
     <li className={cn('border-b border-border py-3 last:border-b-0', lead && 'pt-0')}>
@@ -132,7 +132,7 @@ export function LeadershipPanel({ ticker, company }: { ticker: string; company: 
             {data.officers.length ? (
               <ul className="mt-2">
                 {data.officers.slice(0, 6).map((o, i) => (
-                  <OfficerCard key={o.name} officer={o} company={company} lead={i === 0} />
+                  <OfficerCard key={o.name} officer={o} company={company} ticker={upper} lead={i === 0} />
                 ))}
               </ul>
             ) : (

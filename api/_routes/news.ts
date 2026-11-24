@@ -48,8 +48,19 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       const last = parts[parts.length - 1].replace(/[^A-Za-z'-]/g, '');
       const firm = company && PERSON_RE.test(company) ? company.split(/\s+/)[0] : null;
       const q = firm && last.length > 2 ? `"${last}" ${firm}` : `"${name}"`;
-      const items = dedupe(await gdeltNews(q, 10)).sort(newest);
-      response.setHeader?.('Cache-Control', 'public, s-maxage=1800, stale-while-revalidate=3600');
+      let items = await gdeltNews(q, 10);
+      if (!items.length) {
+        // GDELT allows one call per 5s per IP; retry once, then fall back to company headlines naming them.
+        await new Promise((r) => setTimeout(r, 5500));
+        items = await gdeltNews(q, 10);
+      }
+      const ticker = normalizeTicker(getQueryValue(request, 'ticker'));
+      if (!items.length && ticker && last.length > 2) {
+        const re = new RegExp(`\\b${last.replace(/[^A-Za-z]/g, '')}\\b`, 'i');
+        items = (await searchNews(ticker, 20)).filter((n) => re.test(n.title));
+      }
+      items = dedupe(items).sort(newest);
+      response.setHeader?.('Cache-Control', items.length ? 'public, s-maxage=1800, stale-while-revalidate=3600' : 'public, s-maxage=60');
       response.status(200).json({ person: name, items });
       return;
     }

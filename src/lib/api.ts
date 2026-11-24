@@ -782,8 +782,9 @@ export function getCompanyNews(ticker: string): Promise<CompanyNewsResponse> {
 export function getMarketNews(): Promise<MarketNewsResponse> {
   return request<MarketNewsResponse>('/api/news');
 }
-export function getPersonNews(person: string, company?: string): Promise<PersonNewsResponse> {
+export function getPersonNews(person: string, company?: string, ticker?: string): Promise<PersonNewsResponse> {
   const p = new URLSearchParams({ person });
+  if (ticker) p.set('ticker', ticker);
   const co = company?.replace(/[^A-Za-z .'-]/g, ' ').replace(/\b(inc|corp|corporation|co|ltd|plc|holdings)\b\.?/gi, '').replace(/\s+/g, ' ').trim().slice(0, 59);
   if (co && co.length > 1) p.set('company', co);
   return request<PersonNewsResponse>(`/api/news?${p.toString()}`);
