@@ -1,3 +1,4 @@
+import { DIMENSIONS } from '@/lib/scoring';
 import { Link } from 'react-router-dom';
 import { Check, ChevronDown, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +25,7 @@ const FREE_FEATURES: Feature[] = [
 
 const PRO_FEATURES: Feature[] = [
   { label: '10 live $100,000 paper experiments with drift, behind-plan and benchmark alerts', isNew: true },
-  { label: 'Full 3x score breakdown: all 8 factors and their drivers' },
+  { label: `Full 3x score breakdown: all ${DIMENSIONS.length} factors and their drivers` },
   { label: 'Bull, neutral and bear scenarios for every stock' },
   { label: 'AI research assistant: 600 credits a month, 6x Free', isNew: true },
   { label: 'Deep dive answers at full analyst depth', isNew: true },

@@ -39,7 +39,7 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: BarChart3,
     title: `${DIMENSIONS.length}-dimension scoring`,
-    body: 'Growth, valuation, momentum, quality, catalysts, market position, volatility and daily market regime fit, weighted into one 0-100 score.',
+    body: 'Room to triple, growth, valuation, momentum, quality, catalysts, market position, volatility and daily market regime fit, weighted into one 0-100 score.',
   },
   {
     icon: ShieldAlert,

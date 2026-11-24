@@ -2,11 +2,12 @@ import { CalendarClock, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { DIMENSIONS, MODEL_VERSION } from '@/lib/scoring';
+import { DIMENSIONS, MODEL_VERSION, type DimensionKey } from '@/lib/scoring';
 
 /** Hardcoded illustrative dimension scores for a fictional company. Never fetched, never real. */
-const EXAMPLE_SCORES: Record<string, number> = {
+const EXAMPLE_SCORES: Record<DimensionKey, number> = {
   growth: 88,
+  headroom: 76,
   valuation: 71,
   momentum: 79,
   quality: 58,
@@ -16,7 +17,7 @@ const EXAMPLE_SCORES: Record<string, number> = {
   regime: 64,
 };
 
-const rows = DIMENSIONS.map((d) => ({ key: d.key, label: d.label, weight: d.weight, score: EXAMPLE_SCORES[d.key] ?? 50 }));
+const rows = DIMENSIONS.map((d) => ({ key: d.key, label: d.label, weight: d.weight, score: EXAMPLE_SCORES[d.key] }));
 const totalWeight = rows.reduce((a, r) => a + r.weight, 0);
 const overall = Math.round(rows.reduce((a, r) => a + r.score * r.weight, 0) / totalWeight);
 

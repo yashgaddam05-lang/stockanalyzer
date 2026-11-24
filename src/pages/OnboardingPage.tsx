@@ -1,3 +1,4 @@
+import { DIMENSIONS } from '@/lib/scoring';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -116,7 +117,7 @@ const GOAL_TIP: Record<InvestGoal, string> = {
   multibaggers: 'Open Explore and sort by 3x score: names above 70 with a rising score are the ones to research first.',
   track: 'Check the Your stocks table each week. A falling score or a jump in risk is your cue to look closer.',
   ideas: 'Use Explore with your sectors selected, then add anything interesting to a watchlist to compare it.',
-  learn: 'Open any stock and read its score breakdown: each of the 8 factors explains what pushed it up or down.',
+  learn: `Open any stock and read its score breakdown: each of the ${DIMENSIONS.length} factors explains what pushed it up or down.`,
 };
 
 const SECTORS_COLLAPSED = 12;
@@ -436,7 +437,7 @@ export default function OnboardingPage() {
               Your own research desk for finding the next big winners
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              3x Hunter scores US stocks from 0 to 100 on their potential to triple, using 8 factors: growth, valuation
+              3x Hunter scores US stocks from 0 to 100 on their potential to triple, using {DIMENSIONS.length} factors: room to triple, growth, valuation
               upside, momentum, fundamental quality, catalysts, market position, risk and market regime. Your dashboard
               shows only the stocks you choose, so it starts empty and becomes yours in about a minute.
             </p>

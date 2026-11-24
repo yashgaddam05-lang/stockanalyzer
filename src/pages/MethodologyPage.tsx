@@ -6,7 +6,7 @@ import { DimensionTable } from '@/components/methodology/DimensionTable';
 import { Disclaimer } from '@/components/methodology/Disclaimer';
 import { MethodologyToc, type TocItem } from '@/components/methodology/MethodologyToc';
 import { DATA_SOURCES, STOCK_CHECK_LIMITS as LIM } from '@/lib/data-provenance';
-import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type RiskLabel } from '@/lib/scoring';
+import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type DimensionKey, type RiskLabel } from '@/lib/scoring';
 
 const SECTIONS: TocItem[] = [
   { id: 'simple', label: 'The simple version' },
@@ -27,9 +27,11 @@ const SECTIONS: TocItem[] = [
   { id: 'disclaimer', label: 'Disclaimer' },
 ];
 
-/** One plain-language line per dimension, keyed to DIMENSIONS so weights never drift from the model. */
-const KID_LINES: Record<string, string> = {
+/** One plain-language line per dimension. Typed by DimensionKey so a new dimension cannot ship without its line. */
+const KID_LINES: Record<DimensionKey, string> = {
   growth: 'Is the lemonade stand selling more cups every month?',
+  headroom:
+    'How much bigger can the stand still get? A small stand can triple by adding a few customers; the biggest stand in town would need a whole new town.',
   valuation: 'Is the stand cheap to buy compared with how much lemonade it sells?',
   momentum: 'Are more and more kids lining up lately?',
   quality: 'Does it keep money after paying for lemons and sugar, without big debts?',

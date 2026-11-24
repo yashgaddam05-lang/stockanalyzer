@@ -2,6 +2,8 @@ import { DIMENSIONS, type DimensionKey } from '@/lib/scoring';
 
 /** Plain-language notes for dimensions whose stored input is itself derived. */
 const NOTES: Partial<Record<DimensionKey, string>> = {
+  headroom:
+    'How far the company is from tripling: market cap on a log scale ($1B and below scores highest, $1T and up lowest), plus the analyst mean and high targets as multiples of the price (needs 3+ analysts).',
   regime:
     'Computed daily from VIX, 10-year Treasury yield trend, SPY vs its 200-day MA and 3-month return, small-cap and Nasdaq relative strength, and sector ETF strength vs SPY; stored per stock.',
 };
