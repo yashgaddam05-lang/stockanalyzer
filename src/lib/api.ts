@@ -741,6 +741,7 @@ export type NewsItem = {
   url: string;
   published_at: string;
   thumbnail: string | null;
+  image?: string | null;
   tickers: string[];
   source: 'yahoo' | 'sec';
 };

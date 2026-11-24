@@ -175,8 +175,8 @@ function LandingHeadlines() {
           <div className="mt-6 grid gap-8 lg:grid-cols-[3fr_2fr]">
             {lead && (
               <a href={lead.url} target="_blank" rel="noopener noreferrer nofollow" className="group block">
-                {lead.thumbnail && (
-                  <img src={lead.thumbnail.replace(/resizefill_w140_h140\//, '')} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />
+                {(lead.image ?? lead.thumbnail) && (
+                  <img src={(lead.image ?? lead.thumbnail) as string} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />
                 )}
                 <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{lead.publisher} · {timeAgo(lead.published_at)}</p>
                 <p className="mt-1 font-display text-2xl font-semibold uppercase leading-tight tracking-[0.02em] text-neutral-950 group-hover:underline">{lead.title}</p>

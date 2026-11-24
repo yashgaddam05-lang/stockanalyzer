@@ -45,6 +45,7 @@ export type NewsItem = {
   url: string;
   published_at: string;
   thumbnail: string | null;
+  image?: string | null;
   tickers: string[];
   source: 'yahoo' | 'sec';
 };
@@ -68,6 +69,7 @@ export async function searchNews(query: string, count = 12): Promise<NewsItem[]>
     if (!/^https:\/\//.test(n.link)) continue;
     const res = n.thumbnail?.resolutions ?? [];
     const thumb = res.find((r) => r.tag === '140x140')?.url ?? res[res.length - 1]?.url ?? null;
+    const image = res.find((r) => r.tag === 'original')?.url ?? null;
     out.push({
       id: n.uuid ?? n.link,
       title: n.title,
@@ -75,6 +77,7 @@ export async function searchNews(query: string, count = 12): Promise<NewsItem[]>
       url: n.link,
       published_at: new Date(n.providerPublishTime * 1000).toISOString(),
       thumbnail: thumb && /^https:\/\//.test(thumb) ? thumb : null,
+      image: image && /^https:\/\//.test(image) ? image : null,
       tickers: Array.isArray(n.relatedTickers) ? n.relatedTickers.slice(0, 6) : [],
       source: 'yahoo',
     });

@@ -9,8 +9,8 @@ import { timeAgo } from '@/components/news/news-format';
 function LeadStory({ item }: { item: NewsItem }) {
   return (
     <a href={item.url} target="_blank" rel="noopener noreferrer nofollow" className="group relative block overflow-hidden bg-neutral-950 text-white">
-      {item.thumbnail && (
-        <img src={item.thumbnail.replace(/resizefill_w140_h140\//, '')} alt="" className="h-[340px] w-full object-cover opacity-70 transition-opacity group-hover:opacity-60 sm:h-[420px]" />
+      {(item.image ?? item.thumbnail) && (
+        <img src={(item.image ?? item.thumbnail) as string} alt="" className="h-[340px] w-full object-cover opacity-70 transition-opacity group-hover:opacity-60 sm:h-[420px]" />
       )}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-6 pt-24">
         <span className="live-pill">Top story</span>
@@ -33,7 +33,7 @@ export default function NewsPage() {
     getMarketNews().then((r) => setItems(r.items)).catch(() => setError(true));
   }, []);
 
-  const lead = items?.find((n) => n.thumbnail) ?? items?.[0];
+  const lead = items?.find((n) => n.image) ?? items?.find((n) => n.thumbnail) ?? items?.[0];
   const rest = (items ?? []).filter((n) => n !== lead);
   const tagged = rest.filter((n) => n.tickers.some((t) => covered.has(t)));
 

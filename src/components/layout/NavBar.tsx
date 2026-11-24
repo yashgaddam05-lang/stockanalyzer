@@ -183,13 +183,13 @@ export function NavBar() {
     <header className="nav-dark sticky top-0 z-30 border-b border-black bg-neutral-950 text-white">
       <TickerBar />
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-        <Link to="/app" className="flex items-center gap-2" aria-label="3x Hunter dashboard">
+        <Link to="/app" className="flex shrink-0 items-center gap-2" aria-label="3x Hunter dashboard">
           <div className="flex h-8 w-8 items-center justify-center border border-white/80">
             <TrendingUp className="h-4 w-4 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <p className="font-display text-[19px] font-semibold uppercase leading-none tracking-[0.22em]">3x Hunter</p>
-            <p className="mt-0.5 hidden text-[9px] uppercase tracking-[0.32em] text-neutral-400 sm:block">Opportunity Scanner</p>
+            <p className="whitespace-nowrap font-display text-[19px] font-semibold uppercase leading-none tracking-[0.2em]">3x Hunter</p>
+            <p className="mt-0.5 hidden whitespace-nowrap text-[9px] uppercase tracking-[0.3em] text-neutral-400 xl:block">Opportunity Scanner</p>
           </div>
         </Link>
 
