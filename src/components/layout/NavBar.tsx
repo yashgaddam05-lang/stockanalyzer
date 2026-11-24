@@ -9,6 +9,7 @@ import { StockSearch } from '@/components/search/StockSearch';
 import type { StockSearchHandle } from '@/components/search/StockSearch';
 import { cn } from '@/lib/utils';
 import { InstallAppButton } from '@/components/app-install/InstallApp';
+import { TickerBar } from '@/components/layout/TickerBar';
 
 type NavItem = { to: string; label: string; end: boolean };
 
@@ -16,14 +17,15 @@ type NavItem = { to: string; label: string; end: boolean };
 const PRIMARY_ITEMS: NavItem[] = [
   { to: '/app', label: 'Dashboard', end: true },
   { to: '/app/explore', label: 'Explore', end: false },
+  { to: '/app/news', label: 'News', end: false },
   { to: '/app/watchlists', label: 'Watchlists', end: false },
   { to: '/app/portfolios', label: 'Portfolios', end: false },
   { to: '/app/alerts', label: 'Alerts', end: false },
-  { to: '/app/catalysts', label: 'Catalysts', end: false },
 ];
 
 // Grouped under "More" on desktop to avoid overflow.
 const MORE_ITEMS: NavItem[] = [
+  { to: '/app/catalysts', label: 'Catalysts', end: false },
   { to: '/app/market', label: 'Market', end: false },
   { to: '/app/goal', label: '3x Goal Planner', end: false },
   { to: '/app/paper', label: 'Paper accounts', end: false },
@@ -86,8 +88,8 @@ function MoreMenu() {
         aria-expanded={open}
         aria-controls={menuId}
         className={cn(
-          'inline-flex items-center gap-1 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-          active ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+          'nav-link inline-flex items-center gap-1',
+          active && 'nav-link-active'
         )}
       >
         More
@@ -173,20 +175,21 @@ export function NavBar() {
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-      isActive ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+      'nav-link',
+      isActive && 'nav-link-active'
     );
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md">
+    <header className="nav-dark sticky top-0 z-30 border-b border-black bg-neutral-950 text-white">
+      <TickerBar />
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
         <Link to="/app" className="flex items-center gap-2" aria-label="3x Hunter dashboard">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900">
+          <div className="flex h-8 w-8 items-center justify-center border border-white/80">
             <TrendingUp className="h-4 w-4 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <p className="text-[15px] font-semibold tracking-tight">3x Hunter</p>
-            <p className="-mt-0.5 hidden text-[11px] text-muted-foreground sm:block">Opportunity Scanner</p>
+            <p className="font-display text-[19px] font-semibold uppercase leading-none tracking-[0.22em]">3x Hunter</p>
+            <p className="mt-0.5 hidden text-[9px] uppercase tracking-[0.32em] text-neutral-400 sm:block">Opportunity Scanner</p>
           </div>
         </Link>
 
@@ -199,12 +202,12 @@ export function NavBar() {
           <MoreMenu />
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="nav-controls flex items-center gap-2">
           <StockSearch
             ref={desktopSearchRef}
             compact
             placeholder="Search stocks"
-            className="hidden w-48 xl:block"
+            className="nav-search hidden w-48 xl:block"
           />
           <Button
             variant="ghost"
@@ -253,7 +256,7 @@ export function NavBar() {
       </div>
 
       {searchOpen && (
-        <div id="mobile-search" className="border-t border-border px-4 py-3 sm:px-8 xl:hidden">
+        <div id="mobile-search" className="nav-search border-t border-white/10 px-4 py-3 sm:px-8 xl:hidden">
           <div className="mx-auto max-w-6xl">
             <StockSearch autoFocus placeholder="Search any US stock or ETF" onDismiss={() => setSearchOpen(false)} />
           </div>
@@ -261,7 +264,7 @@ export function NavBar() {
       )}
 
       {menuOpen && (
-        <nav id="mobile-nav" className="border-t border-border px-4 py-2 lg:hidden" aria-label="Mobile">
+        <nav id="mobile-nav" className="border-t border-white/10 px-4 py-2 lg:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-1">
             {NAV_ITEMS.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>

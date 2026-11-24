@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/:route(agent-knowledge|watchlist-items|market-regime|smart-money|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolio-import|portfolios|assistant|watchlists|catalysts|positions|stock-add|watchlist|backtest|paper|billing|brokerage|filings|status|admin|alerts|stocks|voice)",
+      "source": "/api/:route(agent-knowledge|watchlist-items|market-regime|smart-money|price-history|score-history|alert-events|stock-search|data-health|preferences|portfolio-import|portfolios|assistant|watchlists|catalysts|positions|stock-add|leadership|watchlist|backtest|paper|billing|brokerage|filings|status|admin|alerts|stocks|voice|news)",
       "destination": "/api/router?__route=:route"
     },
     {

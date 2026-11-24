@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { getMarketNews, type NewsItem } from '@/lib/api';
+import { timeAgo } from '@/components/news/news-format';
 import { Link, useLocation } from 'react-router-dom';
 import {
   ArrowRight,
@@ -16,6 +18,8 @@ import {
   Grid3x3,
   History,
   LineChart,
+  Network,
+  Newspaper,
   ShieldAlert,
   type LucideIcon,
 } from 'lucide-react';
@@ -88,6 +92,16 @@ const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
     body: 'Track hypothetical positions with score, risk and sector exposure. No real money involved. Free during beta.',
   },
   {
+    icon: Newspaper,
+    title: 'Live news desk',
+    body: 'Market headlines, company stories and official 8-K filings on every stock, updated through the day.',
+  },
+  {
+    icon: Network,
+    title: 'Leadership & connections',
+    body: 'Who runs each company, what they are paid, governance risk, and the other boards their insiders sit on.',
+  },
+  {
     icon: FileSearch,
     title: 'SEC filings and insiders',
     body: 'Recent EDGAR filings and Form 4 insider activity on each stock, for context. Free during beta.',
@@ -131,10 +145,60 @@ const TRUST = [
 function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body?: string }) {
   return (
     <div className="max-w-2xl space-y-3">
-      <p className="text-[12px] font-semibold uppercase tracking-wider text-neutral-500">{eyebrow}</p>
-      <h2 className="text-2xl font-semibold leading-tight tracking-tight text-neutral-900 sm:text-3xl">{title}</h2>
+      <p className="eyebrow-label">{eyebrow}</p>
+      <h2 className="font-display text-3xl font-semibold uppercase leading-[1.02] tracking-[0.03em] text-neutral-950 sm:text-[42px]">{title}</h2>
       {body && <p className="text-[15px] leading-relaxed text-neutral-600">{body}</p>}
     </div>
+  );
+}
+
+function LandingHeadlines() {
+  const [items, setItems] = useState<NewsItem[] | null>(null);
+  useEffect(() => {
+    getMarketNews().then((r) => setItems(r.items.slice(0, 7))).catch(() => setItems([]));
+  }, []);
+  if (items && items.length === 0) return null;
+  const [lead, ...rest] = items ?? [];
+  return (
+    <section id="markets" className="scroll-mt-16 border-b border-border bg-white">
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-8">
+        <div className="flex items-end justify-between border-b-4 border-neutral-950 pb-3">
+          <div>
+            <p className="eyebrow-label">Market desk</p>
+            <h2 className="font-display text-3xl font-semibold uppercase tracking-[0.04em] text-neutral-950 sm:text-4xl">Right now in the markets</h2>
+          </div>
+          <span className="live-pill">Live</span>
+        </div>
+        {!items ? (
+          <Skeleton className="mt-6 h-64 w-full" />
+        ) : (
+          <div className="mt-6 grid gap-8 lg:grid-cols-[3fr_2fr]">
+            {lead && (
+              <a href={lead.url} target="_blank" rel="noopener noreferrer nofollow" className="group block">
+                {lead.thumbnail && (
+                  <img src={lead.thumbnail.replace(/resizefill_w140_h140\//, '')} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />
+                )}
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">{lead.publisher} · {timeAgo(lead.published_at)}</p>
+                <p className="mt-1 font-display text-2xl font-semibold uppercase leading-tight tracking-[0.02em] text-neutral-950 group-hover:underline">{lead.title}</p>
+              </a>
+            )}
+            <ol className="divide-y divide-border">
+              {rest.map((n, i) => (
+                <li key={n.id}>
+                  <a href={n.url} target="_blank" rel="noopener noreferrer nofollow" className="group flex gap-4 py-3">
+                    <span className="font-display text-2xl font-bold leading-none text-[hsl(var(--live))]">{i + 1}</span>
+                    <span>
+                      <span className="block text-[14px] font-semibold leading-snug text-neutral-900 group-hover:underline">{n.title}</span>
+                      <span className="mt-0.5 block text-[11px] uppercase tracking-[0.12em] text-neutral-500">{n.publisher} · {timeAgo(n.published_at)}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -152,36 +216,37 @@ export default function LandingPage() {
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
+      <section className="relative overflow-hidden border-b border-black bg-neutral-950 text-white">
         <div
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:48px_48px] opacity-50 [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_75%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_70%_20%,rgba(255,255,255,0.10),transparent_55%),linear-gradient(to_bottom,transparent_60%,rgba(0,0,0,0.6))]"
           aria-hidden="true"
         />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-[hsl(var(--live))]" aria-hidden="true" />
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-16">
           <div className="animate-slide-up space-y-6">
-            <p className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[12px] font-medium text-neutral-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              Free during beta
+            <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+              <span className="live-dot" aria-hidden="true" />
+              Live scores · Live headlines · Free to start
             </p>
-            <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-neutral-900 sm:text-5xl">
-              Find stocks with room to run. See exactly why.
+            <h1 className="font-display text-5xl font-semibold uppercase leading-[0.95] tracking-[0.02em] text-white sm:text-7xl">
+              Find stocks with room to run. <span className="text-neutral-400">See exactly why.</span>
             </h1>
-            <p className="max-w-xl text-[17px] leading-relaxed text-neutral-600">
+            <p className="max-w-xl text-[17px] leading-relaxed text-neutral-300">
               3x Hunter ranks stocks with a transparent 0-100 3x Opportunity Score built from {DIMENSIONS.length}{' '}
               weighted dimensions, paired with an independent risk score. Every number shows its inputs.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button asChild size="lg" className="gap-2 px-6">
+              <Button asChild size="lg" className="gap-2 bg-white px-7 text-[13px] font-semibold uppercase tracking-[0.14em] text-neutral-950 hover:bg-neutral-200">
                 <Link to="/signup">
                   Get started
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="px-6">
+              <Button asChild size="lg" variant="outline" className="border-white/40 bg-transparent px-7 text-[13px] font-semibold uppercase tracking-[0.14em] text-white hover:bg-white/10 hover:text-white">
                 <Link to="/methodology">See methodology</Link>
               </Button>
             </div>
-            <p className="text-[12px] text-neutral-500">No credit card. Educational research tool, not investment advice.</p>
+            <p className="text-[12px] text-neutral-400">No credit card. Educational research tool, not investment advice.</p>
           </div>
 
           <div className="animate-fade-in">
@@ -189,6 +254,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Markets: live headlines */}
+      <LandingHeadlines />
 
       {/* Features */}
       <section id="features" className="scroll-mt-16">
@@ -198,7 +266,7 @@ export default function LandingPage() {
             title="Research tools built around one honest score"
             body="Everything you need to go from a long list of tickers to a short list worth your time."
           />
-          <div className="grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-px overflow-hidden border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <div key={f.title} className="space-y-3 bg-background p-6 transition-colors hover:bg-neutral-50">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-neutral-50">
@@ -277,8 +345,8 @@ export default function LandingPage() {
 
       {/* Final CTA */}
       <section className="px-4 pb-16 sm:px-8 sm:pb-24">
-        <div className="mx-auto max-w-6xl rounded-2xl bg-neutral-900 px-6 py-12 text-center sm:px-12 sm:py-16">
-          <h2 className="mx-auto max-w-2xl text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl">
+        <div className="mx-auto max-w-6xl border-t-4 border-[hsl(var(--live))] bg-neutral-950 px-6 py-12 text-center sm:px-12 sm:py-16">
+          <h2 className="mx-auto max-w-2xl font-display text-3xl font-semibold uppercase leading-tight tracking-[0.04em] text-white sm:text-5xl">
             Start building your short list today
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-[15px] leading-relaxed text-neutral-300">

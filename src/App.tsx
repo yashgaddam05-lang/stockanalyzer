@@ -17,6 +17,7 @@ const PricingPage = lazy(() => import('@/pages/marketing/PricingPage'));
 const LegalPage = lazy(() => import('@/pages/marketing/LegalPage'));
 const MethodologyPage = lazy(() => import('@/pages/MethodologyPage'));
 const TrackRecordPage = lazy(() => import('@/pages/TrackRecordPage'));
+const NewsPage = lazy(() => import('@/pages/NewsPage'));
 
 // Auth pages.
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
@@ -132,6 +133,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="welcome" element={<OnboardingPage />} />
             <Route path="explore" element={<ExplorePage />} />
+            <Route path="news" element={<NewsPage />} />
             <Route path="stock/:ticker" element={<StockDetailPage />} />
             <Route path="watchlists" element={<WatchlistsPage />} />
             <Route path="catalysts" element={<CatalystsRoute />} />

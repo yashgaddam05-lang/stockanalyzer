@@ -8,7 +8,9 @@ import backtest from './_routes/backtest.js';
 import catalysts from './_routes/catalysts.js';
 import dataHealth from './_routes/data-health.js';
 import filings from './_routes/filings.js';
+import leadership from './_routes/leadership.js';
 import marketRegime from './_routes/market-regime.js';
+import news from './_routes/news.js';
 import portfolioImport from './_routes/portfolio-import.js';
 import portfolios from './_routes/portfolios.js';
 import positions from './_routes/positions.js';
@@ -39,7 +41,9 @@ const ROUTES: Record<string, Handler> = {
   'catalysts': catalysts,
   'data-health': dataHealth,
   'filings': filings,
+  'leadership': leadership,
   'market-regime': marketRegime,
+  'news': news,
   'portfolio-import': portfolioImport,
   'paper': async (req, res) => (await import('./_routes/paper.js')).default(req, res),
   'portfolios': portfolios,

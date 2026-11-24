@@ -732,3 +732,62 @@ export function syncBrokerage(): Promise<{ accounts?: number; positions?: number
 export function disconnectBrokerage(): Promise<{ disconnected: boolean }> {
   return request<{ disconnected: boolean }>('/api/brokerage', { method: 'POST', body: JSON.stringify({ action: 'disconnect' }) });
 }
+
+// ---------- News + leadership ----------
+export type NewsItem = {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string;
+  published_at: string;
+  thumbnail: string | null;
+  tickers: string[];
+  source: 'yahoo' | 'sec';
+};
+
+export type CompanyNewsResponse = { ticker: string; items: NewsItem[]; filings: NewsItem[] };
+export type MarketNewsResponse = { items: NewsItem[] };
+export type PersonNewsResponse = { person: string; items: NewsItem[] };
+
+export type Connection = { ticker: string; relationship: string | null };
+export type InsiderSummaryRow = {
+  name: string;
+  relationship: string | null;
+  last_trade: string | null;
+  buys: number;
+  sells: number;
+  net_value: number;
+  connections: Connection[];
+};
+export type OfficerRow = {
+  name: string;
+  title: string;
+  age: number | null;
+  year_born: number | null;
+  total_pay: number | null;
+  insider_name: string | null;
+  connections: Connection[];
+};
+export type LeadershipResponse = {
+  ticker: string;
+  officers: OfficerRow[];
+  governance: { audit: number | null; board: number | null; compensation: number | null; shareholder_rights: number | null; overall: number | null } | null;
+  employees: number | null;
+  insiders: InsiderSummaryRow[];
+};
+
+export function getCompanyNews(ticker: string): Promise<CompanyNewsResponse> {
+  return request<CompanyNewsResponse>(`/api/news?${new URLSearchParams({ ticker }).toString()}`);
+}
+export function getMarketNews(): Promise<MarketNewsResponse> {
+  return request<MarketNewsResponse>('/api/news');
+}
+export function getPersonNews(person: string, company?: string): Promise<PersonNewsResponse> {
+  const p = new URLSearchParams({ person });
+  const co = company?.replace(/[^A-Za-z .'-]/g, ' ').replace(/\b(inc|corp|corporation|co|ltd|plc|holdings)\b\.?/gi, '').replace(/\s+/g, ' ').trim().slice(0, 59);
+  if (co && co.length > 1) p.set('company', co);
+  return request<PersonNewsResponse>(`/api/news?${p.toString()}`);
+}
+export function getLeadership(ticker: string): Promise<LeadershipResponse> {
+  return request<LeadershipResponse>(`/api/leadership?${new URLSearchParams({ ticker }).toString()}`);
+}

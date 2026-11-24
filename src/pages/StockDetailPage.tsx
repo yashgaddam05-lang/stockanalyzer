@@ -21,6 +21,8 @@ import type { PriceChartMarker } from '@/components/stock-detail/PriceChart';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { SecActivityPanel } from '@/components/filings/SecActivityPanel';
 import { SmartMoneyPanel } from '@/components/stock-detail/SmartMoneyPanel';
+import { StockNewsPanel } from '@/components/news/StockNewsPanel';
+import { LeadershipPanel } from '@/components/news/LeadershipPanel';
 import { CreateAlertButton } from '@/components/alerts';
 import { AddPositionButton } from '@/components/portfolio';
 import type { Catalyst } from '@/lib/supabase';
@@ -164,6 +166,10 @@ export default function StockDetailPage() {
           <ScoreHistoryPanel ticker={stock.ticker} />
         </div>
       </div>
+
+      <StockNewsPanel ticker={stock.ticker} />
+
+      <LeadershipPanel ticker={stock.ticker} company={stock.company_name} />
 
       <SmartMoneyPanel ticker={stock.ticker} sector={stock.sector} />
 

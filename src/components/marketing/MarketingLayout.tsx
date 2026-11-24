@@ -16,29 +16,29 @@ const AssistantWidget = lazy(() => import('@/components/assistant/AssistantWidge
 const NAV_LINKS = [
   { to: '/#features', label: 'Features' },
   { to: '/#how-it-works', label: 'How it works' },
+  { to: '/#markets', label: 'Markets' },
   { to: '/methodology', label: 'Methodology' },
   { to: '/pricing', label: 'Pricing' },
 ];
 
-function Wordmark() {
+function Wordmark({ dark = false }: { dark?: boolean }) {
   return (
-    <Link to="/" className="flex items-center gap-2" aria-label="3x Hunter home">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900">
+    <Link to="/" className="flex items-center gap-2.5" aria-label="3x Hunter home">
+      <span className={cn('flex h-8 w-8 items-center justify-center border', dark ? 'border-white/80' : 'border-neutral-900 bg-neutral-900')}>
         <TrendingUp className="h-4 w-4 text-white" strokeWidth={2.5} aria-hidden="true" />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight text-neutral-900">3x Hunter</span>
+      <span className={cn('font-display text-[19px] font-semibold uppercase leading-none tracking-[0.22em]', dark ? 'text-white' : 'text-neutral-900')}>
+        3x Hunter
+      </span>
     </Link>
   );
 }
 
 function navLinkClass(active: boolean) {
-  return cn(
-    'rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-    active ? 'text-neutral-900' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
-  );
+  return cn('nav-link', active && 'nav-link-active');
 }
 
-function AuthActions({ stacked = false }: { stacked?: boolean }) {
+function AuthActions({ stacked = false, dark = false }: { stacked?: boolean; dark?: boolean }) {
   const { user, loading } = useAuth();
   const wrap = cn('flex items-center gap-2', stacked && 'flex-col items-stretch');
 
@@ -46,13 +46,14 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
     return <div className={cn(wrap, 'h-9', !stacked && 'w-[168px]')} aria-hidden="true" />;
   }
 
-  const install = <InstallAppButton variant={stacked ? 'outline' : 'ghost'} className={stacked ? '' : 'hidden md:inline-flex'} />;
+  const install = <InstallAppButton variant={stacked ? 'outline' : 'ghost'} className={stacked ? '' : cn('hidden md:inline-flex', dark && 'text-neutral-300 hover:bg-white/10 hover:text-white')} />;
+  const solid = dark ? 'bg-white text-neutral-950 hover:bg-neutral-200' : '';
 
   if (user) {
     return (
       <div className={wrap}>
         {install}
-        <Button asChild size="sm" className="h-9 gap-1.5 text-[13px]">
+        <Button asChild size="sm" className={cn("h-9 gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em]", solid)}>
           <Link to="/app">
             Dashboard
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -65,10 +66,10 @@ function AuthActions({ stacked = false }: { stacked?: boolean }) {
   return (
     <div className={wrap}>
       {install}
-      <Button asChild variant={stacked ? 'outline' : 'ghost'} size="sm" className="h-9 text-[13px]">
+      <Button asChild variant={stacked ? 'outline' : 'ghost'} size="sm" className={cn("h-9 text-[12px] font-semibold uppercase tracking-[0.12em]", dark && "text-neutral-200 hover:bg-white/10 hover:text-white")}>
         <Link to="/login">Sign in</Link>
       </Button>
-      <Button asChild size="sm" className="h-9 text-[13px]">
+      <Button asChild size="sm" className={cn("h-9 text-[12px] font-semibold uppercase tracking-[0.12em]", solid)}>
         <Link to="/signup">Sign up</Link>
       </Button>
     </div>
@@ -99,9 +100,9 @@ export function MarketingLayout() {
         Skip to content
       </a>
 
-      <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md">
+      <header className="nav-dark sticky top-0 z-30 border-b border-black bg-neutral-950 text-white">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-8">
-          <Wordmark />
+          <Wordmark dark />
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
             {NAV_LINKS.map((l) =>
@@ -118,12 +119,12 @@ export function MarketingLayout() {
           </nav>
 
           <div className="hidden md:block">
-            <AuthActions />
+            <AuthActions dark />
           </div>
 
           <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
             <DialogPrimitive.Trigger asChild>
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 md:hidden" aria-label="Open menu">
+              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-white hover:bg-white/10 hover:text-white md:hidden" aria-label="Open menu">
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </Button>
             </DialogPrimitive.Trigger>
