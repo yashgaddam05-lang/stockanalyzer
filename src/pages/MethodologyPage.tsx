@@ -6,7 +6,7 @@ import { DimensionTable } from '@/components/methodology/DimensionTable';
 import { Disclaimer } from '@/components/methodology/Disclaimer';
 import { MethodologyToc, type TocItem } from '@/components/methodology/MethodologyToc';
 import { DATA_SOURCES, STOCK_CHECK_LIMITS as LIM } from '@/lib/data-provenance';
-import { DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type DimensionKey, type RiskLabel } from '@/lib/scoring';
+import { DIMENSION_EXPLAINERS, DIMENSIONS, MODEL_VERSION, PRESET_SCREENS, riskLabelFor, type RiskLabel } from '@/lib/scoring';
 
 const SECTIONS: TocItem[] = [
   { id: 'simple', label: 'The simple version' },
@@ -26,20 +26,6 @@ const SECTIONS: TocItem[] = [
   { id: 'data', label: 'Data and limitations' },
   { id: 'disclaimer', label: 'Disclaimer' },
 ];
-
-/** One plain-language line per dimension. Typed by DimensionKey so a new dimension cannot ship without its line. */
-const KID_LINES: Record<DimensionKey, string> = {
-  growth: 'Is the lemonade stand selling more cups every month?',
-  headroom:
-    'How much bigger can the stand still get? A small stand can triple by adding a few customers; the biggest stand in town would need a whole new town.',
-  valuation: 'Is the stand cheap to buy compared with how much lemonade it sells?',
-  momentum: 'Are more and more kids lining up lately?',
-  quality: 'Does it keep money after paying for lemons and sugar, without big debts?',
-  catalyst: 'Is something new coming soon, like a new flavor or a summer fair?',
-  position: 'Is it a stand people already know, not one hidden down an alley?',
-  risk: 'Does business swing wildly from day to day? Calmer is better here.',
-  regime: 'Is it a sunny week for lemonade, or is everyone indoors?',
-};
 
 const REGIME_INPUTS = [
   'VIX level (market volatility)',
@@ -150,7 +136,7 @@ export default function MethodologyPage() {
                   <li key={d.key} className="flex gap-3 text-sm">
                     <span className="w-12 shrink-0 text-right font-semibold tabular-nums text-neutral-900">{d.weight}%</span>
                     <span className="text-neutral-700">
-                      <span className="font-medium text-neutral-900">{d.label}:</span> {KID_LINES[d.key] ?? ''}
+                      <span className="font-medium text-neutral-900">{d.label}:</span> {DIMENSION_EXPLAINERS[d.key].plain}
                     </span>
                   </li>
                 ))}

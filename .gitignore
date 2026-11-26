@@ -26,3 +26,6 @@ dist-ssr
 scripts/track-record/data/
 scripts/smart-money/data/
 scripts/allocations/data/
+
+# Generated OKF bundle (scripts/okf)
+public/okf/

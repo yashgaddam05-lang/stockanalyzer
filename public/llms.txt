@@ -1,0 +1,21 @@
+# 3x Hunter
+
+> 3x Hunter is an educational US stock research app. It scores stocks 0-100 on how well they fit the profile of companies with room to triple (the 3x Opportunity Score), with a separate risk score and a data quality grade on every stock. Not investment advice.
+
+The full methodology is published as an Open Knowledge Format (OKF v0.3) bundle: plain Markdown with YAML frontmatter, generated from the scoring code on every deploy, licensed CC-BY-4.0.
+
+## Knowledge bundle (OKF)
+
+- [Bundle index](https://3xhunter.com/okf/index.md): start here
+- [3x Opportunity Score](https://3xhunter.com/okf/scoring/3x-score.md): what it measures, the 9 dimensions and weights, how to read it
+- [Room to 3x](https://3xhunter.com/okf/scoring/room-to-3x.md): the largest dimension (20%)
+- [Risk score](https://3xhunter.com/okf/scoring/risk-score.md): bands and inputs
+- [Data quality grades](https://3xhunter.com/okf/data/quality-grades.md): the 8 checks behind Verified, Good, Check and Unreliable
+- [How to read a score](https://3xhunter.com/okf/playbooks/read-a-score.md)
+
+## Site
+
+- [Methodology](https://3xhunter.com/methodology)
+- [Track record](https://3xhunter.com/track-record)
+- [News desk](https://3xhunter.com/news)
+- [Pricing](https://3xhunter.com/pricing)

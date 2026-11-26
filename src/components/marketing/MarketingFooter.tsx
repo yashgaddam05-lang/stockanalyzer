@@ -73,6 +73,13 @@ export function MarketingFooter() {
             Market data sourced from Yahoo Finance and may be delayed, incomplete or inaccurate. 3x Hunter is not
             affiliated with Yahoo.
           </p>
+          <p className="text-[12px] text-neutral-500">
+            For AI agents: our methodology is published as an{' '}
+            <a href="/okf/index.md" className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">
+              Open Knowledge Format bundle
+            </a>{' '}
+            (<a href="/llms.txt" className="text-neutral-300 underline-offset-2 hover:text-white hover:underline">llms.txt</a>).
+          </p>
           <p className="pt-2 text-[12px] text-neutral-500">&copy; {year} 3x Hunter. All rights reserved.</p>
         </div>
       </div>

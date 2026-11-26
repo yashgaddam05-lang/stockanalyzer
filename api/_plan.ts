@@ -3,6 +3,9 @@ import Stripe from 'stripe';
 import { supabaseAdmin, hasServiceRole } from './_supabase.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CREDIT_PACK, type Level } from './_ai.js';
+import { PLAN_PRICES } from './_prices.js';
+
+export { PLAN_PRICES };
 
 export type Plan = 'free' | 'pro';
 
@@ -22,16 +25,6 @@ export interface PlanState {
 
 export type PaidPlan = 'pro' | 'pro_plus';
 
-export const PLAN_PRICES = {
-  pro: {
-    month: { lookupKey: '3xh_pro_monthly', amount: 1900, label: '$19 / month' },
-    year: { lookupKey: '3xh_pro_annual', amount: 14900, label: '$149 / year' },
-  },
-  pro_plus: {
-    month: { lookupKey: '3xh_plus_monthly', amount: 4900, label: '$49 / month' },
-    year: { lookupKey: '3xh_plus_annual', amount: 39900, label: '$399 / year' },
-  },
-} as const;
 /** Pro prices (kept for existing callers). */
 export const PRICES = PLAN_PRICES.pro;
 
