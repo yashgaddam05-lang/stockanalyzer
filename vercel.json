@@ -8,14 +8,6 @@
       "destination": "/api/router?__route=:route"
     },
     {
-      "source": "/okf",
-      "destination": "/okf/index.md"
-    },
-    {
-      "source": "/okf/",
-      "destination": "/okf/index.md"
-    },
-    {
       "source": "/okf/:dir/",
       "destination": "/okf/:dir/index.md"
     },
@@ -207,6 +199,18 @@
           "value": "*"
         }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/okf",
+      "destination": "/okf/index.md",
+      "permanent": true
+    },
+    {
+      "source": "/okf/",
+      "destination": "/okf/index.md",
+      "permanent": true
     }
   ]
 }
